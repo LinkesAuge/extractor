@@ -196,6 +196,10 @@ export class OcrProcessor {
    * Name extrahieren: Text auf derselben Zeile RUECKWAERTS von den Koordinaten.
    * Strategie: Vom Koordinaten-Anfang rueckwaerts zum Zeilenanfang,
    * dann iterativ fuehrende Rausch-Tokens entfernen.
+   *
+   * Fallback-Kette: Wenn alle Tokens als Noise erkannt werden, wird der
+   * BESTE Zwischenstand verwendet (letzte Version mit >= 2 Zeichen),
+   * nicht der volle Originaltext mit allen Artefakten.
    */
   _extractName(text, coordIndex) {
     // Text vom Zeilenanfang bis zu den Koordinaten
@@ -210,22 +214,30 @@ export class OcrProcessor {
     // OCR liest Portrait-Bilder und Level-Badges als zufaellige Zeichen.
     // Diese stehen IMMER VOR dem eigentlichen Namen.
     const saved = raw;
+    let bestCandidate = raw; // Bester Zwischenstand (letzte gueltige Version)
+
     while (raw.length > 0) {
       const m = raw.match(/^(\S+)\s+/);
       if (!m) break;
       const tok = m[1];
       if (this._isNoiseToken(tok)) {
         raw = raw.substring(m[0].length);
+        // Zwischenstand nur aktualisieren wenn noch gueltig (>= 2 Zeichen)
+        if (raw.length >= 2) bestCandidate = raw;
       } else {
         break;
       }
     }
 
-      // Schritt 3: Nur einzelne Trailing-Buchstaben entfernen (OCR-Artefakte)
-      // z.B. "Koriander d" → "Koriander", aber "Drachen 2" bleibt!
-      raw = raw.replace(/\s+[a-zäöü]$/, '').trim();
+    // Schritt 3: Nur einzelne Trailing-Buchstaben entfernen (OCR-Artefakte)
+    // z.B. "Koriander d" → "Koriander", aber "Drachen 2" bleibt!
+    raw = raw.replace(/\s+[a-zäöü]$/, '').trim();
 
-    // Fallback: wenn alles entfernt wurde, Original mit minimalem Clean
+    // Fallback-Kette:
+    // 1) Aktuelles Ergebnis (nach allen Strippings)
+    // 2) Bester Zwischenstand (vor dem letzten Noise-Token-Stripping)
+    // 3) Original (mit minimalem Clean)
+    if (raw.length < 2) raw = bestCandidate;
     if (raw.length < 2) raw = saved;
 
     return raw;
@@ -250,17 +262,18 @@ export class OcrProcessor {
     }
 
     // ─── 3-4 Zeichen: nur klare Muster ───
-    // WICHTIG: "Mok", "Sin", "Jim", "Ball" etc. werden NICHT als Noise behandelt!
-    // (1 Grossbuchstabe + Kleinbuchstaben = typisches Namensmuster)
-    // Nur All-Uppercase, Uppercase-Heavy und Buchstabe+Zahl-Mixe sind Noise.
+    // WICHTIG: Nur 1-3 Zeichen All-Uppercase als Noise ("EEG", "YAS")
+    // 4-Zeichen Uppercase wie "ATON" werden BEHALTEN (koennte Teil eines Namens sein).
+    // Tokens mit gemischten Ziffern+Buchstaben sind immer Noise ("G5Y", "A1B").
     if (tok.length <= 4) {
+      // Jeder Token der Buchstaben UND Ziffern mischt → Noise
+      if (/\d/.test(tok) && /[a-zA-ZäöüÄÖÜß]/.test(tok)) return true;
+
       return (
-        /^[A-ZÄÖÜ]{3,4}$/.test(tok) ||            // All-Uppercase: "EEG", "YAS", "WER"
-        /^[A-ZÄÖÜ]{2,3}[a-zäöü]$/.test(tok) ||   // 2-3 Upper + 1 Lower: "OEy", "ICh", "AGs"
+        /^[A-ZÄÖÜ]{3}$/.test(tok) ||              // 3-char All-Uppercase: "EEG", "YAS"
+        /^[A-ZÄÖÜ]{2,3}[a-zäöü]$/.test(tok) ||   // 2-3 Upper + 1 Lower: "OEy", "ICh"
         /^\d+$/.test(tok) ||                         // reine Zahlen: "200", "7900"
-        /^[^a-zA-ZäöüÄÖÜß]+$/.test(tok) ||        // keine Buchstaben: "...", "---"
-        /^[A-Za-zäöüÄÖÜß]+\d+$/.test(tok) ||     // Buchstabe+Zahl: "gS73", "B23"
-        /^\d+[A-Za-zäöüÄÖÜß]+$/.test(tok)          // Zahl+Buchstabe: "77a", "3D"
+        /^[^a-zA-ZäöüÄÖÜß]+$/.test(tok)            // keine Buchstaben: "...", "---"
       );
     }
 
@@ -395,6 +408,95 @@ export class OcrProcessor {
   }
 
   /**
+   * Namensbasierte Deduplizierung.
+   *
+   * Probleme die geloest werden:
+   * 1) Gleicher Name, leicht unterschiedliche Koordinaten (OCR-Fehler)
+   *    → Behalte den mit dem hoeheren Score.
+   * 2) Ein Name ist Suffix eines anderen durch Noise-Prefix
+   *    (z.B. "FACH Iceman" vs "Iceman", "ATON Fabby" vs "Fabby")
+   *    → Behalte den laengeren Namen (der enthalt den echten Prefix).
+   *    Aber NUR wenn der Suffix-Match >= 60% der laengeren Variante ist.
+   */
+  _deduplicateByName(members) {
+    // ─── Pass 1: Exakte Namens-Duplikate (case-insensitive) ─────
+    const nameMap = new Map(); // lowercase-name → index in result
+    const result = [];
+
+    for (const m of members) {
+      const key = m.name.toLowerCase().trim();
+      if (nameMap.has(key)) {
+        const idx = nameMap.get(key);
+        const existing = result[idx];
+        // Hoeheren Score behalten
+        if (m.score > existing.score) {
+          existing.score = m.score;
+          existing.coords = m.coords;
+        }
+        this.logger.info(`  ✕ Duplikat entfernt: "${m.name}" (${m.coords}) — behalte Score ${existing.score.toLocaleString('de-DE')}`);
+      } else {
+        nameMap.set(key, result.length);
+        result.push({ ...m });
+      }
+    }
+
+    // ─── Pass 2: Suffix-Matching (Noise-Prefix Bereinigung) ────
+    // "FACH Iceman" und "Iceman" → behalte "Iceman" (kuerzere Version)
+    // "ATON Fabby" und "Fabby" → behalte "ATON Fabby" (laengere = echter Prefix)
+    // Strategie: Wenn ein Name komplett am Ende eines anderen vorkommt,
+    // und der Prefix-Teil aussieht wie Noise, behalte den kuerzeren.
+    // Wenn der Prefix-Teil wie ein echter Namensteil aussieht, behalte den laengeren.
+    const toRemove = new Set();
+
+    for (let i = 0; i < result.length; i++) {
+      if (toRemove.has(i)) continue;
+      for (let j = i + 1; j < result.length; j++) {
+        if (toRemove.has(j)) continue;
+
+        const nameA = result[i].name;
+        const nameB = result[j].name;
+        const lowerA = nameA.toLowerCase();
+        const lowerB = nameB.toLowerCase();
+
+        let longer, shorter, longerIdx, shorterIdx;
+        if (lowerA.endsWith(lowerB) && lowerA !== lowerB) {
+          longer = result[i]; shorter = result[j]; longerIdx = i; shorterIdx = j;
+        } else if (lowerB.endsWith(lowerA) && lowerA !== lowerB) {
+          longer = result[j]; shorter = result[i]; longerIdx = j; shorterIdx = i;
+        } else {
+          continue;
+        }
+
+        // Pruefen: Ist der Prefix-Teil Noise?
+        const prefix = longer.name.substring(0, longer.name.length - shorter.name.length).trim();
+        const prefixTokens = prefix.split(/\s+/).filter(Boolean);
+        const allNoise = prefixTokens.length > 0 && prefixTokens.every(t => this._isNoiseToken(t));
+
+        if (allNoise) {
+          // Prefix ist Noise → kuerzeren (sauberen) Namen behalten
+          const keep = shorter;
+          const remove = longer;
+          const removeIdx = longerIdx;
+          // Hoeheren Score uebernehmen
+          if (remove.score > keep.score) keep.score = remove.score;
+          toRemove.add(removeIdx);
+          this.logger.info(`  ✕ Noise-Prefix entfernt: "${remove.name}" → behalte "${keep.name}"`);
+        } else {
+          // Prefix ist echt → laengeren Namen behalten (z.B. "ATON Fabby")
+          const keep = longer;
+          const remove = shorter;
+          const removeIdx = shorterIdx;
+          if (remove.score > keep.score) keep.score = remove.score;
+          toRemove.add(removeIdx);
+          this.logger.info(`  ✕ Kurzname zusammengefuehrt: "${remove.name}" → behalte "${keep.name}"`);
+        }
+      }
+    }
+
+    return result.filter((_, idx) => !toRemove.has(idx));
+  }
+
+  /**
    * Alle Screenshots in einem Ordner verarbeiten.
    * Verwendet Dual-Pass OCR: Haupt-Pass fuer Namen/Koordinaten,
    * Greyscale-Verifikation fuer Score-Korrektur.
@@ -501,7 +603,16 @@ export class OcrProcessor {
       await verifyWorker.terminate();
     }
 
-    const members = Array.from(allMembers.values());
+    // ─── Post-Processing: Namensbasierte Deduplizierung ─────────
+    let members = Array.from(allMembers.values());
+    const beforeDedup = members.length;
+
+    members = this._deduplicateByName(members);
+
+    if (members.length < beforeDedup) {
+      this.logger.info(`Namens-Dedup: ${beforeDedup - members.length} Duplikat(e) entfernt.`);
+    }
+
     this.logger.success(`OCR abgeschlossen: ${members.length} Mitglieder gefunden.`);
     return members;
   }
