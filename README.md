@@ -79,6 +79,12 @@ assets/
 - JavaScript-Dateien
 - Fonts
 
+## Mitglieder Extractor
+
+Zusaetzlich zum Asset-Extractor enthalt dieses Repository den **[Mitglieder Extractor](mitglieder-extractor/)** — eine Electron-Desktop-App zum automatischen Erfassen und Auswerten von Clan-Mitgliederlisten via Scroll-Capture und OCR.
+
+Siehe [mitglieder-extractor/README.md](mitglieder-extractor/README.md) fuer Details.
+
 ## Lizenz
 
 MIT

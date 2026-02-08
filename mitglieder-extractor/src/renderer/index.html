@@ -19,6 +19,8 @@
   <nav class="tab-bar">
     <button class="tab-btn active" data-tab="settings">Einstellungen</button>
     <button class="tab-btn" data-tab="capture">Aufnahme &amp; Ergebnisse</button>
+    <button class="tab-btn" data-tab="validation">Validierung</button>
+    <button class="tab-btn" data-tab="history">History</button>
   </nav>
 
   <main class="container">
@@ -124,11 +126,23 @@
       <section class="section" id="ocrSettingsSection">
         <h2 class="section-title">
           OCR Einstellungen
-          <label class="toggle-label">
-            <span class="toggle-hint">Auto-OCR</span>
-            <input type="checkbox" id="autoOcrEnabled" class="toggle-checkbox" checked>
-            <span class="toggle-text" id="autoOcrToggleText">An</span>
-          </label>
+          <div class="section-title-actions" style="gap: 12px;">
+            <label class="toggle-label has-tooltip" data-tooltip="Startet OCR automatisch nach jedem Capture-Durchlauf.">
+              <span class="toggle-hint">Auto-OCR</span>
+              <input type="checkbox" id="autoOcrEnabled" class="toggle-checkbox" checked>
+              <span class="toggle-text" id="autoOcrToggleText">An</span>
+            </label>
+            <label class="toggle-label has-tooltip" data-tooltip="Validiert OCR-Ergebnisse automatisch gegen die Validierungsliste. Bei Fehlern wird ein Hinweis angezeigt.">
+              <span class="toggle-hint">Auto-Valid.</span>
+              <input type="checkbox" id="autoValidationEnabled" class="toggle-checkbox" checked>
+              <span class="toggle-text" id="autoValidationToggleText">An</span>
+            </label>
+            <label class="toggle-label has-tooltip" data-tooltip="Speichert die CSV-Datei automatisch wenn die Validierung fehlerfrei ist (alle Namen bestaetigt/korrigiert).">
+              <span class="toggle-hint">Auto-Save</span>
+              <input type="checkbox" id="autoSaveEnabled" class="toggle-checkbox" checked>
+              <span class="toggle-text" id="autoSaveToggleText">An</span>
+            </label>
+          </div>
         </h2>
         <div class="ocr-settings-grid">
           <div class="control-row">
@@ -139,8 +153,8 @@
           <div class="control-row">
             <label class="label has-tooltip" data-tooltip="Konvertiert das Bild in Graustufen. Kann die Erkennung bei farbigem Hintergrund verbessern und dient als Verifikations-Pass fuer Scores.">Graustufen:</label>
             <label class="toggle-label">
-              <input type="checkbox" id="ocrGreyscale" class="toggle-checkbox">
-              <span class="toggle-text" id="ocrGreyscaleText">Aus</span>
+              <input type="checkbox" id="ocrGreyscale" class="toggle-checkbox" checked>
+              <span class="toggle-text" id="ocrGreyscaleText">An</span>
             </label>
           </div>
           <div class="control-row">
@@ -261,6 +275,12 @@
             </table>
           </div>
         </div>
+        <!-- Validierungs-Hinweis im Aufnahme-Tab -->
+        <div id="ocrValidationBanner" class="ocr-validation-banner" style="display:none;">
+          <span id="ocrValidationIcon" class="ocr-validation-icon"></span>
+          <span id="ocrValidationMsg" class="ocr-validation-msg"></span>
+          <button id="btnGoToValidation" class="btn btn-small btn-primary">Zur Validierung</button>
+        </div>
       </section>
 
       <!-- Log Section -->
@@ -270,6 +290,147 @@
           <button id="btnClearLog" class="btn btn-small btn-secondary">Log leeren</button>
         </h2>
         <div id="logContainer" class="log-container"></div>
+      </section>
+
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- TAB 3: VALIDIERUNG                                             -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <div id="tab-validation" class="tab-content">
+
+      <!-- Validierungsstatus -->
+      <section class="section">
+        <h2 class="section-title">
+          Validierungsstatus
+          <div class="section-title-actions">
+            <span id="validationSummary" class="info-text"></span>
+          </div>
+        </h2>
+        <div id="validationEmptyHint" class="validation-empty-hint">
+          Noch keine OCR-Ergebnisse vorhanden. Starte einen OCR-Lauf im Tab "Aufnahme &amp; Ergebnisse" oder lade eine Validierungsliste.
+        </div>
+      </section>
+
+      <!-- Side-by-Side Layout -->
+      <div id="validationContent" class="validation-side-by-side" style="display:none;">
+
+        <!-- Linke Seite: OCR-Ergebnisse -->
+        <section class="section validation-panel">
+          <h2 class="section-title">
+            OCR-Ergebnisse
+            <div class="section-title-actions">
+              <button id="btnAcceptAllSuggestions" class="btn btn-small btn-primary">Alle Vorschlaege uebernehmen</button>
+            </div>
+          </h2>
+          <div class="validation-filter-row">
+            <button class="validation-filter-btn active" data-filter="all">Alle</button>
+            <button class="validation-filter-btn" data-filter="unknown">Unbekannt</button>
+            <button class="validation-filter-btn" data-filter="suggested">Vorschlaege</button>
+            <button class="validation-filter-btn" data-filter="corrected">Korrigiert</button>
+            <button class="validation-filter-btn" data-filter="confirmed">Bestaetigt</button>
+          </div>
+          <div class="validation-table-container">
+            <table class="ocr-table validation-table">
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th>OCR-Name</th>
+                  <th>Korrektur / Vorschlag</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="validationOcrBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Rechte Seite: Bekannte Spieler -->
+        <section class="section validation-panel">
+          <h2 class="section-title">
+            Bekannte Spieler
+            <span id="validationNameCount" class="info-text"></span>
+          </h2>
+          <div class="validation-search-row">
+            <input type="text" id="validationSearch" class="input" placeholder="Spieler suchen...">
+            <button id="btnAddValidationName" class="btn btn-small btn-primary" title="Name hinzufuegen">+ Hinzufuegen</button>
+          </div>
+          <div class="validation-names-container" id="validationNamesContainer">
+            <div id="validationNamesList" class="validation-names-list"></div>
+          </div>
+          <div class="validation-corrections-section">
+            <h3 class="section-subtitle">Gespeicherte Korrekturen (<span id="correctionCount">0</span>)</h3>
+            <div id="correctionsList" class="validation-corrections-list"></div>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- Aktionsleiste -->
+      <section class="section">
+        <h2 class="section-title">Aktionen</h2>
+        <div class="row" style="gap: 8px; flex-wrap: wrap;">
+          <button id="btnImportValidation" class="btn btn-primary">Importieren</button>
+          <button id="btnExportValidation" class="btn btn-primary">Exportieren</button>
+          <button id="btnRevalidate" class="btn btn-secondary">Erneut validieren</button>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- TAB 4: HISTORY                                                 -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <div id="tab-history" class="tab-content">
+
+      <section class="section">
+        <h2 class="section-title">
+          Gespeicherte Ergebnisse
+          <div class="section-title-actions">
+            <button id="btnRefreshHistory" class="btn btn-small btn-secondary">Aktualisieren</button>
+            <button id="btnOpenResultsDir" class="btn btn-small btn-secondary">Ordner oeffnen</button>
+          </div>
+        </h2>
+        <div id="historyEmptyHint" class="validation-empty-hint">
+          Noch keine gespeicherten Ergebnisse. Ergebnisse werden automatisch im <code>results/</code>-Ordner gespeichert.
+        </div>
+        <div id="historyListContainer" class="history-list-container" style="display:none;">
+          <table class="ocr-table history-table">
+            <thead>
+              <tr>
+                <th>Datum</th>
+                <th>Mitglieder</th>
+                <th>Datei</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="historyListBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section" id="historyDetailSection" style="display:none;">
+        <h2 class="section-title">
+          <span id="historyDetailTitle">Ergebnis</span>
+          <div class="section-title-actions">
+            <button id="btnHistoryExportCsv" class="btn btn-small btn-accent">CSV exportieren</button>
+          </div>
+        </h2>
+        <div id="historyDetailCount" class="result-text" style="margin-bottom: 8px;"></div>
+        <div class="ocr-table-container">
+          <table class="ocr-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Rang</th>
+                <th>Name</th>
+                <th>Koordinaten</th>
+                <th>Score</th>
+              </tr>
+            </thead>
+            <tbody id="historyDetailBody"></tbody>
+          </table>
+        </div>
       </section>
 
     </div>

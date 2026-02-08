@@ -5,6 +5,10 @@ node_modules/
 captures/
 mitglieder-extractor/captures/
 
+# CSV results (user data)
+results/
+mitglieder-extractor/results/
+
 # Electron build output
 dist/
 out/
@@ -23,6 +27,7 @@ Desktop.ini
 # Config files with user data
 mitglieder-config.json
 capture-config.json
+validation-list.json
 
 # Tesseract trained data (downloaded automatically)
 *.traineddata
@@ -41,3 +46,6 @@ npm-debug.log*
 # Benchmark results / debug images (regenerated)
 mitglieder-extractor/test/debug/
 mitglieder-extractor/test/results/
+
+# Test fixtures: baseline captures + ground-truth are TRACKED (do NOT ignore)
+# mitglieder-extractor/test/fixtures/ ← intentionally tracked for reproducible tests

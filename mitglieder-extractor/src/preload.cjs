@@ -27,13 +27,30 @@ contextBridge.exposeInMainWorld('api', {
 
   // Ordner oeffnen / waehlen / loeschen
   openFolder: (path) => ipcRenderer.invoke('open-folder', path),
-  browseFolder: () => ipcRenderer.invoke('browse-folder'),
+  browseFolder: (options) => ipcRenderer.invoke('browse-folder', options),
   deleteFolder: (path) => ipcRenderer.invoke('delete-folder', path),
 
   // OCR Auswertung
   startOcr: (folderPath, settings) => ipcRenderer.invoke('start-ocr', folderPath, settings),
   stopOcr: () => ipcRenderer.invoke('stop-ocr'),
   exportCsv: (members, defaultName) => ipcRenderer.invoke('export-csv', members, defaultName),
+  autoSaveCsv: (members) => ipcRenderer.invoke('auto-save-csv', members),
+
+  // History
+  loadHistory: () => ipcRenderer.invoke('load-history'),
+  loadHistoryEntry: (fileName) => ipcRenderer.invoke('load-history-entry', fileName),
+  deleteHistoryEntry: (fileName) => ipcRenderer.invoke('delete-history-entry', fileName),
+
+  // Validierungsliste
+  loadValidationList: () => ipcRenderer.invoke('load-validation-list'),
+  saveValidationList: () => ipcRenderer.invoke('save-validation-list'),
+  addValidationName: (name) => ipcRenderer.invoke('add-validation-name', name),
+  removeValidationName: (name) => ipcRenderer.invoke('remove-validation-name', name),
+  addCorrection: (ocrName, correctName) => ipcRenderer.invoke('add-correction', ocrName, correctName),
+  removeCorrection: (ocrName) => ipcRenderer.invoke('remove-correction', ocrName),
+  validateOcrResults: (members) => ipcRenderer.invoke('validate-ocr-results', members),
+  importValidationList: () => ipcRenderer.invoke('import-validation-list'),
+  exportValidationList: () => ipcRenderer.invoke('export-validation-list'),
 
   // Events vom Main Process empfangen
   onBrowserStatus: (callback) => {

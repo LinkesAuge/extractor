@@ -98,6 +98,23 @@ const PRESETS = {
     label: 'Optimal-Test 2 (Scale3 Contrast1.5 Thresh152 Sharp0.5)',
     settings: { scale: 3, greyscale: false, sharpen: 0.5, contrast: 1.5, threshold: 152, psm: 3, lang: 'deu', minScore: 5000 },
   },
+  // PSM 11 Varianten (bestes Ergebnis aus vorherigem Benchmark)
+  psm11_current: {
+    label: 'PSM11 + Current (Scale3 Contrast1.5 Thresh152 Sharp0.3)',
+    settings: { scale: 3, greyscale: false, sharpen: 0.3, contrast: 1.5, threshold: 152, psm: 11, lang: 'deu', minScore: 5000 },
+  },
+  psm11_noThresh: {
+    label: 'PSM11 ohne Threshold',
+    settings: { scale: 3, greyscale: false, sharpen: 0.3, contrast: 1.5, threshold: 0, psm: 11, lang: 'deu', minScore: 5000 },
+  },
+  psm11_grey: {
+    label: 'PSM11 + Graustufen',
+    settings: { scale: 3, greyscale: true, sharpen: 0.3, contrast: 1.5, threshold: 152, psm: 11, lang: 'deu', minScore: 5000 },
+  },
+  psm11_highContrast: {
+    label: 'PSM11 + Hoher Kontrast (2.0)',
+    settings: { scale: 3, greyscale: false, sharpen: 0.3, contrast: 2.0, threshold: 152, psm: 11, lang: 'deu', minScore: 5000 },
+  },
 };
 
 // ─── Bild-Vorverarbeitung ────────────────────────────────────────────────────
@@ -114,6 +131,13 @@ async function preprocessImage(buffer, settings) {
   if (contrast > 1.0) pipeline = pipeline.linear(contrast, -(128 * contrast - 128));
   if (sharpen > 0) pipeline = pipeline.sharpen({ sigma: sharpen });
   if (threshold > 0) pipeline = pipeline.threshold(threshold);
+
+  // Border-Padding (identisch zu OcrProcessor)
+  const BORDER = 20;
+  pipeline = pipeline.extend({
+    top: BORDER, bottom: BORDER, left: BORDER, right: BORDER,
+    background: { r: 255, g: 255, b: 255 },
+  });
 
   return pipeline.toBuffer();
 }
@@ -237,14 +261,22 @@ async function runOcrConfig(folder, settings, singleFile) {
         entry.score = proc._resolveScoreConflict(entry.score, verifyScore);
       }
 
-      // Koordinaten-Dedup
+      // Koordinaten-Dedup (hoeheren Score + saubereren Namen behalten)
       const key = entry.coords;
       if (!allMembers.has(key)) {
         allMembers.set(key, entry);
       } else {
         const existing = allMembers.get(key);
-        if (existing.score === 0 && entry.score > 0) {
+        if (entry.score > existing.score) {
           existing.score = entry.score;
+        }
+        // Kuerzeren (saubereren) Namen bevorzugen wenn er Suffix des bestehenden ist
+        if (entry.name.length < existing.name.length && entry.name.length >= 2) {
+          const existLower = existing.name.toLowerCase();
+          const entryLower = entry.name.toLowerCase();
+          if (existLower.endsWith(entryLower) || existLower.includes(entryLower)) {
+            existing.name = entry.name;
+          }
         }
       }
     }
@@ -522,13 +554,14 @@ async function main() {
   await loadProcessor();
 
   // Ground-Truth laden
-  const gtPath = join(__dirname, 'ground-truth.json');
+  const gtPath = join(__dirname, 'fixtures', 'ground-truth.json');
   const gt = await loadGroundTruth(gtPath);
 
-  // Capture-Ordner bestimmen
+  // Capture-Ordner bestimmen (relativ zur Ground-Truth-Datei, nicht zum Script)
+  const fixturesDir = join(__dirname, 'fixtures');
   const folder = customFolder
     ? resolve(customFolder)
-    : resolve(__dirname, gt.captureFolder);
+    : resolve(fixturesDir, gt.captureFolder);
 
   console.log(`\n╔${'═'.repeat(78)}╗`);
   console.log(`║  OCR BENCHMARK — TotalBattle Mitglieder-Extractor`.padEnd(79) + '║');

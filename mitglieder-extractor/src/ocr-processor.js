@@ -37,7 +37,7 @@ const SCORE_FALLBACK_REGEX = /(?<!\d)(\d{4,7}[,.\u00A0]\d{3})(?!\d)/g;
 /** Standard-OCR-Einstellungen (optimiert fuer TotalBattle Mitglieder-Listen) */
 const DEFAULT_SETTINGS = {
   scale: 3,           // Skalierungsfaktor (1-4) — 3x liefert beste Ergebnisse
-  greyscale: false,   // Graustufen-Konvertierung
+  greyscale: true,    // Graustufen-Konvertierung (lt. Benchmark beste Namenserkennung)
   sharpen: 0.3,       // Schaerfe-Sigma (0 = aus) — 0.3 optimal
   contrast: 1.5,      // Kontrast-Multiplikator (1.5 optimal fuer TotalBattle)
   threshold: 152,     // Schwellwert (152 optimal fuer TotalBattle)
@@ -114,6 +114,14 @@ export class OcrProcessor {
     if (threshold > 0) {
       pipeline = pipeline.threshold(threshold);
     }
+
+    // Border-Padding: Weisser Rand um das Bild verbessert Tesseract-Segmentierung
+    // (empfohlen in offizieller Tesseract-Dokumentation)
+    const BORDER = 20;
+    pipeline = pipeline.extend({
+      top: BORDER, bottom: BORDER, left: BORDER, right: BORDER,
+      background: { r: 255, g: 255, b: 255 },
+    });
 
     return pipeline.toBuffer();
   }
@@ -211,6 +219,9 @@ export class OcrProcessor {
     const lineStart = text.lastIndexOf('\n', coordIndex) + 1;
     let raw = text.substring(lineStart, coordIndex);
 
+    // Schritt 0: OCR liest roemische "I" oft als "|" (Pipe) — vor Bereinigung konvertieren
+    raw = raw.replace(/\|/g, 'I');
+
     // Schritt 1: Alles was kein Name-Zeichen ist → Leerzeichen
     raw = raw.replace(/[^a-zA-ZäöüÄÖÜß0-9\s\-_.]/g, ' ');
     raw = raw.replace(/\s+/g, ' ').trim();
@@ -236,7 +247,17 @@ export class OcrProcessor {
 
     // Schritt 3: Nur einzelne Trailing-Buchstaben entfernen (OCR-Artefakte)
     // z.B. "Koriander d" → "Koriander", aber "Drachen 2" bleibt!
-    raw = raw.replace(/\s+[a-zäöü]$/, '').trim();
+    // AUSNAHME: "l" (lowercase L) wird NICHT gestrippt — OCR liest roemische "I" oft als "l".
+    raw = raw.replace(/\s+[a-km-zäöü]$/, '').trim();
+
+    // Schritt 4: Roemische Zahl OCR-Korrektur
+    // OCR liest "I" haeufig als "l" (lowercase L) oder "1" (Ziffer).
+    // Korrektur nur am Ende des Namens (wo roemische Zahlen typischerweise stehen).
+    raw = raw.replace(/ Il$/, ' II');       // "Dark Force Il" → "Dark Force II"
+    raw = raw.replace(/ lI$/, ' II');       // "Dark Force lI" → "Dark Force II"
+    raw = raw.replace(/ ll$/, ' II');       // "Dark Force ll" → "Dark Force II"
+    raw = raw.replace(/ IIl$/, ' III');     // "Force IIl" → "Force III"
+    raw = raw.replace(/ l$/, ' I');         // "Dark Force l" → "Dark Force I"
 
     // Fallback-Kette:
     // 1) Aktuelles Ergebnis (nach allen Strippings)
@@ -270,7 +291,7 @@ export class OcrProcessor {
     // WICHTIG: Nur 1-3 Zeichen All-Uppercase als Noise ("EEG", "YAS")
     // 4-Zeichen Uppercase wie "ATON" werden BEHALTEN (koennte Teil eines Namens sein).
     // Tokens mit gemischten Ziffern+Buchstaben sind immer Noise ("G5Y", "A1B").
-    // 3-Zeichen All-Lowercase ("rzy") und Lower-Lower-Upper ("szY") sind Noise.
+    // 3-Zeichen All-Lowercase ("rzy") und gemischte Gross/Klein ("szY", "oEy") sind Noise.
     if (tok.length <= 4) {
       // Jeder Token der Buchstaben UND Ziffern mischt → Noise
       if (/\d/.test(tok) && /[a-zA-ZäöüÄÖÜß]/.test(tok)) return true;
@@ -279,6 +300,8 @@ export class OcrProcessor {
         /^[A-ZÄÖÜ]{3}$/.test(tok) ||              // 3-char All-Uppercase: "EEG", "YAS"
         /^[a-zäöü]{3}$/.test(tok) ||              // 3-char All-Lowercase: "rzy", "abc"
         /^[a-zäöü]{2}[A-ZÄÖÜ]$/.test(tok) ||     // 2 Lower + 1 Upper: "szY", "abC"
+        /^[a-zäöü][A-ZÄÖÜ][a-zäöü]$/.test(tok) ||// Lower-Upper-Lower: "oEy", "iCh"
+        /^[a-zäöü][A-ZÄÖÜ]{2}$/.test(tok) ||     // Lower + 2 Upper: "yXY", "oZY"
         /^[A-ZÄÖÜ]{2,3}[a-zäöü]$/.test(tok) ||   // 2-3 Upper + 1 Lower: "OEy", "ICh"
         /^\d+$/.test(tok) ||                         // reine Zahlen: "200", "7900"
         /^[^a-zA-ZäöüÄÖÜß]+$/.test(tok)            // keine Buchstaben: "...", "---"
@@ -328,7 +351,10 @@ export class OcrProcessor {
    * wo der erste Tausender-Trenner vom OCR uebersehen wurde).
    */
   _extractScore(text, fromIndex, toIndex, minScore) {
-    const segment = text.substring(fromIndex, toIndex);
+    // Doppelte/defekte Trennzeichen bereinigen die OCR manchmal produziert
+    // z.B. "1,922,.130" → "1,922,130", "270..270,955" → "270.270,955"
+    let segment = text.substring(fromIndex, toIndex);
+    segment = segment.replace(/([,.])\s*([,.])/g, '$1');
 
     // Primaerer Versuch: Standard-Tausender-Format (z.B. "1,922,130")
     const scoreRe = new RegExp(SCORE_REGEX.source, SCORE_REGEX.flags);
@@ -366,6 +392,12 @@ export class OcrProcessor {
     if (contrast > 1.0) pipeline = pipeline.linear(contrast, -(128 * contrast - 128));
     if (sharpen > 0) pipeline = pipeline.sharpen({ sigma: sharpen });
     if (threshold > 0) pipeline = pipeline.threshold(threshold);
+    // Border-Padding (gleich wie preprocessImage)
+    const BORDER = 20;
+    pipeline = pipeline.extend({
+      top: BORDER, bottom: BORDER, left: BORDER, right: BORDER,
+      background: { r: 255, g: 255, b: 255 },
+    });
     return pipeline.toBuffer();
   }
 
@@ -410,23 +442,51 @@ export class OcrProcessor {
   }
 
   /**
-   * Score-Verifikation: Wenn zwei Passes unterschiedliche Scores liefern
-   * und einer ~10x groesser ist, ist der kleinere wahrscheinlich korrekt
-   * (Komma→Ziffer OCR-Fehler ergibt immer ~10x groessere Zahl).
+   * Score-Verifikation: Wenn zwei Passes unterschiedliche Scores liefern,
+   * versuche den korrekten Score zu ermitteln.
+   *
+   * Zwei haeufige OCR-Fehler:
+   *   1) Fuehrende Ziffern gehen verloren: 5.822.073 → 822.073 (kleiner ist falsch)
+   *   2) Erste Ziffer wird falsch gelesen: 8.939.291 → 3.939.291 (kleiner ist falsch)
+   *   3) Komma→Ziffer-Fehler: ~10x groesser → groesser ist falsch
+   *
+   * Strategie: Suffix/Trailing-Digit-Analyse um Fehlertyp zu erkennen.
    */
   _resolveScoreConflict(scoreA, scoreB) {
     if (scoreA === 0 && scoreB > 0) return scoreB;
     if (scoreB === 0 && scoreA > 0) return scoreA;
     if (scoreA === scoreB) return scoreA;
 
-    // Ratio pruefen: 5x-15x Unterschied deutet auf Komma→Ziffer-Fehler
-    const ratio = Math.max(scoreA, scoreB) / Math.min(scoreA, scoreB);
-    if (ratio >= 5 && ratio <= 15) {
-      // Kleinerer Wert ist wahrscheinlich korrekt
-      return Math.min(scoreA, scoreB);
+    const larger = Math.max(scoreA, scoreB);
+    const smaller = Math.min(scoreA, scoreB);
+    const strLarger = String(larger);
+    const strSmaller = String(smaller);
+
+    // Fall 1: Leading-Digit-Loss — kleinere Zahl ist Suffix der groesseren
+    // z.B. 5.822.073 → 822.073 (OCR verliert fuehrende "5,")
+    // → Groessere Zahl ist korrekt.
+    if (strLarger.endsWith(strSmaller)) {
+      return larger;
     }
 
-    // Bei anderem Verhaeltnis: Default beibehalten
+    // Fall 2: Erste Ziffer falsch gelesen — gleiche Laenge, Rest identisch
+    // z.B. 8.939.291 → 3.939.291 (nur erste Ziffer unterschiedlich)
+    // → Groessere Zahl ist wahrscheinlich korrekt (OCR liest selten eine hoehere Ziffer).
+    if (strLarger.length === strSmaller.length) {
+      const checkTail = Math.max(3, strLarger.length - 2);
+      if (strLarger.slice(-checkTail) === strSmaller.slice(-checkTail)) {
+        return larger;
+      }
+    }
+
+    // Fall 3: Ratio-basiert — 5x-15x Unterschied deutet auf Komma→Ziffer-Fehler
+    // ABER nur wenn Fall 1 nicht zutrifft (sonst ist es Leading-Digit-Loss).
+    const ratio = larger / smaller;
+    if (ratio >= 5 && ratio <= 15) {
+      return smaller;
+    }
+
+    // Default: ersten Score beibehalten
     return scoreA;
   }
 
@@ -516,7 +576,52 @@ export class OcrProcessor {
       }
     }
 
-    return result.filter((_, idx) => !toRemove.has(idx));
+    const afterSuffix = result.filter((_, idx) => !toRemove.has(idx));
+
+    // ─── Pass 3: Score-basierte Duplikate ──────────────────────
+    // Wenn zwei aufeinanderfolgende Eintraege den gleichen Score haben
+    // und aehnliche Koordinaten (gleiches K, X +-20), ist es ein Duplikat.
+    // OCR liest manchmal den selben Spieler mit leicht anderem Namen/Coords.
+    const scoreToRemove = new Set();
+    for (let i = 0; i < afterSuffix.length - 1; i++) {
+      if (scoreToRemove.has(i)) continue;
+      const a = afterSuffix[i];
+      const b = afterSuffix[i + 1];
+
+      // Gleicher Score (> 0) ist ein starkes Duplikat-Signal
+      if (a.score > 0 && a.score === b.score) {
+        // Kuerzeren/noisigeren Namen entfernen, laengeren behalten
+        const keepIdx = a.name.length >= b.name.length ? i : i + 1;
+        const removeIdx = keepIdx === i ? i + 1 : i;
+        scoreToRemove.add(removeIdx);
+        this.logger.info(`  ✕ Score-Duplikat: "${afterSuffix[removeIdx].name}" = "${afterSuffix[keepIdx].name}" (Score: ${a.score.toLocaleString('de-DE')})`);
+      }
+    }
+
+    // Auch nicht-aufeinanderfolgende Score-Duplikate (gleicher Score, gleiches K)
+    for (let i = 0; i < afterSuffix.length; i++) {
+      if (scoreToRemove.has(i)) continue;
+      const a = afterSuffix[i];
+      if (a.score === 0) continue;
+      const aParts = a.coords.match(/K:(\d+)/);
+      if (!aParts) continue;
+
+      for (let j = i + 1; j < afterSuffix.length; j++) {
+        if (scoreToRemove.has(j)) continue;
+        const b = afterSuffix[j];
+        if (a.score !== b.score) continue;
+        const bParts = b.coords.match(/K:(\d+)/);
+        if (!bParts || aParts[1] !== bParts[1]) continue;
+
+        // Gleicher Score + gleiches K = Duplikat
+        const keepIdx = a.name.length >= b.name.length ? i : j;
+        const removeIdx = keepIdx === i ? j : i;
+        scoreToRemove.add(removeIdx);
+        this.logger.info(`  ✕ Score-Duplikat (entfernt): "${afterSuffix[removeIdx].name}" = "${afterSuffix[keepIdx].name}" (Score: ${a.score.toLocaleString('de-DE')})`);
+      }
+    }
+
+    return afterSuffix.filter((_, idx) => !scoreToRemove.has(idx));
   }
 
   /**
@@ -610,9 +715,23 @@ export class OcrProcessor {
             this.logger.info(`  + ${entry.name} (${entry.coords}) — ${entry.rank} — ${entry.score.toLocaleString('de-DE')}`);
           } else {
             const existing = allMembers.get(key);
-            if (existing.score === 0 && entry.score > 0) {
+            // Hoeheren Score behalten: OCR verliert typischerweise fuehrende Ziffern
+            // (→ niedrigerer Score), daher ist der hoehere Score wahrscheinlicher korrekt.
+            if (entry.score > existing.score) {
+              this.logger.info(`  ~ Score aktualisiert: ${existing.name} ${existing.score.toLocaleString('de-DE')} → ${entry.score.toLocaleString('de-DE')}`);
               existing.score = entry.score;
-              this.logger.info(`  ~ Score aktualisiert: ${existing.name} → ${entry.score.toLocaleString('de-DE')}`);
+            }
+            // Kuerzeren Namen bevorzugen: Laengere Namen enthalten oft Noise-Prefixe
+            // die im anderen Screenshot nicht auftreten. Der kuerzere Name ist sauberer.
+            // Aber NUR wenn der kuerzere Name mindestens 2 Zeichen hat und ein Suffix
+            // des laengeren ist (damit wir nicht komplett verschiedene Namen ersetzen).
+            if (entry.name.length < existing.name.length && entry.name.length >= 2) {
+              const existLower = existing.name.toLowerCase();
+              const entryLower = entry.name.toLowerCase();
+              if (existLower.endsWith(entryLower) || existLower.includes(entryLower)) {
+                this.logger.info(`  ~ Name aktualisiert: "${existing.name}" → "${entry.name}" (sauberer)`);
+                existing.name = entry.name;
+              }
             }
           }
         }

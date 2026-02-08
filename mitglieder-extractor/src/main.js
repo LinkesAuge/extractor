@@ -1,11 +1,12 @@
 import { app, BrowserWindow, ipcMain, shell, dialog, nativeImage } from 'electron';
 import { chromium } from 'playwright';
-import { readFile, writeFile, mkdir, unlink, rm } from 'fs/promises';
-import { join, dirname, resolve } from 'path';
+import { readFile, writeFile, mkdir, unlink, rm, readdir, stat } from 'fs/promises';
+import { join, dirname, resolve, basename } from 'path';
 import { fileURLToPath } from 'url';
 import selectRegion from './region-selector.js';
 import ScrollCapturer from './scroll-capturer.js';
 import OcrProcessor from './ocr-processor.js';
+import ValidationManager from './validation-manager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -13,6 +14,7 @@ const __dirname = dirname(__filename);
 const CONFIG_FILE = join(process.cwd(), 'mitglieder-config.json');
 const BROWSER_PROFILE_DIR = join(app.getPath('userData'), 'browser-profile');
 const APP_ICON = join(dirname(__dirname), 'icons_main_menu_clan_1.png');
+const RESULTS_DIR = join(process.cwd(), 'results');
 
 // ─── State ──────────────────────────────────────────────────────────────────
 
@@ -21,6 +23,7 @@ let browserContext = null;
 let page = null;
 let captureAborted = false;
 let ocrProcessor = null;
+let validationManager = new ValidationManager();
 
 // ─── Logger fuer GUI ────────────────────────────────────────────────────────
 
@@ -664,11 +667,15 @@ ipcMain.handle('open-folder', async (_e, folderPath) => {
   return { ok: true };
 });
 
-ipcMain.handle('browse-folder', async () => {
-  const result = await dialog.showOpenDialog(mainWindow, {
+ipcMain.handle('browse-folder', async (_e, options) => {
+  const dialogOpts = {
     properties: ['openDirectory', 'createDirectory'],
-    title: 'Ausgabeordner waehlen',
-  });
+    title: options?.title || 'Ausgabeordner waehlen',
+  };
+  if (options?.defaultPath) {
+    dialogOpts.defaultPath = resolve(options.defaultPath);
+  }
+  const result = await dialog.showOpenDialog(mainWindow, dialogOpts);
   if (result.canceled || !result.filePaths.length) {
     return { ok: false };
   }
@@ -724,9 +731,10 @@ ipcMain.handle('stop-ocr', async () => {
 
 ipcMain.handle('export-csv', async (_e, members, defaultName) => {
   try {
+    await mkdir(RESULTS_DIR, { recursive: true });
     const result = await dialog.showSaveDialog(mainWindow, {
       title: 'CSV exportieren',
-      defaultPath: defaultName || 'mitglieder.csv',
+      defaultPath: join(RESULTS_DIR, defaultName || 'mitglieder.csv'),
       filters: [
         { name: 'CSV-Dateien', extensions: ['csv'] },
         { name: 'Alle Dateien', extensions: ['*'] },
@@ -744,6 +752,247 @@ ipcMain.handle('export-csv', async (_e, members, defaultName) => {
     return { ok: true, path: result.filePath };
   } catch (err) {
     guiLogger.error(`CSV-Export fehlgeschlagen: ${err.message}`);
+    return { ok: false, error: err.message };
+  }
+});
+
+// Auto-Save: direkt in results/ speichern (max 1 pro Tag)
+ipcMain.handle('auto-save-csv', async (_e, members) => {
+  try {
+    await mkdir(RESULTS_DIR, { recursive: true });
+    const today = new Date().toISOString().slice(0, 10);
+    const fileName = `mitglieder_${today}.csv`;
+    const filePath = join(RESULTS_DIR, fileName);
+
+    const csv = OcrProcessor.toCSV(members);
+    await writeFile(filePath, csv, 'utf-8');
+    guiLogger.success(`Auto-Save: ${filePath}`);
+
+    return { ok: true, path: filePath, fileName };
+  } catch (err) {
+    guiLogger.error(`Auto-Save fehlgeschlagen: ${err.message}`);
+    return { ok: false, error: err.message };
+  }
+});
+
+// ─── IPC: History ────────────────────────────────────────────────────────────
+
+ipcMain.handle('load-history', async () => {
+  try {
+    await mkdir(RESULTS_DIR, { recursive: true });
+    const files = await readdir(RESULTS_DIR);
+    const csvFiles = files.filter(f => f.endsWith('.csv')).sort().reverse();
+
+    const entries = [];
+    for (const file of csvFiles) {
+      const filePath = join(RESULTS_DIR, file);
+      const fileStat = await stat(filePath);
+      // Datum aus Dateiname extrahieren (mitglieder_YYYY-MM-DD.csv)
+      const dateMatch = file.match(/(\d{4}-\d{2}-\d{2})/);
+      const date = dateMatch ? dateMatch[1] : fileStat.mtime.toISOString().slice(0, 10);
+
+      // Schnell: Zeilen zaehlen fuer Member-Count (Header abziehen)
+      const content = await readFile(filePath, 'utf-8');
+      const lines = content.trim().split(/\r?\n/).filter(l => l.trim());
+      const memberCount = Math.max(0, lines.length - 1); // Header abziehen
+
+      entries.push({
+        fileName: file,
+        date,
+        memberCount,
+        modified: fileStat.mtime.toISOString(),
+        size: fileStat.size,
+      });
+    }
+
+    return { ok: true, entries };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('load-history-entry', async (_e, fileName) => {
+  try {
+    const filePath = join(RESULTS_DIR, fileName);
+    const content = await readFile(filePath, 'utf-8');
+
+    // CSV parsen (BOM entfernen, Header ueberspringen)
+    const clean = content.replace(/^\uFEFF/, '');
+    const lines = clean.trim().split(/\r?\n/).filter(l => l.trim());
+    if (lines.length < 2) return { ok: true, members: [] };
+
+    const members = [];
+    for (let i = 1; i < lines.length; i++) {
+      // CSV-Parsing: Rang,"Name","Koordinaten",Score
+      const match = lines[i].match(/^([^,]*),("(?:[^"]|"")*"|[^,]*),("(?:[^"]|"")*"|[^,]*),(\d+)$/);
+      if (match) {
+        members.push({
+          rank: match[1],
+          name: match[2].replace(/^"|"$/g, '').replace(/""/g, '"'),
+          coords: match[3].replace(/^"|"$/g, '').replace(/""/g, '"'),
+          score: parseInt(match[4]) || 0,
+        });
+      }
+    }
+
+    return { ok: true, members, fileName };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('delete-history-entry', async (_e, fileName) => {
+  try {
+    const filePath = join(RESULTS_DIR, fileName);
+    await unlink(filePath);
+    guiLogger.success(`History-Eintrag geloescht: ${fileName}`);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// ─── IPC: Validierungsliste ──────────────────────────────────────────────
+
+ipcMain.handle('load-validation-list', async () => {
+  try {
+    const state = await validationManager.load();
+
+    // Auto-Initialisierung: Wenn die Liste leer ist, aus Ground-Truth seeden
+    if (state.knownNames.length === 0) {
+      try {
+        const gtPath = join(__dirname, '..', 'test', 'fixtures', 'ground-truth.json');
+        const gtData = await readFile(gtPath, 'utf-8');
+        const gt = JSON.parse(gtData);
+        if (gt.members && Array.isArray(gt.members)) {
+          const names = gt.members.map(m => m.name).filter(Boolean);
+          const added = validationManager.importNames(names);
+          if (added > 0) {
+            await validationManager.save();
+            guiLogger.info(`Validierungsliste mit ${added} Namen aus Ground-Truth initialisiert.`);
+          }
+        }
+      } catch {
+        // Ground-Truth nicht vorhanden — kein Problem, Liste bleibt leer
+      }
+    }
+
+    return { ok: true, ...validationManager.getState() };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('save-validation-list', async () => {
+  try {
+    await validationManager.save();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('add-validation-name', async (_e, name) => {
+  const added = validationManager.addName(name);
+  if (added) await validationManager.save();
+  return { ok: true, added, state: validationManager.getState() };
+});
+
+ipcMain.handle('remove-validation-name', async (_e, name) => {
+  const removed = validationManager.removeName(name);
+  if (removed) await validationManager.save();
+  return { ok: true, removed, state: validationManager.getState() };
+});
+
+ipcMain.handle('add-correction', async (_e, ocrName, correctName) => {
+  validationManager.addCorrection(ocrName, correctName);
+  await validationManager.save();
+  return { ok: true, state: validationManager.getState() };
+});
+
+ipcMain.handle('remove-correction', async (_e, ocrName) => {
+  validationManager.removeCorrection(ocrName);
+  await validationManager.save();
+  return { ok: true, state: validationManager.getState() };
+});
+
+ipcMain.handle('validate-ocr-results', async (_e, members) => {
+  try {
+    await validationManager.load();
+    const validated = validationManager.validateMembers(members);
+    return { ok: true, members: validated };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('import-validation-list', async () => {
+  try {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'Validierungsliste importieren',
+      filters: [
+        { name: 'JSON-Dateien', extensions: ['json'] },
+        { name: 'Alle Dateien', extensions: ['*'] },
+      ],
+      properties: ['openFile'],
+    });
+
+    if (result.canceled || !result.filePaths.length) {
+      return { ok: false };
+    }
+
+    const data = await readFile(result.filePaths[0], 'utf-8');
+    const parsed = JSON.parse(data);
+
+    let added = 0;
+    // Ground-Truth-Format (Array von Mitgliedern mit "name" Feld)
+    if (Array.isArray(parsed.members || parsed)) {
+      const arr = parsed.members || parsed;
+      const names = arr.map(m => typeof m === 'string' ? m : m.name).filter(Boolean);
+      added = validationManager.importNames(names);
+    }
+    // Validierungs-Format (knownNames + corrections)
+    else if (parsed.knownNames) {
+      added = validationManager.importNames(parsed.knownNames);
+      if (parsed.corrections) {
+        for (const [key, val] of Object.entries(parsed.corrections)) {
+          validationManager.addCorrection(key, val);
+        }
+      }
+    }
+
+    await validationManager.save();
+    guiLogger.success(`${added} neue Namen importiert.`);
+
+    return { ok: true, added, state: validationManager.getState() };
+  } catch (err) {
+    guiLogger.error(`Import fehlgeschlagen: ${err.message}`);
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('export-validation-list', async () => {
+  try {
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: 'Validierungsliste exportieren',
+      defaultPath: 'validation-list.json',
+      filters: [
+        { name: 'JSON-Dateien', extensions: ['json'] },
+        { name: 'Alle Dateien', extensions: ['*'] },
+      ],
+    });
+
+    if (result.canceled || !result.filePath) {
+      return { ok: false };
+    }
+
+    const data = validationManager.exportData();
+    await writeFile(result.filePath, JSON.stringify(data, null, 2), 'utf-8');
+    guiLogger.success(`Validierungsliste exportiert: ${result.filePath}`);
+
+    return { ok: true, path: result.filePath };
+  } catch (err) {
+    guiLogger.error(`Export fehlgeschlagen: ${err.message}`);
     return { ok: false, error: err.message };
   }
 });

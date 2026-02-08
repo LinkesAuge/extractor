@@ -52,6 +52,14 @@ const btnClearLog = $('#btnClearLog');
 // OCR Auswertung
 const autoOcrEnabled = $('#autoOcrEnabled');
 const autoOcrToggleText = $('#autoOcrToggleText');
+const autoValidationEnabled = $('#autoValidationEnabled');
+const autoValidationToggleText = $('#autoValidationToggleText');
+const autoSaveEnabled = $('#autoSaveEnabled');
+const autoSaveToggleText = $('#autoSaveToggleText');
+const ocrValidationBanner = $('#ocrValidationBanner');
+const ocrValidationIcon = $('#ocrValidationIcon');
+const ocrValidationMsg = $('#ocrValidationMsg');
+const btnGoToValidation = $('#btnGoToValidation');
 const ocrFolderInput = $('#ocrFolder');
 const btnBrowseOcrFolder = $('#btnBrowseOcrFolder');
 const btnStartOcr = $('#btnStartOcr');
@@ -65,6 +73,23 @@ const ocrResultCount = $('#ocrResultCount');
 const ocrTableBody = $('#ocrTableBody');
 const btnExportCsv = $('#btnExportCsv');
 const auswertungSection = $('#auswertungSection');
+
+// Validierung
+const validationSummary = $('#validationSummary');
+const validationEmptyHint = $('#validationEmptyHint');
+const validationContent = $('#validationContent');
+const validationOcrBody = $('#validationOcrBody');
+const validationSearch = $('#validationSearch');
+const validationNamesList = $('#validationNamesList');
+const validationNameCount = $('#validationNameCount');
+const correctionsList = $('#correctionsList');
+const correctionCount = $('#correctionCount');
+const btnAcceptAllSuggestions = $('#btnAcceptAllSuggestions');
+const btnAddValidationName = $('#btnAddValidationName');
+const btnImportValidation = $('#btnImportValidation');
+const btnExportValidation = $('#btnExportValidation');
+const btnRevalidate = $('#btnRevalidate');
+const validationFilterBtns = $$('.validation-filter-btn');
 
 // OCR Einstellungen
 const ocrScaleSlider = $('#ocrScale');
@@ -83,6 +108,18 @@ const ocrPsmSelect = $('#ocrPsm');
 const ocrLangSelect = $('#ocrLang');
 const ocrMinScoreInput = $('#ocrMinScore');
 
+// History
+const historyEmptyHint = $('#historyEmptyHint');
+const historyListContainer = $('#historyListContainer');
+const historyListBody = $('#historyListBody');
+const historyDetailSection = $('#historyDetailSection');
+const historyDetailTitle = $('#historyDetailTitle');
+const historyDetailCount = $('#historyDetailCount');
+const historyDetailBody = $('#historyDetailBody');
+const btnRefreshHistory = $('#btnRefreshHistory');
+const btnOpenResultsDir = $('#btnOpenResultsDir');
+const btnHistoryExportCsv = $('#btnHistoryExportCsv');
+
 // Tab Navigation
 const tabBtns = $$('.tab-btn');
 const tabContents = $$('.tab-content');
@@ -96,10 +133,21 @@ let lastOutputDir = null;
 let autoLoginAttempted = false;
 let ocrRunning = false;
 let ocrMembers = null;  // letzte OCR-Ergebnisse
+let validatedMembers = null;  // OCR-Ergebnisse mit Validierungsstatus
+let validationKnownNames = [];
+let validationCorrections = {};
+let selectedOcrRow = null;  // Index des ausgewaehlten OCR-Eintrags fuer Zuordnung
+let validationFilter = 'all';
+let historyEntries = [];
+let selectedHistoryFile = null;
+let historyMembers = null;
 
 // ─── Init: Config laden ─────────────────────────────────────────────────────
 
 (async () => {
+  // Validierungsliste immer laden
+  loadValidationList();
+
   const result = await window.api.loadConfig();
   if (result.ok && result.config) {
     const c = result.config;
@@ -128,6 +176,16 @@ let ocrMembers = null;  // letzte OCR-Ergebnisse
     if (c.autoOcr === false) {
       autoOcrEnabled.checked = false;
       autoOcrToggleText.textContent = 'Aus';
+    }
+    // autoValidation: explizit false beachten, sonst HTML-Default (checked)
+    if (c.autoValidation === false) {
+      autoValidationEnabled.checked = false;
+      autoValidationToggleText.textContent = 'Aus';
+    }
+    // autoSave: explizit false beachten, sonst HTML-Default (checked)
+    if (c.autoSave === false) {
+      autoSaveEnabled.checked = false;
+      autoSaveToggleText.textContent = 'Aus';
     }
     if (c.ocrFolder) ocrFolderInput.value = c.ocrFolder;
 
@@ -444,6 +502,16 @@ autoOcrEnabled.addEventListener('change', () => {
   saveCurrentConfig();
 });
 
+autoValidationEnabled.addEventListener('change', () => {
+  autoValidationToggleText.textContent = autoValidationEnabled.checked ? 'An' : 'Aus';
+  saveCurrentConfig();
+});
+
+autoSaveEnabled.addEventListener('change', () => {
+  autoSaveToggleText.textContent = autoSaveEnabled.checked ? 'An' : 'Aus';
+  saveCurrentConfig();
+});
+
 // OCR Einstellungen Event-Listener
 ocrScaleSlider.addEventListener('input', () => {
   ocrScaleValue.textContent = ocrScaleSlider.value + 'x';
@@ -480,8 +548,17 @@ ocrPsmSelect.addEventListener('change', saveCurrentConfig);
 ocrLangSelect.addEventListener('change', saveCurrentConfig);
 ocrMinScoreInput.addEventListener('change', saveCurrentConfig);
 
+btnGoToValidation.addEventListener('click', () => {
+  switchToTab('validation');
+});
+
 btnBrowseOcrFolder.addEventListener('click', async () => {
-  const result = await window.api.browseFolder();
+  // Startpfad: letzter Capture-Ordner oder allgemeiner Captures-Ordner
+  const defaultPath = lastOutputDir || outputDirInput.value || './captures';
+  const result = await window.api.browseFolder({
+    title: 'Capture-Ordner fuer OCR waehlen',
+    defaultPath,
+  });
   if (result.ok) {
     ocrFolderInput.value = result.path;
     saveCurrentConfig();
@@ -561,9 +638,25 @@ window.api.onOcrProgress((data) => {
   ocrStatus.textContent = `Verarbeite ${data.file}...`;
 });
 
-window.api.onOcrDone((data) => {
+window.api.onOcrDone(async (data) => {
   ocrMembers = data.members;
   renderOcrResults(data.members);
+
+  // Auto-Validierung
+  if (autoValidationEnabled.checked && validationKnownNames.length > 0) {
+    await validateCurrentResults();
+    showOcrValidationBanner();
+
+    // Auto-Save: CSV nur speichern wenn Validierung fehlerfrei
+    if (autoSaveEnabled.checked && validatedMembers) {
+      const hasErrors = validatedMembers.some(m =>
+        m.validationStatus === 'unknown' || m.validationStatus === 'suggested'
+      );
+      if (!hasErrors) {
+        await autoSaveCsv();
+      }
+    }
+  }
 });
 
 function renderOcrResults(members) {
@@ -655,6 +748,15 @@ tabBtns.forEach(btn => {
     tabContents.forEach(tc => {
       tc.classList.toggle('active', tc.id === `tab-${target}`);
     });
+
+    // Beim Wechsel zum Validierung-Tab: automatisch validieren falls OCR-Ergebnisse vorhanden
+    if (target === 'validation' && ocrMembers && ocrMembers.length > 0 && !validatedMembers) {
+      validateCurrentResults();
+    }
+    // Beim Wechsel zum History-Tab: History laden
+    if (target === 'history') {
+      loadHistory();
+    }
   });
 });
 
@@ -695,6 +797,438 @@ btnDeleteCapture.addEventListener('click', async () => {
   }
 });
 
+// ─── Validierung ─────────────────────────────────────────────────────────────
+
+async function loadValidationList() {
+  const result = await window.api.loadValidationList();
+  if (result.ok) {
+    validationKnownNames = result.knownNames || [];
+    validationCorrections = result.corrections || {};
+    renderValidationNames();
+    renderCorrections();
+    // Wenn OCR-Ergebnisse vorhanden und noch nicht validiert, automatisch validieren
+    if (ocrMembers && ocrMembers.length > 0 && validationKnownNames.length > 0 && !validatedMembers) {
+      await validateCurrentResults();
+    }
+  }
+}
+
+function showOcrValidationBanner() {
+  if (!validatedMembers || !autoValidationEnabled.checked) {
+    ocrValidationBanner.style.display = 'none';
+    return;
+  }
+
+  const counts = { confirmed: 0, corrected: 0, suggested: 0, unknown: 0 };
+  validatedMembers.forEach(m => counts[m.validationStatus]++);
+  const total = validatedMembers.length;
+  const ok = counts.confirmed + counts.corrected;
+  const errors = counts.suggested + counts.unknown;
+
+  ocrValidationBanner.style.display = 'flex';
+
+  if (errors === 0) {
+    ocrValidationBanner.className = 'ocr-validation-banner banner-success';
+    ocrValidationIcon.textContent = '\u2714';
+    ocrValidationMsg.textContent = `Validierung OK: Alle ${total} Namen bestaetigt.`;
+    btnGoToValidation.style.display = 'none';
+
+    // Status-Zeile aktualisieren
+    ocrStatus.textContent = `${total} Mitglieder erkannt — alle validiert.`;
+  } else if (counts.unknown > 0) {
+    ocrValidationBanner.className = 'ocr-validation-banner banner-error';
+    ocrValidationIcon.textContent = '\u2716';
+    ocrValidationMsg.textContent = `${errors} Validierungsfehler: ${counts.unknown} unbekannt, ${counts.suggested} Vorschlaege (${ok}/${total} OK)`;
+    btnGoToValidation.style.display = '';
+
+    ocrStatus.textContent = `${total} Mitglieder erkannt — ${errors} Fehler bei Validierung!`;
+  } else {
+    ocrValidationBanner.className = 'ocr-validation-banner banner-warning';
+    ocrValidationIcon.textContent = '\u26A0';
+    ocrValidationMsg.textContent = `${counts.suggested} Vorschlaege offen (${ok}/${total} bestaetigt)`;
+    btnGoToValidation.style.display = '';
+
+    ocrStatus.textContent = `${total} Mitglieder erkannt — ${counts.suggested} Vorschlaege pruefen.`;
+  }
+}
+
+async function autoSaveCsv() {
+  if (!ocrMembers || ocrMembers.length === 0) return;
+
+  // Korrigierte Namen aus der Validierung verwenden
+  const membersToSave = validatedMembers
+    ? validatedMembers.map(m => ({
+        rank: m.rank,
+        name: m.name,
+        coords: m.coords,
+        score: m.score,
+      }))
+    : ocrMembers;
+
+  const result = await window.api.autoSaveCsv(membersToSave);
+  if (result.ok) {
+    ocrStatus.textContent += ` CSV: ${result.fileName}`;
+  }
+}
+
+async function validateCurrentResults() {
+  if (!ocrMembers || ocrMembers.length === 0) {
+    validationEmptyHint.style.display = 'block';
+    validationContent.style.display = 'none';
+    validationSummary.textContent = '';
+    return;
+  }
+
+  const result = await window.api.validateOcrResults(ocrMembers);
+  if (result.ok) {
+    validatedMembers = result.members;
+    validationEmptyHint.style.display = 'none';
+    validationContent.style.display = 'grid';
+    renderValidationOcrTable();
+    updateValidationSummary();
+    // Liste nach Validierung neu laden (evtl. neue Korrekturen)
+    await loadValidationList();
+  }
+}
+
+function updateValidationSummary() {
+  if (!validatedMembers) return;
+  const counts = { confirmed: 0, corrected: 0, suggested: 0, unknown: 0 };
+  validatedMembers.forEach(m => counts[m.validationStatus]++);
+  const total = validatedMembers.length;
+  const ok = counts.confirmed + counts.corrected;
+  validationSummary.textContent = `${ok}/${total} OK | ${counts.suggested} Vorschlaege | ${counts.unknown} unbekannt`;
+}
+
+function renderValidationOcrTable() {
+  validationOcrBody.innerHTML = '';
+  if (!validatedMembers) return;
+
+  validatedMembers.forEach((m, idx) => {
+    // Filter anwenden
+    if (validationFilter !== 'all' && m.validationStatus !== validationFilter) return;
+
+    const tr = document.createElement('tr');
+    tr.className = `v-row-${m.validationStatus}`;
+    if (selectedOcrRow === idx) tr.classList.add('selected');
+
+    const statusLabel = {
+      confirmed: 'Bestaetigt',
+      corrected: 'Korrigiert',
+      suggested: 'Vorschlag',
+      unknown: 'Unbekannt',
+    }[m.validationStatus] || m.validationStatus;
+
+    let correctionHtml = '';
+    if (m.validationStatus === 'corrected' && m.originalName !== m.name) {
+      correctionHtml = `<span class="v-correction">${escapeHtml(m.name)}</span>
+        <span class="v-original-name">OCR: ${escapeHtml(m.originalName)}</span>`;
+    } else if (m.validationStatus === 'suggested' && m.suggestion) {
+      correctionHtml = `<span class="v-suggestion">${escapeHtml(m.suggestion)}?</span>`;
+    }
+
+    let actionHtml = '';
+    if (m.validationStatus === 'suggested' && m.suggestion) {
+      actionHtml = `<button class="v-action-btn accept" data-idx="${idx}" data-action="accept-suggestion" title="Vorschlag uebernehmen">&#10003;</button>`;
+    }
+    if (m.validationStatus === 'unknown' || m.validationStatus === 'suggested') {
+      actionHtml += ` <button class="v-action-btn" data-idx="${idx}" data-action="select-for-assign" title="Zuordnung starten">&#9998;</button>`;
+    }
+
+    tr.innerHTML = `
+      <td><span class="v-status v-status-${m.validationStatus}"></span> ${statusLabel}</td>
+      <td>${escapeHtml(m.validationStatus === 'corrected' ? m.originalName : m.name)}</td>
+      <td>${correctionHtml}</td>
+      <td>${actionHtml}</td>
+    `;
+
+    // Klick auf Zeile = Auswahl fuer Zuordnung
+    tr.addEventListener('click', (e) => {
+      if (e.target.closest('.v-action-btn')) return; // Button-Klicks separat
+      selectedOcrRow = idx;
+      renderValidationOcrTable();
+    });
+
+    validationOcrBody.appendChild(tr);
+  });
+
+  // Action-Buttons verdrahten
+  validationOcrBody.querySelectorAll('.v-action-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const idx = parseInt(btn.dataset.idx);
+      const action = btn.dataset.action;
+
+      if (action === 'accept-suggestion') {
+        const member = validatedMembers[idx];
+        if (member.suggestion) {
+          await window.api.addCorrection(member.originalName || member.name, member.suggestion);
+          // Name im OCR-Ergebnis aktualisieren
+          ocrMembers[idx].name = member.suggestion;
+          await validateCurrentResults();
+        }
+      } else if (action === 'select-for-assign') {
+        selectedOcrRow = idx;
+        renderValidationOcrTable();
+      }
+    });
+  });
+}
+
+function renderValidationNames() {
+  validationNamesList.innerHTML = '';
+  validationNameCount.textContent = `${validationKnownNames.length} Namen`;
+
+  const searchTerm = validationSearch ? validationSearch.value.toLowerCase() : '';
+  const filtered = searchTerm
+    ? validationKnownNames.filter(n => n.toLowerCase().includes(searchTerm))
+    : validationKnownNames;
+
+  const sorted = filtered.slice().sort((a, b) => a.localeCompare(b, 'de'));
+
+  sorted.forEach(name => {
+    const item = document.createElement('div');
+    item.className = 'validation-name-item';
+
+    // Hervorheben wenn es ein selektierter OCR-Eintrag ist und dieser Name passt
+    if (selectedOcrRow !== null && validatedMembers) {
+      const sel = validatedMembers[selectedOcrRow];
+      if (sel && sel.suggestion === name) {
+        item.classList.add('highlighted');
+      }
+    }
+
+    item.innerHTML = `
+      <span>${escapeHtml(name)}</span>
+      <button class="remove-btn" title="Entfernen">&times;</button>
+    `;
+
+    // Klick auf Name = Zuordnung zum selektierten OCR-Eintrag
+    item.addEventListener('click', async (e) => {
+      if (e.target.closest('.remove-btn')) return;
+      if (selectedOcrRow === null || !validatedMembers) return;
+
+      const member = validatedMembers[selectedOcrRow];
+      if (!member) return;
+
+      const ocrName = member.originalName || member.name;
+      await window.api.addCorrection(ocrName, name);
+      // OCR-Ergebnis aktualisieren
+      ocrMembers[selectedOcrRow].name = name;
+      selectedOcrRow = null;
+      await validateCurrentResults();
+    });
+
+    // Entfernen-Button
+    item.querySelector('.remove-btn').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (confirm(`"${name}" aus der Validierungsliste entfernen?`)) {
+        await window.api.removeValidationName(name);
+        await loadValidationList();
+        if (validatedMembers) await validateCurrentResults();
+      }
+    });
+
+    validationNamesList.appendChild(item);
+  });
+}
+
+function renderCorrections() {
+  correctionsList.innerHTML = '';
+  const entries = Object.entries(validationCorrections);
+  correctionCount.textContent = entries.length;
+
+  entries.forEach(([from, to]) => {
+    const item = document.createElement('div');
+    item.className = 'correction-item';
+    item.innerHTML = `
+      <span class="correction-from" title="${escapeHtml(from)}">${escapeHtml(from)}</span>
+      <span class="correction-arrow">&rarr;</span>
+      <span class="correction-to" title="${escapeHtml(to)}">${escapeHtml(to)}</span>
+      <button class="remove-btn" title="Korrektur entfernen">&times;</button>
+    `;
+
+    item.querySelector('.remove-btn').addEventListener('click', async () => {
+      await window.api.removeCorrection(from);
+      await loadValidationList();
+      if (validatedMembers) await validateCurrentResults();
+    });
+
+    correctionsList.appendChild(item);
+  });
+}
+
+// Filter-Buttons
+validationFilterBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    validationFilterBtns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    validationFilter = btn.dataset.filter;
+    renderValidationOcrTable();
+  });
+});
+
+// Suche in Namensliste
+validationSearch.addEventListener('input', () => {
+  renderValidationNames();
+});
+
+// Name hinzufuegen
+btnAddValidationName.addEventListener('click', async () => {
+  const name = prompt('Neuen Spielernamen eingeben:');
+  if (name && name.trim()) {
+    await window.api.addValidationName(name.trim());
+    await loadValidationList();
+    if (validatedMembers) await validateCurrentResults();
+  }
+});
+
+// Alle Vorschlaege uebernehmen
+btnAcceptAllSuggestions.addEventListener('click', async () => {
+  if (!validatedMembers) return;
+  const suggestions = validatedMembers.filter(m => m.validationStatus === 'suggested' && m.suggestion);
+  if (suggestions.length === 0) return;
+
+  if (!confirm(`${suggestions.length} Vorschlaege uebernehmen?`)) return;
+
+  for (const member of suggestions) {
+    const ocrName = member.originalName || member.name;
+    await window.api.addCorrection(ocrName, member.suggestion);
+    // Auch in ocrMembers aktualisieren
+    const idx = validatedMembers.indexOf(member);
+    if (idx >= 0) ocrMembers[idx].name = member.suggestion;
+  }
+
+  await validateCurrentResults();
+});
+
+// Import / Export
+btnImportValidation.addEventListener('click', async () => {
+  const result = await window.api.importValidationList();
+  if (result.ok) {
+    await loadValidationList();
+    if (validatedMembers) await validateCurrentResults();
+  }
+});
+
+btnExportValidation.addEventListener('click', async () => {
+  await window.api.exportValidationList();
+});
+
+// Erneut validieren
+btnRevalidate.addEventListener('click', async () => {
+  if (ocrMembers && ocrMembers.length > 0) {
+    await validateCurrentResults();
+    switchToTab('validation');
+  }
+});
+
+// ─── History ─────────────────────────────────────────────────────────────────
+
+async function loadHistory() {
+  const result = await window.api.loadHistory();
+  if (!result.ok) return;
+
+  historyEntries = result.entries;
+
+  if (historyEntries.length === 0) {
+    historyEmptyHint.style.display = 'block';
+    historyListContainer.style.display = 'none';
+    historyDetailSection.style.display = 'none';
+    return;
+  }
+
+  historyEmptyHint.style.display = 'none';
+  historyListContainer.style.display = 'block';
+  renderHistoryList();
+}
+
+function renderHistoryList() {
+  historyListBody.innerHTML = '';
+
+  historyEntries.forEach(entry => {
+    const tr = document.createElement('tr');
+    if (selectedHistoryFile === entry.fileName) tr.classList.add('active');
+
+    const dateFormatted = new Date(entry.date + 'T00:00:00').toLocaleDateString('de-DE', {
+      weekday: 'short', year: 'numeric', month: '2-digit', day: '2-digit',
+    });
+
+    tr.innerHTML = `
+      <td><span class="history-date">${dateFormatted}</span></td>
+      <td>${entry.memberCount} Mitglieder</td>
+      <td class="info-text">${escapeHtml(entry.fileName)}</td>
+      <td><button class="history-delete-btn" title="Loeschen">&times;</button></td>
+    `;
+
+    tr.addEventListener('click', (e) => {
+      if (e.target.closest('.history-delete-btn')) return;
+      selectedHistoryFile = entry.fileName;
+      renderHistoryList();
+      loadHistoryDetail(entry.fileName);
+    });
+
+    tr.querySelector('.history-delete-btn').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (!confirm(`"${entry.fileName}" loeschen?`)) return;
+      await window.api.deleteHistoryEntry(entry.fileName);
+      if (selectedHistoryFile === entry.fileName) {
+        selectedHistoryFile = null;
+        historyDetailSection.style.display = 'none';
+        historyMembers = null;
+      }
+      await loadHistory();
+    });
+
+    historyListBody.appendChild(tr);
+  });
+}
+
+async function loadHistoryDetail(fileName) {
+  const result = await window.api.loadHistoryEntry(fileName);
+  if (!result.ok) return;
+
+  historyMembers = result.members;
+  historyDetailSection.style.display = 'block';
+
+  // Datum aus Dateiname extrahieren
+  const dateMatch = fileName.match(/(\d{4}-\d{2}-\d{2})/);
+  const dateStr = dateMatch
+    ? new Date(dateMatch[1] + 'T00:00:00').toLocaleDateString('de-DE', { year: 'numeric', month: 'long', day: 'numeric' })
+    : fileName;
+  historyDetailTitle.textContent = `Ergebnis vom ${dateStr}`;
+  historyDetailCount.textContent = `${result.members.length} Mitglieder`;
+
+  historyDetailBody.innerHTML = '';
+  result.members.forEach((m, idx) => {
+    const tr = document.createElement('tr');
+    const rankClass = getRankClass(m.rank);
+    tr.innerHTML = `
+      <td>${idx + 1}</td>
+      <td><span class="ocr-rank-badge ${rankClass}">${escapeHtml(m.rank)}</span></td>
+      <td>${escapeHtml(m.name)}</td>
+      <td>${escapeHtml(m.coords)}</td>
+      <td>${m.score.toLocaleString('de-DE')}</td>
+    `;
+    historyDetailBody.appendChild(tr);
+  });
+
+  // Zum Detail scrollen
+  setTimeout(() => historyDetailSection.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+}
+
+btnRefreshHistory.addEventListener('click', () => loadHistory());
+
+btnOpenResultsDir.addEventListener('click', () => {
+  window.api.openFolder('./results');
+});
+
+btnHistoryExportCsv.addEventListener('click', async () => {
+  if (!historyMembers || historyMembers.length === 0) return;
+  const defaultName = selectedHistoryFile || `mitglieder_${new Date().toISOString().slice(0, 10)}.csv`;
+  await window.api.exportCsv(historyMembers, defaultName);
+});
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 async function saveCurrentConfig() {
@@ -708,6 +1242,8 @@ async function saveCurrentConfig() {
     loginEmail: loginEmail.value,
     loginPassword: loginPassword.value,
     autoOcr: autoOcrEnabled.checked,
+    autoValidation: autoValidationEnabled.checked,
+    autoSave: autoSaveEnabled.checked,
     ocrFolder: ocrFolderInput.value,
     ocrSettings: getOcrSettings(),
   });
