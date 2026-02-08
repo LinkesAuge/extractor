@@ -1,0 +1,27 @@
+{
+  "name": "mitglieder-extractor",
+  "version": "1.0.0",
+  "description": "Mitglieder Extractor - Automatische Screenshot-Erfassung von Spieler-Listen via Scroll-Capture",
+  "type": "module",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron src/main.js"
+  },
+  "keywords": [
+    "totalbattle",
+    "mitglieder",
+    "extractor",
+    "scroll-capture",
+    "playwright",
+    "electron"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "playwright": "^1.50.0",
+    "sharp": "^0.34.5",
+    "tesseract.js": "^7.0.0"
+  },
+  "devDependencies": {
+    "electron": "^40.2.1"
+  }
+}

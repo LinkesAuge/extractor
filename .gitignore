@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+
+# Captures / Screenshots (user data, too large for git)
+captures/
+mitglieder-extractor/captures/
+
+# Electron build output
+dist/
+out/
+mitglieder-extractor/dist/
+mitglieder-extractor/out/
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Environment / secrets
+.env
+.env.local
+
+# Config files with user data
+mitglieder-config.json
+capture-config.json
+
+# Tesseract trained data (downloaded automatically)
+*.traineddata
+
+# Extracted assets (too large for git)
+extract/
+assets/
+
+# Cursor / IDE
+.cursor/
+
+# Logs
+*.log
+npm-debug.log*

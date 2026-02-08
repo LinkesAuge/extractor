@@ -1,0 +1,24 @@
+{
+  "name": "totalbattle-asset-extractor",
+  "version": "1.0.0",
+  "description": "Automatisches Abfangen und Speichern aller Game-Assets von Total Battle mittels Playwright",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "start:headless": "node src/index.js --headless",
+    "start:url": "node src/index.js --url",
+    "capture": "node src/capture.js"
+  },
+  "keywords": [
+    "totalbattle",
+    "asset-extractor",
+    "playwright",
+    "game-assets"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^5.4.0",
+    "playwright": "^1.50.0"
+  }
+}
