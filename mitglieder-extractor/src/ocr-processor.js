@@ -34,11 +34,11 @@ const DEFAULT_SETTINGS = {
   scale: 3,           // Skalierungsfaktor (1-4) — 3x liefert beste Ergebnisse
   greyscale: false,   // Graustufen-Konvertierung
   sharpen: 0.3,       // Schaerfe-Sigma (0 = aus) — 0.3 optimal
-  contrast: 1.0,      // Kontrast-Multiplikator (1.0 = normal)
-  threshold: 0,       // Schwellwert (0 = aus, 50-230 = aktiv)
+  contrast: 1.5,      // Kontrast-Multiplikator (1.5 optimal fuer TotalBattle)
+  threshold: 152,     // Schwellwert (152 optimal fuer TotalBattle)
   psm: 3,             // Page Segmentation Mode (3=auto, 6=block, 11=sparse)
   lang: 'deu',        // Sprache (deu, eng, deu+eng)
-  minScore: 10000,    // Minimaler Score-Wert
+  minScore: 5000,     // Minimaler Score-Wert
 };
 
 export class OcrProcessor {

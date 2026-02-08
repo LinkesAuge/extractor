@@ -1,6 +1,7 @@
 // ─── DOM Elemente ───────────────────────────────────────────────────────────
 
 const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => document.querySelectorAll(sel);
 
 const urlInput = $('#urlInput');
 const btnLaunch = $('#btnLaunch');
@@ -35,6 +36,7 @@ const progressText = $('#progressText');
 const gallerySection = $('#gallerySection');
 const gallery = $('#gallery');
 const btnOpenFolder = $('#btnOpenFolder');
+const btnDeleteCapture = $('#btnDeleteCapture');
 const captureResult = $('#captureResult');
 
 const autoLoginEnabled = $('#autoLoginEnabled');
@@ -45,6 +47,7 @@ const loginPassword = $('#loginPassword');
 const btnTogglePassword = $('#btnTogglePassword');
 
 const logContainer = $('#logContainer');
+const btnClearLog = $('#btnClearLog');
 
 // OCR Auswertung
 const autoOcrEnabled = $('#autoOcrEnabled');
@@ -64,8 +67,6 @@ const btnExportCsv = $('#btnExportCsv');
 const auswertungSection = $('#auswertungSection');
 
 // OCR Einstellungen
-const btnToggleOcrSettings = $('#btnToggleOcrSettings');
-const ocrSettingsPanel = $('#ocrSettingsPanel');
 const ocrScaleSlider = $('#ocrScale');
 const ocrScaleValue = $('#ocrScaleValue');
 const ocrGreyscaleCheckbox = $('#ocrGreyscale');
@@ -81,6 +82,10 @@ const ocrThresholdDisplay = $('#ocrThresholdDisplay');
 const ocrPsmSelect = $('#ocrPsm');
 const ocrLangSelect = $('#ocrLang');
 const ocrMinScoreInput = $('#ocrMinScore');
+
+// Tab Navigation
+const tabBtns = $$('.tab-btn');
+const tabContents = $$('.tab-content');
 
 // ─── State ──────────────────────────────────────────────────────────────────
 
@@ -133,12 +138,18 @@ let ocrMembers = null;  // letzte OCR-Ergebnisse
       if (s.greyscale != null) { ocrGreyscaleCheckbox.checked = s.greyscale; ocrGreyscaleText.textContent = s.greyscale ? 'An' : 'Aus'; }
       if (s.sharpen != null) { ocrSharpenSlider.value = s.sharpen; ocrSharpenValue.textContent = s.sharpen; }
       if (s.contrast != null) { ocrContrastSlider.value = s.contrast; ocrContrastValue.textContent = s.contrast; }
-      if (s.threshold > 0) {
-        ocrThresholdEnabled.checked = true;
-        ocrThresholdText.textContent = 'An';
-        ocrThresholdValSlider.disabled = false;
-        ocrThresholdValSlider.value = s.threshold;
-        ocrThresholdDisplay.textContent = s.threshold;
+      if (s.threshold != null) {
+        if (s.threshold > 0) {
+          ocrThresholdEnabled.checked = true;
+          ocrThresholdText.textContent = 'An';
+          ocrThresholdValSlider.disabled = false;
+          ocrThresholdValSlider.value = s.threshold;
+          ocrThresholdDisplay.textContent = s.threshold;
+        } else {
+          ocrThresholdEnabled.checked = false;
+          ocrThresholdText.textContent = 'Aus';
+          ocrThresholdValSlider.disabled = true;
+        }
       }
       if (s.psm != null) ocrPsmSelect.value = s.psm;
       if (s.lang) ocrLangSelect.value = s.lang;
@@ -327,8 +338,9 @@ btnStartCapture.addEventListener('click', async () => {
   gallerySection.style.display = 'block';
   captureResult.textContent = '';
 
-  // Zur Galerie scrollen
-  gallerySection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Zum Capture-Tab wechseln und zur Galerie scrollen
+  switchToTab('capture');
+  setTimeout(() => gallerySection.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
 
   saveCurrentConfig();
 
@@ -432,13 +444,6 @@ autoOcrEnabled.addEventListener('change', () => {
   saveCurrentConfig();
 });
 
-// OCR Einstellungen Panel Toggle
-btnToggleOcrSettings.addEventListener('click', () => {
-  const visible = ocrSettingsPanel.style.display !== 'none';
-  ocrSettingsPanel.style.display = visible ? 'none' : 'block';
-  btnToggleOcrSettings.textContent = visible ? 'Einstellungen' : 'Einstellungen verbergen';
-});
-
 // OCR Einstellungen Event-Listener
 ocrScaleSlider.addEventListener('input', () => {
   ocrScaleValue.textContent = ocrScaleSlider.value + 'x';
@@ -531,8 +536,9 @@ async function startOcr(folderPath) {
   ocrResultContainer.style.display = 'none';
   ocrTableBody.innerHTML = '';
 
-  // Zur Auswertung scrollen
-  auswertungSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Zum Capture-Tab wechseln und zur Auswertung scrollen
+  switchToTab('capture');
+  setTimeout(() => auswertungSection.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
 
   const result = await window.api.startOcr(folder, getOcrSettings());
 
@@ -596,8 +602,6 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
 function updateCaptureButtons() {
   const ready = browserReady && currentRegion;
   btnTestScroll.disabled = !ready;
@@ -638,6 +642,60 @@ async function loadSavedRegionPreview() {
     regionInfo.textContent = `${currentRegion.width} x ${currentRegion.height} @ (${currentRegion.x}, ${currentRegion.y}) — Preview fehlgeschlagen`;
   }
 }
+
+// ─── Tabs ────────────────────────────────────────────────────────────────────
+
+tabBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const target = btn.dataset.tab;
+
+    tabBtns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    tabContents.forEach(tc => {
+      tc.classList.toggle('active', tc.id === `tab-${target}`);
+    });
+  });
+});
+
+/** Programmtisch zum Capture-Tab wechseln */
+function switchToTab(tabName) {
+  tabBtns.forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === tabName);
+  });
+  tabContents.forEach(tc => {
+    tc.classList.toggle('active', tc.id === `tab-${tabName}`);
+  });
+}
+
+// ─── Log leeren ──────────────────────────────────────────────────────────────
+
+btnClearLog.addEventListener('click', () => {
+  logContainer.innerHTML = '';
+});
+
+// ─── Letzten Capture-Ordner loeschen ─────────────────────────────────────────
+
+btnDeleteCapture.addEventListener('click', async () => {
+  if (!lastOutputDir) return;
+
+  const ok = confirm(`Capture-Ordner loeschen?\n\n${lastOutputDir}\n\nAlle Screenshots werden unwiderruflich geloescht.`);
+  if (!ok) return;
+
+  const result = await window.api.deleteFolder(lastOutputDir);
+  if (result.ok) {
+    gallerySection.style.display = 'none';
+    gallery.innerHTML = '';
+    captureResult.textContent = '';
+    lastOutputDir = null;
+    ocrFolderInput.value = '';
+    ocrResultContainer.style.display = 'none';
+    ocrTableBody.innerHTML = '';
+    ocrMembers = null;
+  }
+});
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
 
 async function saveCurrentConfig() {
   await window.api.saveConfig({

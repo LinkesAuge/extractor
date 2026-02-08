@@ -12,233 +12,267 @@
   <header class="header">
     <img src="icon.png" alt="Icon" class="header-icon">
     <h1>Mitglieder Extractor</h1>
-    <span class="header-subtitle">Scroll Capture</span>
+    <span class="header-subtitle">Scroll Capture &amp; OCR</span>
   </header>
+
+  <!-- Tab Navigation -->
+  <nav class="tab-bar">
+    <button class="tab-btn active" data-tab="settings">Einstellungen</button>
+    <button class="tab-btn" data-tab="capture">Aufnahme &amp; Ergebnisse</button>
+  </nav>
 
   <main class="container">
 
-    <!-- Browser Section -->
-    <section class="section">
-      <h2 class="section-title">Browser</h2>
-      <div class="row">
-        <input type="text" id="urlInput" class="input" value="https://totalbattle.com/de/" placeholder="URL eingeben...">
-        <button id="btnLaunch" class="btn btn-primary">Starten</button>
-        <button id="btnClose" class="btn btn-danger" disabled>Schliessen</button>
-      </div>
-      <div id="browserStatus" class="status-bar">Nicht gestartet</div>
-    </section>
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- TAB 1: EINSTELLUNGEN                                          -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <div id="tab-settings" class="tab-content active">
 
-    <!-- Login Section -->
-    <section class="section">
-      <h2 class="section-title">
-        Auto-Login
-        <label class="toggle-label">
-          <input type="checkbox" id="autoLoginEnabled" class="toggle-checkbox">
-          <span class="toggle-text" id="autoLoginToggleText">Aus</span>
-        </label>
-      </h2>
-      <div id="loginFields" class="login-fields" style="display:none;">
+      <!-- Browser Section -->
+      <section class="section">
+        <h2 class="section-title">Browser</h2>
+        <div class="row">
+          <input type="text" id="urlInput" class="input" value="https://totalbattle.com/de/" placeholder="URL eingeben...">
+          <button id="btnLaunch" class="btn btn-primary">Starten</button>
+          <button id="btnClose" class="btn btn-danger" disabled>Schliessen</button>
+        </div>
+        <div id="browserStatus" class="status-bar">Nicht gestartet</div>
+      </section>
+
+      <!-- Login Section -->
+      <section class="section">
+        <h2 class="section-title">
+          Auto-Login
+          <label class="toggle-label">
+            <input type="checkbox" id="autoLoginEnabled" class="toggle-checkbox">
+            <span class="toggle-text" id="autoLoginToggleText">Aus</span>
+          </label>
+        </h2>
+        <div id="loginFields" class="login-fields" style="display:none;">
+          <div class="control-row">
+            <label class="label" for="loginEmail">E-Mail:</label>
+            <input type="text" id="loginEmail" class="input" placeholder="deine@email.de" autocomplete="off">
+          </div>
+          <div class="control-row">
+            <label class="label" for="loginPassword">Passwort:</label>
+            <div class="password-row">
+              <input type="password" id="loginPassword" class="input" placeholder="Passwort" autocomplete="off">
+              <button id="btnTogglePassword" class="btn btn-small btn-secondary" type="button">Zeigen</button>
+            </div>
+          </div>
+          <div class="login-hint">Daten werden lokal in mitglieder-config.json gespeichert (nicht verschluesselt).</div>
+        </div>
+      </section>
+
+      <!-- Region Section -->
+      <section class="section" id="regionSection">
+        <h2 class="section-title">Region</h2>
+        <div class="row">
+          <button id="btnSelectRegion" class="btn btn-primary" disabled>Region auswaehlen</button>
+          <span id="regionInfo" class="info-text">Keine Region ausgewaehlt</span>
+        </div>
+        <div id="regionPreviewContainer" class="preview-container" style="display:none;">
+          <img id="regionPreview" class="preview-img" alt="Region Preview">
+        </div>
+      </section>
+
+      <!-- Calibration Section -->
+      <section class="section" id="calibrationSection">
+        <h2 class="section-title">Kalibrierung</h2>
         <div class="control-row">
-          <label class="label" for="loginEmail">E-Mail:</label>
-          <input type="text" id="loginEmail" class="input" placeholder="deine@email.de" autocomplete="off">
+          <label class="label has-tooltip" for="scrollTicks" data-tooltip="Anzahl der Mausrad-Scroll-Schritte zwischen Screenshots. Mehr Ticks = groesserer Scroll-Abstand.">Mausrad-Ticks:</label>
+          <input type="range" id="scrollTicks" class="slider" min="1" max="50" value="6">
+          <span id="scrollTicksValue" class="slider-value">6</span>
         </div>
         <div class="control-row">
-          <label class="label" for="loginPassword">Passwort:</label>
-          <div class="password-row">
-            <input type="password" id="loginPassword" class="input" placeholder="Passwort" autocomplete="off">
-            <button id="btnTogglePassword" class="btn btn-small btn-secondary" type="button">Zeigen</button>
+          <label class="label has-tooltip" for="scrollDelay" data-tooltip="Wartezeit in Millisekunden nach dem Scrollen, bevor der naechste Screenshot gemacht wird. Laengere Wartezeit = stabilere Bilder.">Scroll-Delay (ms):</label>
+          <input type="range" id="scrollDelay" class="slider" min="100" max="2000" step="50" value="500">
+          <span id="scrollDelayValue" class="slider-value">500</span>
+        </div>
+        <div class="row" style="margin-top: 8px;">
+          <button id="btnTestScroll" class="btn btn-secondary" disabled>Test-Scroll</button>
+          <span id="testInfo" class="info-text"></span>
+        </div>
+        <div id="testPreviewContainer" class="test-preview-container" style="display:none;">
+          <div class="test-preview-item">
+            <span class="test-preview-label">Vorher</span>
+            <img id="testBefore" class="preview-img" alt="Before">
+          </div>
+          <div class="test-preview-item">
+            <span class="test-preview-label">Nachher</span>
+            <img id="testAfter" class="preview-img" alt="After">
           </div>
         </div>
-        <div class="login-hint">Daten werden lokal in mitglieder-config.json gespeichert (nicht verschluesselt).</div>
-      </div>
-    </section>
+      </section>
 
-    <!-- Capture Section -->
-    <section class="section" id="captureSection">
-      <h2 class="section-title">Capture</h2>
-      <div class="control-row">
-        <label class="label" for="maxScreenshots">Max Screenshots:</label>
-        <input type="number" id="maxScreenshots" class="input input-small" value="50" min="1" max="1000">
-      </div>
-      <div class="control-row">
-        <label class="label" for="outputDir">Ausgabeordner:</label>
-        <input type="text" id="outputDir" class="input" value="./captures">
-        <button id="btnBrowseDir" class="btn btn-small btn-secondary">Durchsuchen</button>
-        <button id="btnOpenOutputDir" class="btn btn-small btn-secondary">Oeffnen</button>
-      </div>
-      <div class="row" style="margin-top: 12px;">
-        <button id="btnStartCapture" class="btn btn-accent" disabled>Capture starten</button>
-        <button id="btnStopCapture" class="btn btn-danger" disabled>Stop</button>
-      </div>
-      <div id="progressContainer" class="progress-container" style="display:none;">
-        <div class="progress-bar">
-          <div id="progressFill" class="progress-fill"></div>
-        </div>
-        <span id="progressText" class="progress-text">0 / 50</span>
-      </div>
-    </section>
-
-    <!-- Region Section -->
-    <section class="section" id="regionSection">
-      <h2 class="section-title">Region</h2>
-      <div class="row">
-        <button id="btnSelectRegion" class="btn btn-primary" disabled>Region auswaehlen</button>
-        <span id="regionInfo" class="info-text">Keine Region ausgewaehlt</span>
-      </div>
-      <div id="regionPreviewContainer" class="preview-container" style="display:none;">
-        <img id="regionPreview" class="preview-img" alt="Region Preview">
-      </div>
-    </section>
-
-    <!-- Calibration Section -->
-    <section class="section" id="calibrationSection">
-      <h2 class="section-title">Kalibrierung</h2>
-      <div class="control-row">
-        <label class="label" for="scrollTicks">Mausrad-Ticks:</label>
-        <input type="range" id="scrollTicks" class="slider" min="1" max="50" value="8">
-        <span id="scrollTicksValue" class="slider-value">8</span>
-      </div>
-      <div class="control-row">
-        <label class="label" for="scrollDelay">Scroll-Delay (ms):</label>
-        <input type="range" id="scrollDelay" class="slider" min="100" max="2000" step="50" value="500">
-        <span id="scrollDelayValue" class="slider-value">500</span>
-      </div>
-      <div class="row" style="margin-top: 8px;">
-        <button id="btnTestScroll" class="btn btn-secondary" disabled>Test-Scroll</button>
-        <span id="testInfo" class="info-text"></span>
-      </div>
-      <div id="testPreviewContainer" class="test-preview-container" style="display:none;">
-        <div class="test-preview-item">
-          <span class="test-preview-label">Vorher</span>
-          <img id="testBefore" class="preview-img" alt="Before">
-        </div>
-        <div class="test-preview-item">
-          <span class="test-preview-label">Nachher</span>
-          <img id="testAfter" class="preview-img" alt="After">
-        </div>
-      </div>
-    </section>
-
-    <!-- Gallery Section -->
-    <section class="section" id="gallerySection" style="display:none;">
-      <h2 class="section-title">
-        Galerie
-        <button id="btnOpenFolder" class="btn btn-small btn-secondary">Ordner oeffnen</button>
-      </h2>
-      <div id="gallery" class="gallery"></div>
-      <div id="captureResult" class="result-text"></div>
-    </section>
-
-    <!-- Auswertung Section -->
-    <section class="section" id="auswertungSection">
-      <h2 class="section-title">
-        Auswertung (OCR)
-        <label class="toggle-label">
-          <input type="checkbox" id="autoOcrEnabled" class="toggle-checkbox" checked>
-          <span class="toggle-text" id="autoOcrToggleText">An</span>
-        </label>
-      </h2>
-      <div class="control-row">
-        <label class="label" for="ocrFolder">Capture-Ordner:</label>
-        <input type="text" id="ocrFolder" class="input" placeholder="Ordner mit Screenshots...">
-        <button id="btnBrowseOcrFolder" class="btn btn-small btn-secondary">Durchsuchen</button>
-      </div>
-      <div class="row" style="margin-top: 8px;">
-        <button id="btnStartOcr" class="btn btn-primary">Auswerten</button>
-        <button id="btnStopOcr" class="btn btn-danger" disabled>Stop</button>
-        <button id="btnToggleOcrSettings" class="btn btn-small btn-secondary">Einstellungen</button>
-        <span id="ocrStatus" class="info-text"></span>
-      </div>
-
-      <!-- OCR Einstellungen (einklappbar) -->
-      <div id="ocrSettingsPanel" class="ocr-settings-panel" style="display:none;">
+      <!-- Capture Settings -->
+      <section class="section" id="captureSection">
+        <h2 class="section-title">Capture</h2>
         <div class="control-row">
-          <label class="label">Skalierung:</label>
-          <input type="range" id="ocrScale" class="slider" min="1" max="4" step="0.5" value="3">
-          <span id="ocrScaleValue" class="slider-value">3x</span>
+          <label class="label has-tooltip" for="maxScreenshots" data-tooltip="Maximale Anzahl von Screenshots pro Capture-Durchlauf. Der Capture stoppt automatisch bei Duplikat-Erkennung oder dieser Grenze.">Max Screenshots:</label>
+          <input type="number" id="maxScreenshots" class="input input-small" value="50" min="1" max="1000">
         </div>
         <div class="control-row">
-          <label class="label">Graustufen:</label>
+          <label class="label has-tooltip" for="outputDir" data-tooltip="Ordner in dem die Screenshots gespeichert werden. Pro Durchlauf wird ein Unterordner mit Zeitstempel erstellt.">Ausgabeordner:</label>
+          <input type="text" id="outputDir" class="input" value="./captures">
+          <button id="btnBrowseDir" class="btn btn-small btn-secondary">Durchsuchen</button>
+          <button id="btnOpenOutputDir" class="btn btn-small btn-secondary">Oeffnen</button>
+        </div>
+      </section>
+
+      <!-- OCR Settings -->
+      <section class="section" id="ocrSettingsSection">
+        <h2 class="section-title">
+          OCR Einstellungen
           <label class="toggle-label">
-            <input type="checkbox" id="ocrGreyscale" class="toggle-checkbox">
-            <span class="toggle-text" id="ocrGreyscaleText">Aus</span>
+            <span class="toggle-hint">Auto-OCR</span>
+            <input type="checkbox" id="autoOcrEnabled" class="toggle-checkbox" checked>
+            <span class="toggle-text" id="autoOcrToggleText">An</span>
           </label>
+        </h2>
+        <div class="ocr-settings-grid">
+          <div class="control-row">
+            <label class="label has-tooltip" data-tooltip="Vergroesserungsfaktor fuer die Bildvorverarbeitung. Groessere Werte (3-4x) verbessern die OCR-Erkennung, erhoehen aber die Verarbeitungszeit.">Skalierung:</label>
+            <input type="range" id="ocrScale" class="slider" min="1" max="4" step="0.5" value="3">
+            <span id="ocrScaleValue" class="slider-value">3x</span>
+          </div>
+          <div class="control-row">
+            <label class="label has-tooltip" data-tooltip="Konvertiert das Bild in Graustufen. Kann die Erkennung bei farbigem Hintergrund verbessern und dient als Verifikations-Pass fuer Scores.">Graustufen:</label>
+            <label class="toggle-label">
+              <input type="checkbox" id="ocrGreyscale" class="toggle-checkbox">
+              <span class="toggle-text" id="ocrGreyscaleText">Aus</span>
+            </label>
+          </div>
+          <div class="control-row">
+            <label class="label has-tooltip" data-tooltip="Schaerfe-Sigma fuer Bildschaerfung. Werte um 0.3 sind optimal fuer TotalBattle. 0 = keine Schaerfung, hoehere Werte koennen Artefakte erzeugen.">Schaerfe (sigma):</label>
+            <input type="range" id="ocrSharpen" class="slider" min="0" max="3" step="0.1" value="0.3">
+            <span id="ocrSharpenValue" class="slider-value">0.3</span>
+          </div>
+          <div class="control-row">
+            <label class="label has-tooltip" data-tooltip="Kontrast-Multiplikator. 1.0 = unveraendert. Hoehere Werte (1.5-2.0) machen helle Bereiche heller und dunkle dunkler, was die Text-Erkennung verbessern kann.">Kontrast:</label>
+            <input type="range" id="ocrContrast" class="slider" min="1" max="3" step="0.1" value="1.5">
+            <span id="ocrContrastValue" class="slider-value">1.5</span>
+          </div>
+          <div class="control-row">
+            <label class="label has-tooltip" data-tooltip="Binarisierung: Pixel ueber dem Schwellwert werden weiss, darunter schwarz. Hilfreich fuer klare Text/Hintergrund-Trennung. Werte um 128-160 sind typisch.">Schwellwert:</label>
+            <label class="toggle-label" style="min-width: 60px;">
+              <input type="checkbox" id="ocrThresholdEnabled" class="toggle-checkbox" checked>
+              <span class="toggle-text" id="ocrThresholdText">An</span>
+            </label>
+            <input type="range" id="ocrThresholdVal" class="slider" min="50" max="230" value="152">
+            <span id="ocrThresholdDisplay" class="slider-value">152</span>
+          </div>
+          <div class="control-row">
+            <label class="label has-tooltip" data-tooltip="Tesseract Page Segmentation Mode. Bestimmt wie der Text im Bild gesucht wird. 'Automatisch' funktioniert in den meisten Faellen am besten.">PSM-Modus:</label>
+            <select id="ocrPsm" class="input input-select">
+              <option value="3">Automatisch (Standard)</option>
+              <option value="4">Einzelne Spalte</option>
+              <option value="6">Einheitlicher Block</option>
+              <option value="11">Sparse Text</option>
+              <option value="12">Sparse Text + OSD</option>
+            </select>
+          </div>
+          <div class="control-row">
+            <label class="label has-tooltip" data-tooltip="OCR-Sprache fuer die Texterkennung. Deutsch ist optimal fuer TotalBattle DE. 'Deutsch + Englisch' kann bei gemischten Texten helfen.">Sprache:</label>
+            <select id="ocrLang" class="input input-select">
+              <option value="deu" selected>Deutsch</option>
+              <option value="eng">Englisch</option>
+              <option value="deu+eng">Deutsch + Englisch</option>
+            </select>
+          </div>
+          <div class="control-row">
+            <label class="label has-tooltip" data-tooltip="Mindest-Score fuer die Erkennung. Zahlen unter diesem Wert werden als Artefakte ignoriert und nicht als Score gewertet.">Min. Score:</label>
+            <input type="number" id="ocrMinScore" class="input input-small" value="5000" min="0" max="1000000" step="1000">
+          </div>
         </div>
-        <div class="control-row">
-          <label class="label">Schaerfe (sigma):</label>
-          <input type="range" id="ocrSharpen" class="slider" min="0" max="3" step="0.1" value="0.3">
-          <span id="ocrSharpenValue" class="slider-value">0.3</span>
-        </div>
-        <div class="control-row">
-          <label class="label">Kontrast:</label>
-          <input type="range" id="ocrContrast" class="slider" min="1" max="3" step="0.1" value="1.0">
-          <span id="ocrContrastValue" class="slider-value">1.0</span>
-        </div>
-        <div class="control-row">
-          <label class="label">Schwellwert:</label>
-          <label class="toggle-label" style="min-width: 60px;">
-            <input type="checkbox" id="ocrThresholdEnabled" class="toggle-checkbox">
-            <span class="toggle-text" id="ocrThresholdText">Aus</span>
-          </label>
-          <input type="range" id="ocrThresholdVal" class="slider" min="50" max="230" value="160" disabled>
-          <span id="ocrThresholdDisplay" class="slider-value">160</span>
-        </div>
-        <div class="control-row">
-          <label class="label">PSM-Modus:</label>
-          <select id="ocrPsm" class="input input-select">
-            <option value="3">Automatisch (Standard)</option>
-            <option value="4">Einzelne Spalte</option>
-            <option value="6">Einheitlicher Block</option>
-            <option value="11">Sparse Text</option>
-            <option value="12">Sparse Text + OSD</option>
-          </select>
-        </div>
-        <div class="control-row">
-          <label class="label">Sprache:</label>
-          <select id="ocrLang" class="input input-select">
-            <option value="deu" selected>Deutsch</option>
-            <option value="eng">Englisch</option>
-            <option value="deu+eng">Deutsch + Englisch</option>
-          </select>
-        </div>
-        <div class="control-row">
-          <label class="label">Min. Score:</label>
-          <input type="number" id="ocrMinScore" class="input input-small" value="10000" min="0" max="1000000" step="1000">
-        </div>
-      </div>
-      <div id="ocrProgressContainer" class="progress-container" style="display:none;">
-        <div class="progress-bar">
-          <div id="ocrProgressFill" class="progress-fill"></div>
-        </div>
-        <span id="ocrProgressText" class="progress-text">0 / 0</span>
-      </div>
-      <div id="ocrResultContainer" style="display:none;">
-        <div class="ocr-result-header">
-          <span id="ocrResultCount" class="result-text"></span>
-          <button id="btnExportCsv" class="btn btn-small btn-accent">CSV exportieren</button>
-        </div>
-        <div class="ocr-table-container">
-          <table class="ocr-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Rang</th>
-                <th>Name</th>
-                <th>Koordinaten</th>
-                <th>Score</th>
-              </tr>
-            </thead>
-            <tbody id="ocrTableBody"></tbody>
-          </table>
-        </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- Log Section -->
-    <section class="section">
-      <h2 class="section-title">Log</h2>
-      <div id="logContainer" class="log-container"></div>
-    </section>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- TAB 2: AUFNAHME & ERGEBNISSE                                  -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <div id="tab-capture" class="tab-content">
+
+      <!-- Capture Controls -->
+      <section class="section">
+        <h2 class="section-title">Capture</h2>
+        <div class="row">
+          <button id="btnStartCapture" class="btn btn-accent" disabled>Capture starten</button>
+          <button id="btnStopCapture" class="btn btn-danger" disabled>Stop</button>
+        </div>
+        <div id="progressContainer" class="progress-container" style="display:none;">
+          <div class="progress-bar">
+            <div id="progressFill" class="progress-fill"></div>
+          </div>
+          <span id="progressText" class="progress-text">0 / 50</span>
+        </div>
+      </section>
+
+      <!-- Gallery Section -->
+      <section class="section" id="gallerySection" style="display:none;">
+        <h2 class="section-title">
+          Galerie
+          <div class="section-title-actions">
+            <button id="btnOpenFolder" class="btn btn-small btn-secondary">Ordner oeffnen</button>
+            <button id="btnDeleteCapture" class="btn btn-small btn-danger">Capture loeschen</button>
+          </div>
+        </h2>
+        <div id="gallery" class="gallery"></div>
+        <div id="captureResult" class="result-text"></div>
+      </section>
+
+      <!-- Auswertung Section -->
+      <section class="section" id="auswertungSection">
+        <h2 class="section-title">Auswertung (OCR)</h2>
+        <div class="control-row">
+          <label class="label" for="ocrFolder">Capture-Ordner:</label>
+          <input type="text" id="ocrFolder" class="input" placeholder="Ordner mit Screenshots...">
+          <button id="btnBrowseOcrFolder" class="btn btn-small btn-secondary">Durchsuchen</button>
+        </div>
+        <div class="row" style="margin-top: 8px;">
+          <button id="btnStartOcr" class="btn btn-primary">Auswerten</button>
+          <button id="btnStopOcr" class="btn btn-danger" disabled>Stop</button>
+          <span id="ocrStatus" class="info-text"></span>
+        </div>
+        <div id="ocrProgressContainer" class="progress-container" style="display:none;">
+          <div class="progress-bar">
+            <div id="ocrProgressFill" class="progress-fill"></div>
+          </div>
+          <span id="ocrProgressText" class="progress-text">0 / 0</span>
+        </div>
+        <div id="ocrResultContainer" style="display:none;">
+          <div class="ocr-result-header">
+            <span id="ocrResultCount" class="result-text"></span>
+            <button id="btnExportCsv" class="btn btn-small btn-accent">CSV exportieren</button>
+          </div>
+          <div class="ocr-table-container">
+            <table class="ocr-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Rang</th>
+                  <th>Name</th>
+                  <th>Koordinaten</th>
+                  <th>Score</th>
+                </tr>
+              </thead>
+              <tbody id="ocrTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Log Section -->
+      <section class="section">
+        <h2 class="section-title">
+          Log
+          <button id="btnClearLog" class="btn btn-small btn-secondary">Log leeren</button>
+        </h2>
+        <div id="logContainer" class="log-container"></div>
+      </section>
+
+    </div>
 
   </main>
 

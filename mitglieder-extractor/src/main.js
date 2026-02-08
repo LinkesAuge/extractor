@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, shell, dialog, nativeImage } from 'electron';
 import { chromium } from 'playwright';
-import { readFile, writeFile, mkdir, unlink } from 'fs/promises';
+import { readFile, writeFile, mkdir, unlink, rm } from 'fs/promises';
 import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import selectRegion from './region-selector.js';
@@ -673,6 +673,18 @@ ipcMain.handle('browse-folder', async () => {
     return { ok: false };
   }
   return { ok: true, path: result.filePaths[0] };
+});
+
+ipcMain.handle('delete-folder', async (_e, folderPath) => {
+  try {
+    const absPath = resolve(folderPath);
+    await rm(absPath, { recursive: true, force: true });
+    guiLogger.success(`Ordner geloescht: ${absPath}`);
+    return { ok: true };
+  } catch (err) {
+    guiLogger.error(`Ordner loeschen fehlgeschlagen: ${err.message}`);
+    return { ok: false, error: err.message };
+  }
 });
 
 // ─── IPC: OCR Auswertung ────────────────────────────────────────────────────

@@ -25,9 +25,10 @@ contextBridge.exposeInMainWorld('api', {
   loadConfig: () => ipcRenderer.invoke('load-config'),
   saveConfig: (config) => ipcRenderer.invoke('save-config', config),
 
-  // Ordner oeffnen / waehlen
+  // Ordner oeffnen / waehlen / loeschen
   openFolder: (path) => ipcRenderer.invoke('open-folder', path),
   browseFolder: () => ipcRenderer.invoke('browse-folder'),
+  deleteFolder: (path) => ipcRenderer.invoke('delete-folder', path),
 
   // OCR Auswertung
   startOcr: (folderPath, settings) => ipcRenderer.invoke('start-ocr', folderPath, settings),

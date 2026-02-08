@@ -64,13 +64,58 @@ body {
   font-weight: 400;
 }
 
+/* ─── Tab Bar ────────────────────────────────────────────────── */
+
+.tab-bar {
+  display: flex;
+  background: #16213e;
+  border-bottom: 2px solid #0f3460;
+  padding: 0 16px;
+  gap: 0;
+  -webkit-app-region: no-drag;
+}
+
+.tab-btn {
+  padding: 10px 20px;
+  border: none;
+  background: transparent;
+  color: #6b7b8d;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: all 0.2s;
+  letter-spacing: 0.3px;
+}
+
+.tab-btn:hover {
+  color: #e0e0e0;
+  background: rgba(233, 69, 96, 0.05);
+}
+
+.tab-btn.active {
+  color: #e94560;
+  border-bottom-color: #e94560;
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 /* ─── Container ──────────────────────────────────────────────── */
 
 .container {
   padding: 12px 16px 24px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
 }
 
 /* ─── Section ────────────────────────────────────────────────── */
@@ -92,6 +137,65 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.section-title-actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* ─── Tooltips ───────────────────────────────────────────────── */
+
+.has-tooltip {
+  position: relative;
+  cursor: help;
+  border-bottom: 1px dotted #6b7b8d;
+}
+
+.has-tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  min-width: 260px;
+  max-width: 340px;
+  padding: 8px 12px;
+  background: #0f3460;
+  color: #e0e0e0;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.5;
+  border-radius: 6px;
+  border: 1px solid #1a5276;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s, visibility 0.2s;
+  pointer-events: none;
+  z-index: 100;
+  text-transform: none;
+  letter-spacing: 0;
+  white-space: normal;
+}
+
+.has-tooltip::before {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 16px;
+  border: 6px solid transparent;
+  border-top-color: #0f3460;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s, visibility 0.2s;
+  pointer-events: none;
+  z-index: 101;
+}
+
+.has-tooltip:hover::after,
+.has-tooltip:hover::before {
+  opacity: 1;
+  visibility: visible;
 }
 
 /* ─── Rows & Controls ────────────────────────────────────────── */
@@ -298,6 +402,14 @@ body {
 .toggle-text {
   color: #6b7b8d;
   font-size: 11px;
+}
+
+.toggle-hint {
+  color: #8892a4;
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 /* ─── Slider ─────────────────────────────────────────────────── */
