@@ -37,3 +37,7 @@ assets/
 # Logs
 *.log
 npm-debug.log*
+
+# Benchmark results / debug images (regenerated)
+mitglieder-extractor/test/debug/
+mitglieder-extractor/test/results/

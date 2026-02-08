@@ -163,12 +163,12 @@
             <span id="ocrThresholdDisplay" class="slider-value">152</span>
           </div>
           <div class="control-row">
-            <label class="label has-tooltip" data-tooltip="Tesseract Page Segmentation Mode. Bestimmt wie der Text im Bild gesucht wird. 'Automatisch' funktioniert in den meisten Faellen am besten.">PSM-Modus:</label>
+            <label class="label has-tooltip" data-tooltip="Tesseract Page Segmentation Mode. Bestimmt wie der Text im Bild gesucht wird. 'Sparse Text' liefert lt. Benchmark die beste Namenserkennung.">PSM-Modus:</label>
             <select id="ocrPsm" class="input input-select">
-              <option value="3">Automatisch (Standard)</option>
+              <option value="3">Automatisch</option>
               <option value="4">Einzelne Spalte</option>
               <option value="6">Einheitlicher Block</option>
-              <option value="11">Sparse Text</option>
+              <option value="11" selected>Sparse Text (Standard)</option>
               <option value="12">Sparse Text + OSD</option>
             </select>
           </div>

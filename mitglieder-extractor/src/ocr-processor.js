@@ -27,6 +27,11 @@ const COORD_REGEX = /\(?[K1l|]\s*[:;.ı]?\s*(\d+)\s+X\s*[:;.ı]?\s*(\d+)\s+[YV]\
 // wuerden einzelne Artefakt-Ziffern (z.B. "9 185,896,605") faelschlich einschliessen.
 const SCORE_REGEX = /(?<!\d)(\d{1,3}(?:[,.\u00A0]\d{3})+)(?!\d)/g;
 
+// Fallback: Teilweise formatierte Scores, bei denen der ERSTE Tausender-Trenner fehlt.
+// z.B. "1922,130" (OCR uebersieht den Punkt → "1.922,130" wird zu "1922,130").
+// Nur als Fallback verwendet wenn SCORE_REGEX nichts findet.
+const SCORE_FALLBACK_REGEX = /(?<!\d)(\d{4,7}[,.\u00A0]\d{3})(?!\d)/g;
+
 // ─── OcrProcessor ────────────────────────────────────────────────────────────
 
 /** Standard-OCR-Einstellungen (optimiert fuer TotalBattle Mitglieder-Listen) */
@@ -36,7 +41,7 @@ const DEFAULT_SETTINGS = {
   sharpen: 0.3,       // Schaerfe-Sigma (0 = aus) — 0.3 optimal
   contrast: 1.5,      // Kontrast-Multiplikator (1.5 optimal fuer TotalBattle)
   threshold: 152,     // Schwellwert (152 optimal fuer TotalBattle)
-  psm: 3,             // Page Segmentation Mode (3=auto, 6=block, 11=sparse)
+  psm: 11,            // Page Segmentation Mode (11=sparse, beste Namenserkennung lt. Benchmark)
   lang: 'deu',        // Sprache (deu, eng, deu+eng)
   minScore: 5000,     // Minimaler Score-Wert
 };
@@ -265,12 +270,15 @@ export class OcrProcessor {
     // WICHTIG: Nur 1-3 Zeichen All-Uppercase als Noise ("EEG", "YAS")
     // 4-Zeichen Uppercase wie "ATON" werden BEHALTEN (koennte Teil eines Namens sein).
     // Tokens mit gemischten Ziffern+Buchstaben sind immer Noise ("G5Y", "A1B").
+    // 3-Zeichen All-Lowercase ("rzy") und Lower-Lower-Upper ("szY") sind Noise.
     if (tok.length <= 4) {
       // Jeder Token der Buchstaben UND Ziffern mischt → Noise
       if (/\d/.test(tok) && /[a-zA-ZäöüÄÖÜß]/.test(tok)) return true;
 
       return (
         /^[A-ZÄÖÜ]{3}$/.test(tok) ||              // 3-char All-Uppercase: "EEG", "YAS"
+        /^[a-zäöü]{3}$/.test(tok) ||              // 3-char All-Lowercase: "rzy", "abc"
+        /^[a-zäöü]{2}[A-ZÄÖÜ]$/.test(tok) ||     // 2 Lower + 1 Upper: "szY", "abC"
         /^[A-ZÄÖÜ]{2,3}[a-zäöü]$/.test(tok) ||   // 2-3 Upper + 1 Lower: "OEy", "ICh"
         /^\d+$/.test(tok) ||                         // reine Zahlen: "200", "7900"
         /^[^a-zA-ZäöüÄÖÜß]+$/.test(tok)            // keine Buchstaben: "...", "---"
@@ -314,13 +322,28 @@ export class OcrProcessor {
    * Wir nehmen den ERSTEN Treffer (naehster zum Koordinaten-Anker),
    * nicht den groessten, weil groessere Zahlen oft OCR-Artefakte sind
    * die mehrere Zahlen zusammenfassen.
+   *
+   * Falls der primaere Regex kein Ergebnis liefert, wird ein Fallback-Regex
+   * versucht der auch teilweise formatierte Zahlen erkennt (z.B. "1922,130"
+   * wo der erste Tausender-Trenner vom OCR uebersehen wurde).
    */
   _extractScore(text, fromIndex, toIndex, minScore) {
     const segment = text.substring(fromIndex, toIndex);
+
+    // Primaerer Versuch: Standard-Tausender-Format (z.B. "1,922,130")
     const scoreRe = new RegExp(SCORE_REGEX.source, SCORE_REGEX.flags);
     let sm;
-
     while ((sm = scoreRe.exec(segment)) !== null) {
+      const numStr = sm[1].replace(/[,.\u00A0\s]/g, '');
+      const num = parseInt(numStr);
+      if (num >= minScore) {
+        return num;
+      }
+    }
+
+    // Fallback: Teilweise formatiert (z.B. "1922,130" — erster Trenner fehlt)
+    const fallbackRe = new RegExp(SCORE_FALLBACK_REGEX.source, SCORE_FALLBACK_REGEX.flags);
+    while ((sm = fallbackRe.exec(segment)) !== null) {
       const numStr = sm[1].replace(/[,.\u00A0\s]/g, '');
       const num = parseInt(numStr);
       if (num >= minScore) {
