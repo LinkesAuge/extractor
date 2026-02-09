@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('api', {
   // Ordner oeffnen / waehlen / loeschen
   openFolder: (path) => ipcRenderer.invoke('open-folder', path),
   browseFolder: (options) => ipcRenderer.invoke('browse-folder', options),
+  browseCaptureFolder: (defaultPath) => ipcRenderer.invoke('browse-capture-folder', defaultPath),
   deleteFolder: (path) => ipcRenderer.invoke('delete-folder', path),
 
   // OCR Auswertung

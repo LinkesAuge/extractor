@@ -16,6 +16,50 @@ const BROWSER_PROFILE_DIR = join(app.getPath('userData'), 'browser-profile');
 const APP_ICON = join(dirname(__dirname), 'icons_main_menu_clan_1.png');
 const RESULTS_DIR = join(process.cwd(), 'results');
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Gibt das heutige Datum als YYYY-MM-DD in lokaler Zeitzone zurueck. */
+function localDate() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// ─── i18n (minimale Backend-Uebersetzungen fuer Dialog-Titel) ────────────────
+
+let appLanguage = 'de';
+
+const dialogStrings = {
+  de: {
+    browseFolder: 'Ausgabeordner waehlen',
+    browseCapture: 'Capture-Ordner oder Screenshot auswaehlen',
+    exportCsv: 'CSV exportieren',
+    csvFiles: 'CSV-Dateien',
+    allFiles: 'Alle Dateien',
+    screenshots: 'Screenshots',
+    importValidation: 'Validierungsliste importieren',
+    exportValidation: 'Validierungsliste exportieren',
+    jsonFiles: 'JSON-Dateien',
+  },
+  en: {
+    browseFolder: 'Choose output folder',
+    browseCapture: 'Choose capture folder or screenshot',
+    exportCsv: 'Export CSV',
+    csvFiles: 'CSV files',
+    allFiles: 'All files',
+    screenshots: 'Screenshots',
+    importValidation: 'Import validation list',
+    exportValidation: 'Export validation list',
+    jsonFiles: 'JSON files',
+  },
+};
+
+function dt(key) {
+  return dialogStrings[appLanguage]?.[key] || dialogStrings.de[key] || key;
+}
+
 // ─── State ──────────────────────────────────────────────────────────────────
 
 let mainWindow = null;
@@ -54,7 +98,7 @@ function createWindow() {
     height: 900,
     minWidth: 600,
     minHeight: 700,
-    title: 'Mitglieder Extractor',
+    title: 'Member Extractor',
     icon: nativeImage.createFromPath(APP_ICON).resize({ width: 256, height: 256 }),
     backgroundColor: '#1a1a2e',
     webPreferences: {
@@ -644,7 +688,12 @@ ipcMain.handle('stop-capture', async () => {
 ipcMain.handle('load-config', async () => {
   try {
     const data = await readFile(CONFIG_FILE, 'utf-8');
-    return { ok: true, config: JSON.parse(data) };
+    const config = JSON.parse(data);
+    // Sprache fuer Backend-Dialoge setzen
+    if (config.language && (config.language === 'de' || config.language === 'en')) {
+      appLanguage = config.language;
+    }
+    return { ok: true, config };
   } catch {
     return { ok: true, config: null };
   }
@@ -652,6 +701,10 @@ ipcMain.handle('load-config', async () => {
 
 ipcMain.handle('save-config', async (_e, config) => {
   try {
+    // Sprache fuer Backend-Dialoge aktualisieren
+    if (config.language && (config.language === 'de' || config.language === 'en')) {
+      appLanguage = config.language;
+    }
     await writeFile(CONFIG_FILE, JSON.stringify(config, null, 2));
     return { ok: true };
   } catch (err) {
@@ -670,7 +723,7 @@ ipcMain.handle('open-folder', async (_e, folderPath) => {
 ipcMain.handle('browse-folder', async (_e, options) => {
   const dialogOpts = {
     properties: ['openDirectory', 'createDirectory'],
-    title: options?.title || 'Ausgabeordner waehlen',
+    title: options?.title || dt('browseFolder'),
   };
   if (options?.defaultPath) {
     dialogOpts.defaultPath = resolve(options.defaultPath);
@@ -680,6 +733,32 @@ ipcMain.handle('browse-folder', async (_e, options) => {
     return { ok: false };
   }
   return { ok: true, path: result.filePaths[0] };
+});
+
+ipcMain.handle('browse-capture-folder', async (_e, defaultPath) => {
+  const dialogOpts = {
+    title: dt('browseCapture'),
+    properties: ['openFile', 'openDirectory'],
+    filters: [
+      { name: dt('screenshots'), extensions: ['png', 'jpg', 'jpeg', 'bmp', 'webp'] },
+      { name: dt('allFiles'), extensions: ['*'] },
+    ],
+  };
+  if (defaultPath) {
+    dialogOpts.defaultPath = resolve(defaultPath);
+  }
+  const result = await dialog.showOpenDialog(mainWindow, dialogOpts);
+  if (result.canceled || !result.filePaths.length) {
+    return { ok: false };
+  }
+  const selected = result.filePaths[0];
+  // Wenn eine Datei ausgewaehlt wurde, den Ordner zurueckgeben
+  try {
+    const s = await stat(selected);
+    return { ok: true, path: s.isDirectory() ? selected : dirname(selected) };
+  } catch {
+    return { ok: true, path: selected };
+  }
 });
 
 ipcMain.handle('delete-folder', async (_e, folderPath) => {
@@ -733,11 +812,11 @@ ipcMain.handle('export-csv', async (_e, members, defaultName) => {
   try {
     await mkdir(RESULTS_DIR, { recursive: true });
     const result = await dialog.showSaveDialog(mainWindow, {
-      title: 'CSV exportieren',
+      title: dt('exportCsv'),
       defaultPath: join(RESULTS_DIR, defaultName || 'mitglieder.csv'),
       filters: [
-        { name: 'CSV-Dateien', extensions: ['csv'] },
-        { name: 'Alle Dateien', extensions: ['*'] },
+        { name: dt('csvFiles'), extensions: ['csv'] },
+        { name: dt('allFiles'), extensions: ['*'] },
       ],
     });
 
@@ -760,7 +839,7 @@ ipcMain.handle('export-csv', async (_e, members, defaultName) => {
 ipcMain.handle('auto-save-csv', async (_e, members) => {
   try {
     await mkdir(RESULTS_DIR, { recursive: true });
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDate();
     const fileName = `mitglieder_${today}.csv`;
     const filePath = join(RESULTS_DIR, fileName);
 
@@ -789,7 +868,7 @@ ipcMain.handle('load-history', async () => {
       const fileStat = await stat(filePath);
       // Datum aus Dateiname extrahieren (mitglieder_YYYY-MM-DD.csv)
       const dateMatch = file.match(/(\d{4}-\d{2}-\d{2})/);
-      const date = dateMatch ? dateMatch[1] : fileStat.mtime.toISOString().slice(0, 10);
+      const date = dateMatch ? dateMatch[1] : fileStat.mtime.toLocaleDateString('sv-SE');
 
       // Schnell: Zeilen zaehlen fuer Member-Count (Header abziehen)
       const content = await readFile(filePath, 'utf-8');
@@ -929,10 +1008,10 @@ ipcMain.handle('validate-ocr-results', async (_e, members) => {
 ipcMain.handle('import-validation-list', async () => {
   try {
     const result = await dialog.showOpenDialog(mainWindow, {
-      title: 'Validierungsliste importieren',
+      title: dt('importValidation'),
       filters: [
-        { name: 'JSON-Dateien', extensions: ['json'] },
-        { name: 'Alle Dateien', extensions: ['*'] },
+        { name: dt('jsonFiles'), extensions: ['json'] },
+        { name: dt('allFiles'), extensions: ['*'] },
       ],
       properties: ['openFile'],
     });
@@ -974,11 +1053,11 @@ ipcMain.handle('import-validation-list', async () => {
 ipcMain.handle('export-validation-list', async () => {
   try {
     const result = await dialog.showSaveDialog(mainWindow, {
-      title: 'Validierungsliste exportieren',
+      title: dt('exportValidation'),
       defaultPath: 'validation-list.json',
       filters: [
-        { name: 'JSON-Dateien', extensions: ['json'] },
-        { name: 'Alle Dateien', extensions: ['*'] },
+        { name: dt('jsonFiles'), extensions: ['json'] },
+        { name: dt('allFiles'), extensions: ['*'] },
       ],
     });
 

@@ -4,23 +4,22 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline';">
-  <title>Mitglieder Extractor</title>
+  <title>Member Extractor</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <!-- Header -->
   <header class="header">
     <img src="icon.png" alt="Icon" class="header-icon">
-    <h1>Mitglieder Extractor</h1>
-    <span class="header-subtitle">Scroll Capture &amp; OCR</span>
+    <h1>Member Extractor</h1>
   </header>
 
   <!-- Tab Navigation -->
   <nav class="tab-bar">
-    <button class="tab-btn active" data-tab="settings">Einstellungen</button>
-    <button class="tab-btn" data-tab="capture">Aufnahme &amp; Ergebnisse</button>
-    <button class="tab-btn" data-tab="validation">Validierung</button>
-    <button class="tab-btn" data-tab="history">History</button>
+    <button class="tab-btn active" data-tab="settings" data-i18n="tab.settings">Einstellungen</button>
+    <button class="tab-btn" data-tab="capture" data-i18n="tab.capture">Aufnahme &amp; Ergebnisse</button>
+    <button class="tab-btn" data-tab="validation" data-i18n="tab.validation">Validierung</button>
+    <button class="tab-btn" data-tab="history" data-i18n="tab.history">History</button>
   </nav>
 
   <main class="container">
@@ -30,48 +29,60 @@
     <!-- ═══════════════════════════════════════════════════════════════ -->
     <div id="tab-settings" class="tab-content active">
 
+      <!-- Language Section -->
+      <section class="section">
+        <h2 class="section-title" data-i18n="section.language">Sprache</h2>
+        <div class="control-row">
+          <label class="label" for="appLanguageSelect" data-i18n="label.appLanguage">App-Sprache:</label>
+          <select id="appLanguageSelect" class="input input-select">
+            <option value="de">Deutsch</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+      </section>
+
       <!-- Browser Section -->
       <section class="section">
-        <h2 class="section-title">Browser</h2>
+        <h2 class="section-title" data-i18n="section.browser">Browser</h2>
         <div class="row">
-          <input type="text" id="urlInput" class="input" value="https://totalbattle.com/de/" placeholder="URL eingeben...">
-          <button id="btnLaunch" class="btn btn-primary">Starten</button>
-          <button id="btnClose" class="btn btn-danger" disabled>Schliessen</button>
+          <input type="text" id="urlInput" class="input" value="https://totalbattle.com/de/" data-i18n-placeholder="placeholder.url" placeholder="URL eingeben...">
+          <button id="btnLaunch" class="btn btn-primary" data-i18n="btn.launch">Starten</button>
+          <button id="btnClose" class="btn btn-danger" disabled data-i18n="btn.close">Schliessen</button>
         </div>
-        <div id="browserStatus" class="status-bar">Nicht gestartet</div>
+        <div id="browserStatus" class="status-bar" data-i18n="status.notStarted">Nicht gestartet</div>
       </section>
 
       <!-- Login Section -->
       <section class="section">
         <h2 class="section-title">
-          Auto-Login
+          <span data-i18n="section.autoLogin">Auto-Login</span>
           <label class="toggle-label">
             <input type="checkbox" id="autoLoginEnabled" class="toggle-checkbox">
-            <span class="toggle-text" id="autoLoginToggleText">Aus</span>
+            <span class="toggle-text" id="autoLoginToggleText" data-i18n="toggle.off">Aus</span>
           </label>
         </h2>
         <div id="loginFields" class="login-fields" style="display:none;">
           <div class="control-row">
-            <label class="label" for="loginEmail">E-Mail:</label>
-            <input type="text" id="loginEmail" class="input" placeholder="deine@email.de" autocomplete="off">
+            <label class="label" for="loginEmail" data-i18n="label.email">E-Mail:</label>
+            <input type="text" id="loginEmail" class="input" data-i18n-placeholder="placeholder.email" placeholder="deine@email.de" autocomplete="off">
           </div>
           <div class="control-row">
-            <label class="label" for="loginPassword">Passwort:</label>
+            <label class="label" for="loginPassword" data-i18n="label.password">Passwort:</label>
             <div class="password-row">
-              <input type="password" id="loginPassword" class="input" placeholder="Passwort" autocomplete="off">
-              <button id="btnTogglePassword" class="btn btn-small btn-secondary" type="button">Zeigen</button>
+              <input type="password" id="loginPassword" class="input" data-i18n-placeholder="placeholder.password" placeholder="Passwort" autocomplete="off">
+              <button id="btnTogglePassword" class="btn btn-small btn-secondary" type="button" data-i18n="btn.showPassword">Zeigen</button>
             </div>
           </div>
-          <div class="login-hint">Daten werden lokal in mitglieder-config.json gespeichert (nicht verschluesselt).</div>
+          <div class="login-hint" data-i18n="hint.loginStorage">Daten werden lokal in mitglieder-config.json gespeichert (nicht verschluesselt).</div>
         </div>
       </section>
 
       <!-- Region Section -->
       <section class="section" id="regionSection">
-        <h2 class="section-title">Region</h2>
+        <h2 class="section-title" data-i18n="section.region">Region</h2>
         <div class="row">
-          <button id="btnSelectRegion" class="btn btn-primary" disabled>Region auswaehlen</button>
-          <span id="regionInfo" class="info-text">Keine Region ausgewaehlt</span>
+          <button id="btnSelectRegion" class="btn btn-primary" disabled data-i18n="btn.selectRegion">Region auswaehlen</button>
+          <span id="regionInfo" class="info-text" data-i18n="status.noRegion">Keine Region ausgewaehlt</span>
         </div>
         <div id="regionPreviewContainer" class="preview-container" style="display:none;">
           <img id="regionPreview" class="preview-img" alt="Region Preview">
@@ -80,28 +91,28 @@
 
       <!-- Calibration Section -->
       <section class="section" id="calibrationSection">
-        <h2 class="section-title">Kalibrierung</h2>
+        <h2 class="section-title" data-i18n="section.calibration">Kalibrierung</h2>
         <div class="control-row">
-          <label class="label has-tooltip" for="scrollTicks" data-tooltip="Anzahl der Mausrad-Scroll-Schritte zwischen Screenshots. Mehr Ticks = groesserer Scroll-Abstand.">Mausrad-Ticks:</label>
+          <label class="label has-tooltip" for="scrollTicks" data-i18n="label.scrollTicks" data-i18n-tooltip="tooltip.scrollTicks" data-tooltip="Anzahl der Mausrad-Scroll-Schritte zwischen Screenshots. Mehr Ticks = groesserer Scroll-Abstand.">Mausrad-Ticks:</label>
           <input type="range" id="scrollTicks" class="slider" min="1" max="50" value="6">
           <span id="scrollTicksValue" class="slider-value">6</span>
         </div>
         <div class="control-row">
-          <label class="label has-tooltip" for="scrollDelay" data-tooltip="Wartezeit in Millisekunden nach dem Scrollen, bevor der naechste Screenshot gemacht wird. Laengere Wartezeit = stabilere Bilder.">Scroll-Delay (ms):</label>
+          <label class="label has-tooltip" for="scrollDelay" data-i18n="label.scrollDelay" data-i18n-tooltip="tooltip.scrollDelay" data-tooltip="Wartezeit in Millisekunden nach dem Scrollen, bevor der naechste Screenshot gemacht wird. Laengere Wartezeit = stabilere Bilder.">Scroll-Delay (ms):</label>
           <input type="range" id="scrollDelay" class="slider" min="100" max="2000" step="50" value="500">
           <span id="scrollDelayValue" class="slider-value">500</span>
         </div>
         <div class="row" style="margin-top: 8px;">
-          <button id="btnTestScroll" class="btn btn-secondary" disabled>Test-Scroll</button>
+          <button id="btnTestScroll" class="btn btn-secondary" disabled data-i18n="btn.testScroll">Test-Scroll</button>
           <span id="testInfo" class="info-text"></span>
         </div>
         <div id="testPreviewContainer" class="test-preview-container" style="display:none;">
           <div class="test-preview-item">
-            <span class="test-preview-label">Vorher</span>
+            <span class="test-preview-label" data-i18n="label.before">Vorher</span>
             <img id="testBefore" class="preview-img" alt="Before">
           </div>
           <div class="test-preview-item">
-            <span class="test-preview-label">Nachher</span>
+            <span class="test-preview-label" data-i18n="label.after">Nachher</span>
             <img id="testAfter" class="preview-img" alt="After">
           </div>
         </div>
@@ -109,93 +120,93 @@
 
       <!-- Capture Settings -->
       <section class="section" id="captureSection">
-        <h2 class="section-title">Capture</h2>
+        <h2 class="section-title" data-i18n="section.capture">Capture</h2>
         <div class="control-row">
-          <label class="label has-tooltip" for="maxScreenshots" data-tooltip="Maximale Anzahl von Screenshots pro Capture-Durchlauf. Der Capture stoppt automatisch bei Duplikat-Erkennung oder dieser Grenze.">Max Screenshots:</label>
+          <label class="label has-tooltip" for="maxScreenshots" data-i18n="label.maxScreenshots" data-i18n-tooltip="tooltip.maxScreenshots" data-tooltip="Maximale Anzahl von Screenshots pro Capture-Durchlauf. Der Capture stoppt automatisch bei Duplikat-Erkennung oder dieser Grenze.">Max Screenshots:</label>
           <input type="number" id="maxScreenshots" class="input input-small" value="50" min="1" max="1000">
         </div>
         <div class="control-row">
-          <label class="label has-tooltip" for="outputDir" data-tooltip="Ordner in dem die Screenshots gespeichert werden. Pro Durchlauf wird ein Unterordner mit Zeitstempel erstellt.">Ausgabeordner:</label>
+          <label class="label has-tooltip" for="outputDir" data-i18n="label.outputDir" data-i18n-tooltip="tooltip.outputDir" data-tooltip="Ordner in dem die Screenshots gespeichert werden. Pro Durchlauf wird ein Unterordner mit Zeitstempel erstellt.">Ausgabeordner:</label>
           <input type="text" id="outputDir" class="input" value="./captures">
-          <button id="btnBrowseDir" class="btn btn-small btn-secondary">Durchsuchen</button>
-          <button id="btnOpenOutputDir" class="btn btn-small btn-secondary">Oeffnen</button>
+          <button id="btnBrowseDir" class="btn btn-small btn-secondary" data-i18n="btn.browse">Durchsuchen</button>
+          <button id="btnOpenOutputDir" class="btn btn-small btn-secondary" data-i18n="btn.open">Oeffnen</button>
         </div>
       </section>
 
       <!-- OCR Settings -->
       <section class="section" id="ocrSettingsSection">
         <h2 class="section-title">
-          OCR Einstellungen
+          <span data-i18n="section.ocrSettings">OCR Einstellungen</span>
           <div class="section-title-actions" style="gap: 12px;">
-            <label class="toggle-label has-tooltip" data-tooltip="Startet OCR automatisch nach jedem Capture-Durchlauf.">
-              <span class="toggle-hint">Auto-OCR</span>
+            <label class="toggle-label has-tooltip" data-i18n-tooltip="tooltip.autoOcr" data-tooltip="Startet OCR automatisch nach jedem Capture-Durchlauf.">
+              <span class="toggle-hint" data-i18n="toggle.autoOcr">Auto-OCR</span>
               <input type="checkbox" id="autoOcrEnabled" class="toggle-checkbox" checked>
-              <span class="toggle-text" id="autoOcrToggleText">An</span>
+              <span class="toggle-text" id="autoOcrToggleText" data-i18n="toggle.on">An</span>
             </label>
-            <label class="toggle-label has-tooltip" data-tooltip="Validiert OCR-Ergebnisse automatisch gegen die Validierungsliste. Bei Fehlern wird ein Hinweis angezeigt.">
-              <span class="toggle-hint">Auto-Valid.</span>
+            <label class="toggle-label has-tooltip" data-i18n-tooltip="tooltip.autoValidation" data-tooltip="Validiert OCR-Ergebnisse automatisch gegen die Validierungsliste. Bei Fehlern wird ein Hinweis angezeigt.">
+              <span class="toggle-hint" data-i18n="toggle.autoValidation">Auto-Valid.</span>
               <input type="checkbox" id="autoValidationEnabled" class="toggle-checkbox" checked>
-              <span class="toggle-text" id="autoValidationToggleText">An</span>
+              <span class="toggle-text" id="autoValidationToggleText" data-i18n="toggle.on">An</span>
             </label>
-            <label class="toggle-label has-tooltip" data-tooltip="Speichert die CSV-Datei automatisch wenn die Validierung fehlerfrei ist (alle Namen bestaetigt/korrigiert).">
-              <span class="toggle-hint">Auto-Save</span>
+            <label class="toggle-label has-tooltip" data-i18n-tooltip="tooltip.autoSave" data-tooltip="Speichert die CSV-Datei automatisch wenn die Validierung fehlerfrei ist (alle Namen bestaetigt/korrigiert).">
+              <span class="toggle-hint" data-i18n="toggle.autoSave">Auto-Save</span>
               <input type="checkbox" id="autoSaveEnabled" class="toggle-checkbox" checked>
-              <span class="toggle-text" id="autoSaveToggleText">An</span>
+              <span class="toggle-text" id="autoSaveToggleText" data-i18n="toggle.on">An</span>
             </label>
           </div>
         </h2>
         <div class="ocr-settings-grid">
           <div class="control-row">
-            <label class="label has-tooltip" data-tooltip="Vergroesserungsfaktor fuer die Bildvorverarbeitung. Groessere Werte (3-4x) verbessern die OCR-Erkennung, erhoehen aber die Verarbeitungszeit.">Skalierung:</label>
+            <label class="label has-tooltip" data-i18n="label.scale" data-i18n-tooltip="tooltip.scale" data-tooltip="Vergroesserungsfaktor fuer die Bildvorverarbeitung. Groessere Werte (3-4x) verbessern die OCR-Erkennung, erhoehen aber die Verarbeitungszeit.">Skalierung:</label>
             <input type="range" id="ocrScale" class="slider" min="1" max="4" step="0.5" value="3">
             <span id="ocrScaleValue" class="slider-value">3x</span>
           </div>
           <div class="control-row">
-            <label class="label has-tooltip" data-tooltip="Konvertiert das Bild in Graustufen. Kann die Erkennung bei farbigem Hintergrund verbessern und dient als Verifikations-Pass fuer Scores.">Graustufen:</label>
+            <label class="label has-tooltip" data-i18n="label.greyscale" data-i18n-tooltip="tooltip.greyscale" data-tooltip="Konvertiert das Bild in Graustufen. Kann die Erkennung bei farbigem Hintergrund verbessern und dient als Verifikations-Pass fuer Scores.">Graustufen:</label>
             <label class="toggle-label">
               <input type="checkbox" id="ocrGreyscale" class="toggle-checkbox" checked>
-              <span class="toggle-text" id="ocrGreyscaleText">An</span>
+              <span class="toggle-text" id="ocrGreyscaleText" data-i18n="toggle.on">An</span>
             </label>
           </div>
           <div class="control-row">
-            <label class="label has-tooltip" data-tooltip="Schaerfe-Sigma fuer Bildschaerfung. Werte um 0.3 sind optimal fuer TotalBattle. 0 = keine Schaerfung, hoehere Werte koennen Artefakte erzeugen.">Schaerfe (sigma):</label>
+            <label class="label has-tooltip" data-i18n="label.sharpen" data-i18n-tooltip="tooltip.sharpen" data-tooltip="Schaerfe-Sigma fuer Bildschaerfung. Werte um 0.3 sind optimal fuer TotalBattle. 0 = keine Schaerfung, hoehere Werte koennen Artefakte erzeugen.">Schaerfe (sigma):</label>
             <input type="range" id="ocrSharpen" class="slider" min="0" max="3" step="0.1" value="0.3">
             <span id="ocrSharpenValue" class="slider-value">0.3</span>
           </div>
           <div class="control-row">
-            <label class="label has-tooltip" data-tooltip="Kontrast-Multiplikator. 1.0 = unveraendert. Hoehere Werte (1.5-2.0) machen helle Bereiche heller und dunkle dunkler, was die Text-Erkennung verbessern kann.">Kontrast:</label>
+            <label class="label has-tooltip" data-i18n="label.contrast" data-i18n-tooltip="tooltip.contrast" data-tooltip="Kontrast-Multiplikator. 1.0 = unveraendert. Hoehere Werte (1.5-2.0) machen helle Bereiche heller und dunkle dunkler, was die Text-Erkennung verbessern kann.">Kontrast:</label>
             <input type="range" id="ocrContrast" class="slider" min="1" max="3" step="0.1" value="1.5">
             <span id="ocrContrastValue" class="slider-value">1.5</span>
           </div>
           <div class="control-row">
-            <label class="label has-tooltip" data-tooltip="Binarisierung: Pixel ueber dem Schwellwert werden weiss, darunter schwarz. Hilfreich fuer klare Text/Hintergrund-Trennung. Werte um 128-160 sind typisch.">Schwellwert:</label>
+            <label class="label has-tooltip" data-i18n="label.threshold" data-i18n-tooltip="tooltip.threshold" data-tooltip="Binarisierung: Pixel ueber dem Schwellwert werden weiss, darunter schwarz. Hilfreich fuer klare Text/Hintergrund-Trennung. Werte um 128-160 sind typisch.">Schwellwert:</label>
             <label class="toggle-label" style="min-width: 60px;">
               <input type="checkbox" id="ocrThresholdEnabled" class="toggle-checkbox" checked>
-              <span class="toggle-text" id="ocrThresholdText">An</span>
+              <span class="toggle-text" id="ocrThresholdText" data-i18n="toggle.on">An</span>
             </label>
             <input type="range" id="ocrThresholdVal" class="slider" min="50" max="230" value="152">
             <span id="ocrThresholdDisplay" class="slider-value">152</span>
           </div>
           <div class="control-row">
-            <label class="label has-tooltip" data-tooltip="Tesseract Page Segmentation Mode. Bestimmt wie der Text im Bild gesucht wird. 'Sparse Text' liefert lt. Benchmark die beste Namenserkennung.">PSM-Modus:</label>
+            <label class="label has-tooltip" data-i18n="label.psm" data-i18n-tooltip="tooltip.psm" data-tooltip="Tesseract Page Segmentation Mode. Bestimmt wie der Text im Bild gesucht wird. 'Sparse Text' liefert lt. Benchmark die beste Namenserkennung.">PSM-Modus:</label>
             <select id="ocrPsm" class="input input-select">
-              <option value="3">Automatisch</option>
-              <option value="4">Einzelne Spalte</option>
-              <option value="6">Einheitlicher Block</option>
-              <option value="11" selected>Sparse Text (Standard)</option>
-              <option value="12">Sparse Text + OSD</option>
+              <option value="3" data-i18n="option.automatic">Automatisch</option>
+              <option value="4" data-i18n="option.singleColumn">Einzelne Spalte</option>
+              <option value="6" data-i18n="option.uniformBlock">Einheitlicher Block</option>
+              <option value="11" selected data-i18n="option.sparseText">Sparse Text (Standard)</option>
+              <option value="12" data-i18n="option.sparseTextOsd">Sparse Text + OSD</option>
             </select>
           </div>
           <div class="control-row">
-            <label class="label has-tooltip" data-tooltip="OCR-Sprache fuer die Texterkennung. Deutsch ist optimal fuer TotalBattle DE. 'Deutsch + Englisch' kann bei gemischten Texten helfen.">Sprache:</label>
+            <label class="label has-tooltip" data-i18n="label.ocrLang" data-i18n-tooltip="tooltip.ocrLang" data-tooltip="OCR-Sprache fuer die Texterkennung. Deutsch ist optimal fuer TotalBattle DE. 'Deutsch + Englisch' kann bei gemischten Texten helfen.">Sprache:</label>
             <select id="ocrLang" class="input input-select">
-              <option value="deu" selected>Deutsch</option>
-              <option value="eng">Englisch</option>
-              <option value="deu+eng">Deutsch + Englisch</option>
+              <option value="deu" selected data-i18n="option.german">Deutsch</option>
+              <option value="eng" data-i18n="option.english">Englisch</option>
+              <option value="deu+eng" data-i18n="option.germanEnglish">Deutsch + Englisch</option>
             </select>
           </div>
           <div class="control-row">
-            <label class="label has-tooltip" data-tooltip="Mindest-Score fuer die Erkennung. Zahlen unter diesem Wert werden als Artefakte ignoriert und nicht als Score gewertet.">Min. Score:</label>
+            <label class="label has-tooltip" data-i18n="label.minScore" data-i18n-tooltip="tooltip.minScore" data-tooltip="Mindest-Score fuer die Erkennung. Zahlen unter diesem Wert werden als Artefakte ignoriert und nicht als Score gewertet.">Min. Score:</label>
             <input type="number" id="ocrMinScore" class="input input-small" value="5000" min="0" max="1000000" step="1000">
           </div>
         </div>
@@ -210,10 +221,10 @@
 
       <!-- Capture Controls -->
       <section class="section">
-        <h2 class="section-title">Capture</h2>
+        <h2 class="section-title" data-i18n="section.capture">Capture</h2>
         <div class="row">
-          <button id="btnStartCapture" class="btn btn-accent" disabled>Capture starten</button>
-          <button id="btnStopCapture" class="btn btn-danger" disabled>Stop</button>
+          <button id="btnStartCapture" class="btn btn-accent" disabled data-i18n="btn.startCapture">Capture starten</button>
+          <button id="btnStopCapture" class="btn btn-danger" disabled data-i18n="btn.stop">Stop</button>
         </div>
         <div id="progressContainer" class="progress-container" style="display:none;">
           <div class="progress-bar">
@@ -226,10 +237,10 @@
       <!-- Gallery Section -->
       <section class="section" id="gallerySection" style="display:none;">
         <h2 class="section-title">
-          Galerie
+          <span data-i18n="section.gallery">Galerie</span>
           <div class="section-title-actions">
-            <button id="btnOpenFolder" class="btn btn-small btn-secondary">Ordner oeffnen</button>
-            <button id="btnDeleteCapture" class="btn btn-small btn-danger">Capture loeschen</button>
+            <button id="btnOpenFolder" class="btn btn-small btn-secondary" data-i18n="btn.openFolder">Ordner oeffnen</button>
+            <button id="btnDeleteCapture" class="btn btn-small btn-danger" data-i18n="btn.deleteCapture">Capture loeschen</button>
           </div>
         </h2>
         <div id="gallery" class="gallery"></div>
@@ -238,15 +249,15 @@
 
       <!-- Auswertung Section -->
       <section class="section" id="auswertungSection">
-        <h2 class="section-title">Auswertung (OCR)</h2>
+        <h2 class="section-title" data-i18n="section.evaluation">Auswertung (OCR)</h2>
         <div class="control-row">
-          <label class="label" for="ocrFolder">Capture-Ordner:</label>
-          <input type="text" id="ocrFolder" class="input" placeholder="Ordner mit Screenshots...">
-          <button id="btnBrowseOcrFolder" class="btn btn-small btn-secondary">Durchsuchen</button>
+          <label class="label" for="ocrFolder" data-i18n="label.captureFolder">Capture-Ordner:</label>
+          <input type="text" id="ocrFolder" class="input" data-i18n-placeholder="placeholder.ocrFolder" placeholder="Ordner mit Screenshots...">
+          <button id="btnBrowseOcrFolder" class="btn btn-small btn-secondary" data-i18n="btn.browse">Durchsuchen</button>
         </div>
         <div class="row" style="margin-top: 8px;">
-          <button id="btnStartOcr" class="btn btn-primary">Auswerten</button>
-          <button id="btnStopOcr" class="btn btn-danger" disabled>Stop</button>
+          <button id="btnStartOcr" class="btn btn-primary" data-i18n="btn.evaluate">Auswerten</button>
+          <button id="btnStopOcr" class="btn btn-danger" disabled data-i18n="btn.stop">Stop</button>
           <span id="ocrStatus" class="info-text"></span>
         </div>
         <div id="ocrProgressContainer" class="progress-container" style="display:none;">
@@ -258,17 +269,17 @@
         <div id="ocrResultContainer" style="display:none;">
           <div class="ocr-result-header">
             <span id="ocrResultCount" class="result-text"></span>
-            <button id="btnExportCsv" class="btn btn-small btn-accent">CSV exportieren</button>
+            <button id="btnExportCsv" class="btn btn-small btn-accent" data-i18n="btn.exportCsv">CSV exportieren</button>
           </div>
           <div class="ocr-table-container">
             <table class="ocr-table">
               <thead>
                 <tr>
                   <th>#</th>
-                  <th>Rang</th>
-                  <th>Name</th>
-                  <th>Koordinaten</th>
-                  <th>Score</th>
+                  <th data-i18n="th.rank">Rang</th>
+                  <th data-i18n="th.name">Name</th>
+                  <th data-i18n="th.coords">Koordinaten</th>
+                  <th data-i18n="th.score">Score</th>
                 </tr>
               </thead>
               <tbody id="ocrTableBody"></tbody>
@@ -279,15 +290,15 @@
         <div id="ocrValidationBanner" class="ocr-validation-banner" style="display:none;">
           <span id="ocrValidationIcon" class="ocr-validation-icon"></span>
           <span id="ocrValidationMsg" class="ocr-validation-msg"></span>
-          <button id="btnGoToValidation" class="btn btn-small btn-primary">Zur Validierung</button>
+          <button id="btnGoToValidation" class="btn btn-small btn-primary" data-i18n="btn.goToValidation">Zur Validierung</button>
         </div>
       </section>
 
       <!-- Log Section -->
       <section class="section">
         <h2 class="section-title">
-          Log
-          <button id="btnClearLog" class="btn btn-small btn-secondary">Log leeren</button>
+          <span data-i18n="section.log">Log</span>
+          <button id="btnClearLog" class="btn btn-small btn-secondary" data-i18n="btn.clearLog">Log leeren</button>
         </h2>
         <div id="logContainer" class="log-container"></div>
       </section>
@@ -302,12 +313,12 @@
       <!-- Validierungsstatus -->
       <section class="section">
         <h2 class="section-title">
-          Validierungsstatus
+          <span data-i18n="section.validationStatus">Validierungsstatus</span>
           <div class="section-title-actions">
             <span id="validationSummary" class="info-text"></span>
           </div>
         </h2>
-        <div id="validationEmptyHint" class="validation-empty-hint">
+        <div id="validationEmptyHint" class="validation-empty-hint" data-i18n="hint.validationEmpty">
           Noch keine OCR-Ergebnisse vorhanden. Starte einen OCR-Lauf im Tab "Aufnahme &amp; Ergebnisse" oder lade eine Validierungsliste.
         </div>
       </section>
@@ -318,25 +329,25 @@
         <!-- Linke Seite: OCR-Ergebnisse -->
         <section class="section validation-panel">
           <h2 class="section-title">
-            OCR-Ergebnisse
+            <span data-i18n="section.ocrResults">OCR-Ergebnisse</span>
             <div class="section-title-actions">
-              <button id="btnAcceptAllSuggestions" class="btn btn-small btn-primary">Alle Vorschlaege uebernehmen</button>
+              <button id="btnAcceptAllSuggestions" class="btn btn-small btn-primary" data-i18n="btn.acceptAllSuggestions">Alle Vorschlaege uebernehmen</button>
             </div>
           </h2>
           <div class="validation-filter-row">
-            <button class="validation-filter-btn active" data-filter="all">Alle</button>
-            <button class="validation-filter-btn" data-filter="unknown">Unbekannt</button>
-            <button class="validation-filter-btn" data-filter="suggested">Vorschlaege</button>
-            <button class="validation-filter-btn" data-filter="corrected">Korrigiert</button>
-            <button class="validation-filter-btn" data-filter="confirmed">Bestaetigt</button>
+            <button class="validation-filter-btn active" data-filter="all" data-i18n="filter.all">Alle</button>
+            <button class="validation-filter-btn" data-filter="unknown" data-i18n="filter.unknown">Unbekannt</button>
+            <button class="validation-filter-btn" data-filter="suggested" data-i18n="filter.suggested">Vorschlaege</button>
+            <button class="validation-filter-btn" data-filter="corrected" data-i18n="filter.corrected">Korrigiert</button>
+            <button class="validation-filter-btn" data-filter="confirmed" data-i18n="filter.confirmed">Bestaetigt</button>
           </div>
           <div class="validation-table-container">
             <table class="ocr-table validation-table">
               <thead>
                 <tr>
-                  <th>Status</th>
-                  <th>OCR-Name</th>
-                  <th>Korrektur / Vorschlag</th>
+                  <th data-i18n="th.status">Status</th>
+                  <th data-i18n="th.ocrName">OCR-Name</th>
+                  <th data-i18n="th.correctionSuggestion">Korrektur / Vorschlag</th>
                   <th></th>
                 </tr>
               </thead>
@@ -348,18 +359,18 @@
         <!-- Rechte Seite: Bekannte Spieler -->
         <section class="section validation-panel">
           <h2 class="section-title">
-            Bekannte Spieler
+            <span data-i18n="section.knownPlayers">Bekannte Spieler</span>
             <span id="validationNameCount" class="info-text"></span>
           </h2>
           <div class="validation-search-row">
-            <input type="text" id="validationSearch" class="input" placeholder="Spieler suchen...">
-            <button id="btnAddValidationName" class="btn btn-small btn-primary" title="Name hinzufuegen">+ Hinzufuegen</button>
+            <input type="text" id="validationSearch" class="input" data-i18n-placeholder="placeholder.searchPlayer" placeholder="Spieler suchen...">
+            <button id="btnAddValidationName" class="btn btn-small btn-primary" data-i18n-title="btn.addName" title="Name hinzufuegen" data-i18n="btn.addName">+ Hinzufuegen</button>
           </div>
           <div class="validation-names-container" id="validationNamesContainer">
             <div id="validationNamesList" class="validation-names-list"></div>
           </div>
           <div class="validation-corrections-section">
-            <h3 class="section-subtitle">Gespeicherte Korrekturen (<span id="correctionCount">0</span>)</h3>
+            <h3 class="section-subtitle"><span data-i18n="label.savedCorrections">Gespeicherte Korrekturen</span> (<span id="correctionCount">0</span>)</h3>
             <div id="correctionsList" class="validation-corrections-list"></div>
           </div>
         </section>
@@ -368,11 +379,11 @@
 
       <!-- Aktionsleiste -->
       <section class="section">
-        <h2 class="section-title">Aktionen</h2>
+        <h2 class="section-title" data-i18n="section.actions">Aktionen</h2>
         <div class="row" style="gap: 8px; flex-wrap: wrap;">
-          <button id="btnImportValidation" class="btn btn-primary">Importieren</button>
-          <button id="btnExportValidation" class="btn btn-primary">Exportieren</button>
-          <button id="btnRevalidate" class="btn btn-secondary">Erneut validieren</button>
+          <button id="btnImportValidation" class="btn btn-primary" data-i18n="btn.import">Importieren</button>
+          <button id="btnExportValidation" class="btn btn-primary" data-i18n="btn.export">Exportieren</button>
+          <button id="btnRevalidate" class="btn btn-secondary" data-i18n="btn.revalidate">Erneut validieren</button>
         </div>
       </section>
 
@@ -385,22 +396,22 @@
 
       <section class="section">
         <h2 class="section-title">
-          Gespeicherte Ergebnisse
+          <span data-i18n="section.savedResults">Gespeicherte Ergebnisse</span>
           <div class="section-title-actions">
-            <button id="btnRefreshHistory" class="btn btn-small btn-secondary">Aktualisieren</button>
-            <button id="btnOpenResultsDir" class="btn btn-small btn-secondary">Ordner oeffnen</button>
+            <button id="btnRefreshHistory" class="btn btn-small btn-secondary" data-i18n="btn.refresh">Aktualisieren</button>
+            <button id="btnOpenResultsDir" class="btn btn-small btn-secondary" data-i18n="btn.openResultsDir">Ordner oeffnen</button>
           </div>
         </h2>
-        <div id="historyEmptyHint" class="validation-empty-hint">
+        <div id="historyEmptyHint" class="validation-empty-hint" data-i18n-html="hint.historyEmpty">
           Noch keine gespeicherten Ergebnisse. Ergebnisse werden automatisch im <code>results/</code>-Ordner gespeichert.
         </div>
         <div id="historyListContainer" class="history-list-container" style="display:none;">
           <table class="ocr-table history-table">
             <thead>
               <tr>
-                <th>Datum</th>
-                <th>Mitglieder</th>
-                <th>Datei</th>
+                <th data-i18n="th.date">Datum</th>
+                <th data-i18n="th.members">Mitglieder</th>
+                <th data-i18n="th.file">Datei</th>
                 <th></th>
               </tr>
             </thead>
@@ -411,9 +422,9 @@
 
       <section class="section" id="historyDetailSection" style="display:none;">
         <h2 class="section-title">
-          <span id="historyDetailTitle">Ergebnis</span>
+          <span id="historyDetailTitle" data-i18n="history.result">Ergebnis</span>
           <div class="section-title-actions">
-            <button id="btnHistoryExportCsv" class="btn btn-small btn-accent">CSV exportieren</button>
+            <button id="btnHistoryExportCsv" class="btn btn-small btn-accent" data-i18n="btn.exportCsv">CSV exportieren</button>
           </div>
         </h2>
         <div id="historyDetailCount" class="result-text" style="margin-bottom: 8px;"></div>
@@ -422,10 +433,10 @@
             <thead>
               <tr>
                 <th>#</th>
-                <th>Rang</th>
-                <th>Name</th>
-                <th>Koordinaten</th>
-                <th>Score</th>
+                <th data-i18n="th.rank">Rang</th>
+                <th data-i18n="th.name">Name</th>
+                <th data-i18n="th.coords">Koordinaten</th>
+                <th data-i18n="th.score">Score</th>
               </tr>
             </thead>
             <tbody id="historyDetailBody"></tbody>
@@ -437,6 +448,7 @@
 
   </main>
 
+  <script src="i18n.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

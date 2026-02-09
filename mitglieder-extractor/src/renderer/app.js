@@ -1,3 +1,7 @@
+// ─── i18n Shortcut ──────────────────────────────────────────────────────────
+
+const t = (key, vars) => window.i18n.t(key, vars);
+
 // ─── DOM Elemente ───────────────────────────────────────────────────────────
 
 const $ = (sel) => document.querySelector(sel);
@@ -120,6 +124,9 @@ const btnRefreshHistory = $('#btnRefreshHistory');
 const btnOpenResultsDir = $('#btnOpenResultsDir');
 const btnHistoryExportCsv = $('#btnHistoryExportCsv');
 
+// Language
+const appLanguageSelect = $('#appLanguageSelect');
+
 // Tab Navigation
 const tabBtns = $$('.tab-btn');
 const tabContents = $$('.tab-content');
@@ -151,6 +158,13 @@ let historyMembers = null;
   const result = await window.api.loadConfig();
   if (result.ok && result.config) {
     const c = result.config;
+
+    // Sprache wiederherstellen (vor applyTranslations)
+    if (c.language && (c.language === 'de' || c.language === 'en')) {
+      window.i18n.setLanguage(c.language);
+      appLanguageSelect.value = c.language;
+    }
+
     if (c.region) {
       currentRegion = c.region;
       regionInfo.textContent = `${c.region.width} x ${c.region.height} @ (${c.region.x}, ${c.region.y})`;
@@ -170,22 +184,22 @@ let historyMembers = null;
     if (c.autoLogin) {
       autoLoginEnabled.checked = true;
       loginFields.style.display = 'block';
-      autoLoginToggleText.textContent = 'An';
+      autoLoginToggleText.textContent = t('toggle.on');
     }
     // autoOcr: explizit false beachten, sonst HTML-Default (checked)
     if (c.autoOcr === false) {
       autoOcrEnabled.checked = false;
-      autoOcrToggleText.textContent = 'Aus';
+      autoOcrToggleText.textContent = t('toggle.off');
     }
     // autoValidation: explizit false beachten, sonst HTML-Default (checked)
     if (c.autoValidation === false) {
       autoValidationEnabled.checked = false;
-      autoValidationToggleText.textContent = 'Aus';
+      autoValidationToggleText.textContent = t('toggle.off');
     }
     // autoSave: explizit false beachten, sonst HTML-Default (checked)
     if (c.autoSave === false) {
       autoSaveEnabled.checked = false;
-      autoSaveToggleText.textContent = 'Aus';
+      autoSaveToggleText.textContent = t('toggle.off');
     }
     if (c.ocrFolder) ocrFolderInput.value = c.ocrFolder;
 
@@ -193,19 +207,19 @@ let historyMembers = null;
     if (c.ocrSettings) {
       const s = c.ocrSettings;
       if (s.scale != null) { ocrScaleSlider.value = s.scale; ocrScaleValue.textContent = s.scale + 'x'; }
-      if (s.greyscale != null) { ocrGreyscaleCheckbox.checked = s.greyscale; ocrGreyscaleText.textContent = s.greyscale ? 'An' : 'Aus'; }
+      if (s.greyscale != null) { ocrGreyscaleCheckbox.checked = s.greyscale; ocrGreyscaleText.textContent = s.greyscale ? t('toggle.on') : t('toggle.off'); }
       if (s.sharpen != null) { ocrSharpenSlider.value = s.sharpen; ocrSharpenValue.textContent = s.sharpen; }
       if (s.contrast != null) { ocrContrastSlider.value = s.contrast; ocrContrastValue.textContent = s.contrast; }
       if (s.threshold != null) {
         if (s.threshold > 0) {
           ocrThresholdEnabled.checked = true;
-          ocrThresholdText.textContent = 'An';
+          ocrThresholdText.textContent = t('toggle.on');
           ocrThresholdValSlider.disabled = false;
           ocrThresholdValSlider.value = s.threshold;
           ocrThresholdDisplay.textContent = s.threshold;
         } else {
           ocrThresholdEnabled.checked = false;
-          ocrThresholdText.textContent = 'Aus';
+          ocrThresholdText.textContent = t('toggle.off');
           ocrThresholdValSlider.disabled = true;
         }
       }
@@ -214,21 +228,83 @@ let historyMembers = null;
       if (s.minScore != null) ocrMinScoreInput.value = s.minScore;
     }
   }
+
+  // Initiale Uebersetzungen anwenden (nach Config-Load fuer korrekte Sprache)
+  window.i18n.applyTranslations();
 })();
+
+// ─── Language Selector ──────────────────────────────────────────────────────
+
+appLanguageSelect.addEventListener('change', () => {
+  const lang = appLanguageSelect.value;
+  window.i18n.setLanguage(lang);
+  refreshDynamicUI();
+  saveCurrentConfig();
+});
+
+/**
+ * Aktualisiert alle dynamisch generierten UI-Elemente nach Sprachwechsel.
+ */
+function refreshDynamicUI() {
+  // Toggle-Texte aktualisieren
+  autoLoginToggleText.textContent = autoLoginEnabled.checked ? t('toggle.on') : t('toggle.off');
+  autoOcrToggleText.textContent = autoOcrEnabled.checked ? t('toggle.on') : t('toggle.off');
+  autoValidationToggleText.textContent = autoValidationEnabled.checked ? t('toggle.on') : t('toggle.off');
+  autoSaveToggleText.textContent = autoSaveEnabled.checked ? t('toggle.on') : t('toggle.off');
+  ocrGreyscaleText.textContent = ocrGreyscaleCheckbox.checked ? t('toggle.on') : t('toggle.off');
+  ocrThresholdText.textContent = ocrThresholdEnabled.checked ? t('toggle.on') : t('toggle.off');
+
+  // Passwort-Toggle
+  const isPassword = loginPassword.type === 'password';
+  btnTogglePassword.textContent = isPassword ? t('btn.showPassword') : t('btn.hidePassword');
+
+  // Browser-Status (nur wenn es ein bekannter Status ist)
+  if (!browserReady && browserStatus.textContent) {
+    // Nur den Standard-Status uebersetzen
+    if (!browserStatus.classList.contains('working') && !browserStatus.classList.contains('ready') && !browserStatus.classList.contains('error')) {
+      browserStatus.textContent = t('status.notStarted');
+    }
+  }
+
+  // Region Info aktualisieren wenn keine Region gesetzt
+  if (!currentRegion) {
+    regionInfo.textContent = t('status.noRegion');
+  }
+
+  // OCR-Ergebnisse und Validierung neu rendern
+  if (ocrMembers) {
+    renderOcrResults(ocrMembers);
+  }
+  if (validatedMembers) {
+    renderValidationOcrTable();
+    updateValidationSummary();
+    showOcrValidationBanner();
+  }
+  renderValidationNames();
+  renderCorrections();
+
+  // History neu rendern
+  if (historyEntries.length > 0) {
+    renderHistoryList();
+  }
+  if (historyMembers && selectedHistoryFile) {
+    renderHistoryDetail(historyMembers, selectedHistoryFile);
+  }
+}
 
 // ─── Login Toggle ───────────────────────────────────────────────────────────
 
 autoLoginEnabled.addEventListener('change', () => {
   const on = autoLoginEnabled.checked;
   loginFields.style.display = on ? 'block' : 'none';
-  autoLoginToggleText.textContent = on ? 'An' : 'Aus';
+  autoLoginToggleText.textContent = on ? t('toggle.on') : t('toggle.off');
   saveCurrentConfig();
 });
 
 btnTogglePassword.addEventListener('click', () => {
   const isPassword = loginPassword.type === 'password';
   loginPassword.type = isPassword ? 'text' : 'password';
-  btnTogglePassword.textContent = isPassword ? 'Verbergen' : 'Zeigen';
+  btnTogglePassword.textContent = isPassword ? t('btn.hidePassword') : t('btn.showPassword');
 });
 
 loginEmail.addEventListener('change', saveCurrentConfig);
@@ -265,12 +341,12 @@ btnOpenOutputDir.addEventListener('click', () => {
 
 btnLaunch.addEventListener('click', async () => {
   btnLaunch.disabled = true;
-  browserStatus.textContent = 'Starte Browser...';
+  browserStatus.textContent = t('status.startingBrowser');
   browserStatus.className = 'status-bar working';
 
   const result = await window.api.launchBrowser(urlInput.value);
   if (!result.ok) {
-    browserStatus.textContent = `Fehler: ${result.error}`;
+    browserStatus.textContent = t('status.error', { error: result.error });
     browserStatus.className = 'status-bar error';
     btnLaunch.disabled = false;
   }
@@ -283,15 +359,15 @@ btnClose.addEventListener('click', async () => {
 window.api.onBrowserStatus((data) => {
   switch (data.status) {
     case 'launching':
-      browserStatus.textContent = 'Browser startet...';
+      browserStatus.textContent = t('status.browserStarting');
       browserStatus.className = 'status-bar working';
       break;
     case 'navigating':
-      browserStatus.textContent = 'Navigiere zur Seite...';
+      browserStatus.textContent = t('status.navigating');
       browserStatus.className = 'status-bar working';
       break;
     case 'ready':
-      browserStatus.textContent = `Bereit: ${data.title || 'Seite geladen'}`;
+      browserStatus.textContent = t('status.ready', { title: data.title || t('status.pageLoading') });
       browserStatus.className = 'status-bar ready';
       browserReady = true;
       btnLaunch.disabled = true;
@@ -309,7 +385,7 @@ window.api.onBrowserStatus((data) => {
       }
       break;
     case 'closed':
-      browserStatus.textContent = 'Browser geschlossen';
+      browserStatus.textContent = t('status.browserClosed');
       browserStatus.className = 'status-bar';
       browserReady = false;
       autoLoginAttempted = false;
@@ -320,7 +396,7 @@ window.api.onBrowserStatus((data) => {
       btnStartCapture.disabled = true;
       break;
     case 'error':
-      browserStatus.textContent = `Fehler: ${data.error}`;
+      browserStatus.textContent = t('status.error', { error: data.error });
       browserStatus.className = 'status-bar error';
       btnLaunch.disabled = false;
       break;
@@ -331,7 +407,7 @@ window.api.onBrowserStatus((data) => {
 
 btnSelectRegion.addEventListener('click', async () => {
   btnSelectRegion.disabled = true;
-  regionInfo.textContent = 'Waehle im Browser-Fenster...';
+  regionInfo.textContent = t('status.selectInBrowser');
 
   const result = await window.api.selectRegion();
   btnSelectRegion.disabled = false;
@@ -349,7 +425,7 @@ btnSelectRegion.addEventListener('click', async () => {
     updateCaptureButtons();
     saveCurrentConfig();
   } else {
-    regionInfo.textContent = `Fehler: ${result.error}`;
+    regionInfo.textContent = t('status.error', { error: result.error });
   }
 });
 
@@ -359,7 +435,7 @@ btnTestScroll.addEventListener('click', async () => {
   if (!currentRegion) return;
 
   btnTestScroll.disabled = true;
-  testInfo.textContent = 'Scrolle...';
+  testInfo.textContent = t('status.scrolling');
 
   const result = await window.api.testScroll({
     region: currentRegion,
@@ -371,13 +447,13 @@ btnTestScroll.addEventListener('click', async () => {
 
   if (result.ok) {
     const diff = ((1 - result.similarity) * 100).toFixed(1);
-    testInfo.textContent = `Unterschied: ${diff}%`;
+    testInfo.textContent = t('status.difference', { pct: diff });
 
     testBefore.src = `data:image/png;base64,${result.before}`;
     testAfter.src = `data:image/png;base64,${result.after}`;
     testPreviewContainer.style.display = 'flex';
   } else {
-    testInfo.textContent = `Fehler: ${result.error}`;
+    testInfo.textContent = t('status.error', { error: result.error });
   }
 });
 
@@ -442,7 +518,7 @@ window.api.onCaptureProgress((data) => {
       gallery.removeChild(gallery.lastChild);
     }
     progressText.textContent = `${data.count} / ${max}`;
-    captureResult.textContent = `Listenende erkannt! ${data.count} einzigartige Screenshots.`;
+    captureResult.textContent = t('status.listEndDetected', { count: data.count });
   }
 });
 
@@ -452,7 +528,7 @@ window.api.onCaptureDone((data) => {
   btnStopCapture.disabled = true;
   lastOutputDir = data.outputDir;
 
-  captureResult.textContent = `Fertig! ${data.count} Screenshots in ${data.outputDir}`;
+  captureResult.textContent = t('status.captureComplete', { count: data.count, dir: data.outputDir });
   progressFill.style.width = '100%';
 
   // OCR-Ordner automatisch setzen
@@ -498,17 +574,17 @@ function showLightbox(src) {
 // ─── OCR Auswertung ─────────────────────────────────────────────────────────
 
 autoOcrEnabled.addEventListener('change', () => {
-  autoOcrToggleText.textContent = autoOcrEnabled.checked ? 'An' : 'Aus';
+  autoOcrToggleText.textContent = autoOcrEnabled.checked ? t('toggle.on') : t('toggle.off');
   saveCurrentConfig();
 });
 
 autoValidationEnabled.addEventListener('change', () => {
-  autoValidationToggleText.textContent = autoValidationEnabled.checked ? 'An' : 'Aus';
+  autoValidationToggleText.textContent = autoValidationEnabled.checked ? t('toggle.on') : t('toggle.off');
   saveCurrentConfig();
 });
 
 autoSaveEnabled.addEventListener('change', () => {
-  autoSaveToggleText.textContent = autoSaveEnabled.checked ? 'An' : 'Aus';
+  autoSaveToggleText.textContent = autoSaveEnabled.checked ? t('toggle.on') : t('toggle.off');
   saveCurrentConfig();
 });
 
@@ -519,7 +595,7 @@ ocrScaleSlider.addEventListener('input', () => {
 ocrScaleSlider.addEventListener('change', saveCurrentConfig);
 
 ocrGreyscaleCheckbox.addEventListener('change', () => {
-  ocrGreyscaleText.textContent = ocrGreyscaleCheckbox.checked ? 'An' : 'Aus';
+  ocrGreyscaleText.textContent = ocrGreyscaleCheckbox.checked ? t('toggle.on') : t('toggle.off');
   saveCurrentConfig();
 });
 
@@ -535,7 +611,7 @@ ocrContrastSlider.addEventListener('change', saveCurrentConfig);
 
 ocrThresholdEnabled.addEventListener('change', () => {
   const on = ocrThresholdEnabled.checked;
-  ocrThresholdText.textContent = on ? 'An' : 'Aus';
+  ocrThresholdText.textContent = on ? t('toggle.on') : t('toggle.off');
   ocrThresholdValSlider.disabled = !on;
   saveCurrentConfig();
 });
@@ -553,7 +629,6 @@ btnGoToValidation.addEventListener('click', () => {
 });
 
 btnBrowseOcrFolder.addEventListener('click', async () => {
-  // Startpfad: letzter Capture-Ordner oder allgemeiner Captures-Ordner
   const defaultPath = lastOutputDir || outputDirInput.value || './captures';
   const result = await window.api.browseFolder({
     title: 'Capture-Ordner fuer OCR waehlen',
@@ -575,10 +650,10 @@ btnStopOcr.addEventListener('click', async () => {
 btnExportCsv.addEventListener('click', async () => {
   if (!ocrMembers || ocrMembers.length === 0) return;
 
-  const defaultName = `mitglieder_${new Date().toISOString().slice(0, 10)}.csv`;
+  const defaultName = `mitglieder_${localDateString()}.csv`;
   const result = await window.api.exportCsv(ocrMembers, defaultName);
   if (result.ok) {
-    ocrStatus.textContent = `CSV gespeichert: ${result.path}`;
+    ocrStatus.textContent = t('status.csvSaved', { path: result.path });
   }
 });
 
@@ -598,7 +673,7 @@ function getOcrSettings() {
 async function startOcr(folderPath) {
   const folder = folderPath || ocrFolderInput.value;
   if (!folder) {
-    ocrStatus.textContent = 'Kein Ordner angegeben.';
+    ocrStatus.textContent = t('status.noFolder');
     return;
   }
 
@@ -606,7 +681,7 @@ async function startOcr(folderPath) {
   ocrMembers = null;
   btnStartOcr.disabled = true;
   btnStopOcr.disabled = false;
-  ocrStatus.textContent = 'Initialisiere OCR...';
+  ocrStatus.textContent = t('status.initOcr');
   ocrProgressContainer.style.display = 'flex';
   ocrProgressFill.style.width = '0%';
   ocrProgressText.textContent = '0 / ?';
@@ -624,10 +699,10 @@ async function startOcr(folderPath) {
   btnStopOcr.disabled = true;
 
   if (result.ok) {
-    ocrStatus.textContent = `${result.members.length} Mitglieder erkannt.`;
+    ocrStatus.textContent = t('status.membersDetected', { count: result.members.length });
     ocrProgressFill.style.width = '100%';
   } else {
-    ocrStatus.textContent = `Fehler: ${result.error}`;
+    ocrStatus.textContent = t('status.error', { error: result.error });
   }
 }
 
@@ -635,7 +710,7 @@ window.api.onOcrProgress((data) => {
   const pct = Math.round((data.current / data.total) * 100);
   ocrProgressFill.style.width = pct + '%';
   ocrProgressText.textContent = `${data.current} / ${data.total}`;
-  ocrStatus.textContent = `Verarbeite ${data.file}...`;
+  ocrStatus.textContent = t('status.processing', { file: data.file });
 });
 
 window.api.onOcrDone(async (data) => {
@@ -661,7 +736,7 @@ window.api.onOcrDone(async (data) => {
 
 function renderOcrResults(members) {
   ocrResultContainer.style.display = 'block';
-  ocrResultCount.textContent = `${members.length} Mitglieder gefunden`;
+  ocrResultCount.textContent = t('result.membersFound', { count: members.length });
   ocrTableBody.innerHTML = '';
 
   members.forEach((m, idx) => {
@@ -702,7 +777,7 @@ function updateCaptureButtons() {
 }
 
 async function performAutoLogin() {
-  browserStatus.textContent = 'Auto-Login...';
+  browserStatus.textContent = t('status.autoLogin');
   browserStatus.className = 'status-bar working';
 
   const result = await window.api.autoLogin({
@@ -711,10 +786,10 @@ async function performAutoLogin() {
   });
 
   if (result.ok) {
-    browserStatus.textContent = 'Eingeloggt - Spiel laedt...';
+    browserStatus.textContent = t('status.loggedIn');
     browserStatus.className = 'status-bar ready';
   } else {
-    browserStatus.textContent = `Login fehlgeschlagen: ${result.error}`;
+    browserStatus.textContent = t('status.loginFailed', { error: result.error });
     browserStatus.className = 'status-bar error';
     browserReady = true;
     btnSelectRegion.disabled = false;
@@ -724,15 +799,16 @@ async function performAutoLogin() {
 
 async function loadSavedRegionPreview() {
   if (!currentRegion || !browserReady) return;
-  regionInfo.textContent = `Lade Preview fuer ${currentRegion.width} x ${currentRegion.height} @ (${currentRegion.x}, ${currentRegion.y})...`;
+  const r = currentRegion;
+  regionInfo.textContent = t('status.loadingPreview', { w: r.width, h: r.height, x: r.x, y: r.y });
 
   const result = await window.api.previewRegion(currentRegion);
   if (result.ok) {
     regionPreview.src = `data:image/png;base64,${result.preview}`;
     regionPreviewContainer.style.display = 'block';
-    regionInfo.textContent = `${currentRegion.width} x ${currentRegion.height} @ (${currentRegion.x}, ${currentRegion.y}) — gespeichert`;
+    regionInfo.textContent = t('status.regionSaved', { w: r.width, h: r.height, x: r.x, y: r.y });
   } else {
-    regionInfo.textContent = `${currentRegion.width} x ${currentRegion.height} @ (${currentRegion.x}, ${currentRegion.y}) — Preview fehlgeschlagen`;
+    regionInfo.textContent = t('status.previewFailed', { w: r.width, h: r.height, x: r.x, y: r.y });
   }
 }
 
@@ -781,7 +857,7 @@ btnClearLog.addEventListener('click', () => {
 btnDeleteCapture.addEventListener('click', async () => {
   if (!lastOutputDir) return;
 
-  const ok = confirm(`Capture-Ordner loeschen?\n\n${lastOutputDir}\n\nAlle Screenshots werden unwiderruflich geloescht.`);
+  const ok = confirm(t('confirm.deleteCapture', { path: lastOutputDir }));
   if (!ok) return;
 
   const result = await window.api.deleteFolder(lastOutputDir);
@@ -830,25 +906,29 @@ function showOcrValidationBanner() {
   if (errors === 0) {
     ocrValidationBanner.className = 'ocr-validation-banner banner-success';
     ocrValidationIcon.textContent = '\u2714';
-    ocrValidationMsg.textContent = `Validierung OK: Alle ${total} Namen bestaetigt.`;
+    ocrValidationMsg.textContent = t('validation.bannerSuccess', { total });
     btnGoToValidation.style.display = 'none';
 
     // Status-Zeile aktualisieren
-    ocrStatus.textContent = `${total} Mitglieder erkannt — alle validiert.`;
+    ocrStatus.textContent = t('status.allValidated', { total });
   } else if (counts.unknown > 0) {
     ocrValidationBanner.className = 'ocr-validation-banner banner-error';
     ocrValidationIcon.textContent = '\u2716';
-    ocrValidationMsg.textContent = `${errors} Validierungsfehler: ${counts.unknown} unbekannt, ${counts.suggested} Vorschlaege (${ok}/${total} OK)`;
+    ocrValidationMsg.textContent = t('validation.bannerError', {
+      errors, unknown: counts.unknown, suggested: counts.suggested, ok, total,
+    });
     btnGoToValidation.style.display = '';
 
-    ocrStatus.textContent = `${total} Mitglieder erkannt — ${errors} Fehler bei Validierung!`;
+    ocrStatus.textContent = t('status.validationErrors', { total, errors });
   } else {
     ocrValidationBanner.className = 'ocr-validation-banner banner-warning';
     ocrValidationIcon.textContent = '\u26A0';
-    ocrValidationMsg.textContent = `${counts.suggested} Vorschlaege offen (${ok}/${total} bestaetigt)`;
+    ocrValidationMsg.textContent = t('validation.bannerWarning', {
+      suggested: counts.suggested, ok, total,
+    });
     btnGoToValidation.style.display = '';
 
-    ocrStatus.textContent = `${total} Mitglieder erkannt — ${counts.suggested} Vorschlaege pruefen.`;
+    ocrStatus.textContent = t('status.validationSuggestions', { total, suggested: counts.suggested });
   }
 }
 
@@ -867,7 +947,7 @@ async function autoSaveCsv() {
 
   const result = await window.api.autoSaveCsv(membersToSave);
   if (result.ok) {
-    ocrStatus.textContent += ` CSV: ${result.fileName}`;
+    ocrStatus.textContent += ` ${t('status.csvAutoSaved', { fileName: result.fileName })}`;
   }
 }
 
@@ -897,12 +977,21 @@ function updateValidationSummary() {
   validatedMembers.forEach(m => counts[m.validationStatus]++);
   const total = validatedMembers.length;
   const ok = counts.confirmed + counts.corrected;
-  validationSummary.textContent = `${ok}/${total} OK | ${counts.suggested} Vorschlaege | ${counts.unknown} unbekannt`;
+  validationSummary.textContent = t('validation.summary', {
+    ok, total, suggested: counts.suggested, unknown: counts.unknown,
+  });
 }
 
 function renderValidationOcrTable() {
   validationOcrBody.innerHTML = '';
   if (!validatedMembers) return;
+
+  const statusLabels = {
+    confirmed: t('validation.confirmed'),
+    corrected: t('validation.corrected'),
+    suggested: t('validation.suggested'),
+    unknown: t('validation.unknown'),
+  };
 
   validatedMembers.forEach((m, idx) => {
     // Filter anwenden
@@ -912,12 +1001,7 @@ function renderValidationOcrTable() {
     tr.className = `v-row-${m.validationStatus}`;
     if (selectedOcrRow === idx) tr.classList.add('selected');
 
-    const statusLabel = {
-      confirmed: 'Bestaetigt',
-      corrected: 'Korrigiert',
-      suggested: 'Vorschlag',
-      unknown: 'Unbekannt',
-    }[m.validationStatus] || m.validationStatus;
+    const statusLabel = statusLabels[m.validationStatus] || m.validationStatus;
 
     let correctionHtml = '';
     if (m.validationStatus === 'corrected' && m.originalName !== m.name) {
@@ -929,10 +1013,10 @@ function renderValidationOcrTable() {
 
     let actionHtml = '';
     if (m.validationStatus === 'suggested' && m.suggestion) {
-      actionHtml = `<button class="v-action-btn accept" data-idx="${idx}" data-action="accept-suggestion" title="Vorschlag uebernehmen">&#10003;</button>`;
+      actionHtml = `<button class="v-action-btn accept" data-idx="${idx}" data-action="accept-suggestion" title="${t('tooltip.acceptSuggestion')}">&#10003;</button>`;
     }
     if (m.validationStatus === 'unknown' || m.validationStatus === 'suggested') {
-      actionHtml += ` <button class="v-action-btn" data-idx="${idx}" data-action="select-for-assign" title="Zuordnung starten">&#9998;</button>`;
+      actionHtml += ` <button class="v-action-btn" data-idx="${idx}" data-action="select-for-assign" title="${t('tooltip.startAssignment')}">&#9998;</button>`;
     }
 
     tr.innerHTML = `
@@ -977,7 +1061,7 @@ function renderValidationOcrTable() {
 
 function renderValidationNames() {
   validationNamesList.innerHTML = '';
-  validationNameCount.textContent = `${validationKnownNames.length} Namen`;
+  validationNameCount.textContent = t('format.nameCount', { count: validationKnownNames.length });
 
   const searchTerm = validationSearch ? validationSearch.value.toLowerCase() : '';
   const filtered = searchTerm
@@ -1000,7 +1084,7 @@ function renderValidationNames() {
 
     item.innerHTML = `
       <span>${escapeHtml(name)}</span>
-      <button class="remove-btn" title="Entfernen">&times;</button>
+      <button class="remove-btn" title="${t('tooltip.removeName')}">&times;</button>
     `;
 
     // Klick auf Name = Zuordnung zum selektierten OCR-Eintrag
@@ -1022,7 +1106,7 @@ function renderValidationNames() {
     // Entfernen-Button
     item.querySelector('.remove-btn').addEventListener('click', async (e) => {
       e.stopPropagation();
-      if (confirm(`"${name}" aus der Validierungsliste entfernen?`)) {
+      if (confirm(t('confirm.removeName', { name }))) {
         await window.api.removeValidationName(name);
         await loadValidationList();
         if (validatedMembers) await validateCurrentResults();
@@ -1045,7 +1129,7 @@ function renderCorrections() {
       <span class="correction-from" title="${escapeHtml(from)}">${escapeHtml(from)}</span>
       <span class="correction-arrow">&rarr;</span>
       <span class="correction-to" title="${escapeHtml(to)}">${escapeHtml(to)}</span>
-      <button class="remove-btn" title="Korrektur entfernen">&times;</button>
+      <button class="remove-btn" title="${t('tooltip.removeCorrection')}">&times;</button>
     `;
 
     item.querySelector('.remove-btn').addEventListener('click', async () => {
@@ -1075,7 +1159,7 @@ validationSearch.addEventListener('input', () => {
 
 // Name hinzufuegen
 btnAddValidationName.addEventListener('click', async () => {
-  const name = prompt('Neuen Spielernamen eingeben:');
+  const name = prompt(t('prompt.addName'));
   if (name && name.trim()) {
     await window.api.addValidationName(name.trim());
     await loadValidationList();
@@ -1089,7 +1173,7 @@ btnAcceptAllSuggestions.addEventListener('click', async () => {
   const suggestions = validatedMembers.filter(m => m.validationStatus === 'suggested' && m.suggestion);
   if (suggestions.length === 0) return;
 
-  if (!confirm(`${suggestions.length} Vorschlaege uebernehmen?`)) return;
+  if (!confirm(t('confirm.acceptSuggestions', { count: suggestions.length }))) return;
 
   for (const member of suggestions) {
     const ocrName = member.originalName || member.name;
@@ -1146,19 +1230,21 @@ async function loadHistory() {
 function renderHistoryList() {
   historyListBody.innerHTML = '';
 
+  const locale = window.i18n.getLanguage() === 'en' ? 'en-US' : 'de-DE';
+
   historyEntries.forEach(entry => {
     const tr = document.createElement('tr');
     if (selectedHistoryFile === entry.fileName) tr.classList.add('active');
 
-    const dateFormatted = new Date(entry.date + 'T00:00:00').toLocaleDateString('de-DE', {
+    const dateFormatted = new Date(entry.date + 'T00:00:00').toLocaleDateString(locale, {
       weekday: 'short', year: 'numeric', month: '2-digit', day: '2-digit',
     });
 
     tr.innerHTML = `
       <td><span class="history-date">${dateFormatted}</span></td>
-      <td>${entry.memberCount} Mitglieder</td>
+      <td>${t('format.memberCount', { count: entry.memberCount })}</td>
       <td class="info-text">${escapeHtml(entry.fileName)}</td>
-      <td><button class="history-delete-btn" title="Loeschen">&times;</button></td>
+      <td><button class="history-delete-btn" title="${t('tooltip.removeName')}">&times;</button></td>
     `;
 
     tr.addEventListener('click', (e) => {
@@ -1170,7 +1256,7 @@ function renderHistoryList() {
 
     tr.querySelector('.history-delete-btn').addEventListener('click', async (e) => {
       e.stopPropagation();
-      if (!confirm(`"${entry.fileName}" loeschen?`)) return;
+      if (!confirm(t('confirm.deleteHistory', { fileName: entry.fileName }))) return;
       await window.api.deleteHistoryEntry(entry.fileName);
       if (selectedHistoryFile === entry.fileName) {
         selectedHistoryFile = null;
@@ -1189,18 +1275,24 @@ async function loadHistoryDetail(fileName) {
   if (!result.ok) return;
 
   historyMembers = result.members;
+  renderHistoryDetail(result.members, fileName);
+}
+
+function renderHistoryDetail(members, fileName) {
   historyDetailSection.style.display = 'block';
+
+  const locale = window.i18n.getLanguage() === 'en' ? 'en-US' : 'de-DE';
 
   // Datum aus Dateiname extrahieren
   const dateMatch = fileName.match(/(\d{4}-\d{2}-\d{2})/);
   const dateStr = dateMatch
-    ? new Date(dateMatch[1] + 'T00:00:00').toLocaleDateString('de-DE', { year: 'numeric', month: 'long', day: 'numeric' })
+    ? new Date(dateMatch[1] + 'T00:00:00').toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' })
     : fileName;
-  historyDetailTitle.textContent = `Ergebnis vom ${dateStr}`;
-  historyDetailCount.textContent = `${result.members.length} Mitglieder`;
+  historyDetailTitle.textContent = t('history.resultTitle', { date: dateStr });
+  historyDetailCount.textContent = t('format.memberCount', { count: members.length });
 
   historyDetailBody.innerHTML = '';
-  result.members.forEach((m, idx) => {
+  members.forEach((m, idx) => {
     const tr = document.createElement('tr');
     const rankClass = getRankClass(m.rank);
     tr.innerHTML = `
@@ -1225,14 +1317,24 @@ btnOpenResultsDir.addEventListener('click', () => {
 
 btnHistoryExportCsv.addEventListener('click', async () => {
   if (!historyMembers || historyMembers.length === 0) return;
-  const defaultName = selectedHistoryFile || `mitglieder_${new Date().toISOString().slice(0, 10)}.csv`;
+  const defaultName = selectedHistoryFile || `mitglieder_${localDateString()}.csv`;
   await window.api.exportCsv(historyMembers, defaultName);
 });
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+/** Gibt das heutige Datum als YYYY-MM-DD in lokaler Zeitzone zurueck. */
+function localDateString() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 async function saveCurrentConfig() {
   await window.api.saveConfig({
+    language: window.i18n.getLanguage(),
     region: currentRegion,
     scrollTicks: parseInt(scrollTicksSlider.value),
     scrollDelay: parseInt(scrollDelaySlider.value),
