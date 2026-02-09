@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, shell, dialog, nativeImage } from 'electron';
-import { chromium } from 'playwright';
 import { readFile, writeFile, mkdir, unlink, rm, readdir, stat } from 'fs/promises';
+import { existsSync } from 'fs';
 import { join, dirname, resolve, basename } from 'path';
 import { fileURLToPath } from 'url';
 import selectRegion from './region-selector.js';
@@ -8,13 +8,40 @@ import ScrollCapturer from './scroll-capturer.js';
 import OcrProcessor from './ocr-processor.js';
 import ValidationManager from './validation-manager.js';
 
+// ─── Playwright-Browser-Pfad fuer gepackte App setzen ───────────────────────
+// Muss VOR dem Import von playwright gesetzt werden.
+if (app.isPackaged) {
+  process.env.PLAYWRIGHT_BROWSERS_PATH = join(process.resourcesPath, 'pw-browsers');
+}
+
+// Dynamischer Import von Playwright (damit env var vorher wirkt)
+let _chromium = null;
+async function getChromium() {
+  if (!_chromium) {
+    const pw = await import('playwright');
+    _chromium = pw.chromium;
+  }
+  return _chromium;
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const CONFIG_FILE = join(process.cwd(), 'mitglieder-config.json');
+// ─── Pfade: Im gepackten Modus userData nutzen, sonst cwd ──────────────────
+const APP_DATA_DIR = app.isPackaged ? app.getPath('userData') : process.cwd();
+const CONFIG_FILE = join(APP_DATA_DIR, 'mitglieder-config.json');
 const BROWSER_PROFILE_DIR = join(app.getPath('userData'), 'browser-profile');
-const APP_ICON = join(dirname(__dirname), 'icons_main_menu_clan_1.png');
-const RESULTS_DIR = join(process.cwd(), 'results');
+const RESULTS_DIR = join(APP_DATA_DIR, 'results');
+
+// App-Icon: im gepackten Modus liegt es im asar/resources
+const APP_ICON = app.isPackaged
+  ? join(process.resourcesPath, 'icons_main_menu_clan_1.png')
+  : join(dirname(__dirname), 'icons_main_menu_clan_1.png');
+
+// Default-Capture-Ordner: im gepackten Modus Dokumente, sonst ./captures
+const DEFAULT_CAPTURES_DIR = app.isPackaged
+  ? join(app.getPath('documents'), 'MemberExtractor', 'captures')
+  : join(process.cwd(), 'captures');
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -67,7 +94,7 @@ let browserContext = null;
 let page = null;
 let captureAborted = false;
 let ocrProcessor = null;
-let validationManager = new ValidationManager();
+let validationManager = new ValidationManager(APP_DATA_DIR);
 
 // ─── Logger fuer GUI ────────────────────────────────────────────────────────
 
@@ -94,7 +121,7 @@ const guiLogger = {
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 720,
+    width: 1080,
     height: 900,
     minWidth: 600,
     minHeight: 700,
@@ -143,6 +170,7 @@ ipcMain.handle('launch-browser', async (_e, url) => {
     await mkdir(BROWSER_PROFILE_DIR, { recursive: true });
     guiLogger.info(`Browser-Profil: ${BROWSER_PROFILE_DIR}`);
 
+    const chromium = await getChromium();
     browserContext = await chromium.launchPersistentContext(BROWSER_PROFILE_DIR, {
       headless: false,
       args: [
@@ -717,6 +745,12 @@ ipcMain.handle('save-config', async (_e, config) => {
 ipcMain.handle('open-folder', async (_e, folderPath) => {
   const absPath = resolve(folderPath);
   shell.openPath(absPath);
+  return { ok: true };
+});
+
+ipcMain.handle('open-results-dir', async () => {
+  await mkdir(RESULTS_DIR, { recursive: true });
+  shell.openPath(RESULTS_DIR);
   return { ok: true };
 });
 

@@ -1,6 +1,8 @@
-# Mitglieder Extractor
+# Member Extractor
 
 Electron-basierte Desktop-Anwendung zum automatischen Erfassen und Auswerten von Clan-Mitgliederlisten aus [Total Battle](https://totalbattle.com/de/) mittels Scroll-Capture und OCR.
+
+**Sprachen:** Deutsch (Standard), English
 
 ## Funktionsueberblick
 
@@ -15,13 +17,31 @@ Die App automatisiert den gesamten Workflow:
 7. **Auto-Save** — CSV wird automatisch in `results/` gespeichert wenn die Validierung fehlerfrei ist
 8. **History** — Gespeicherte Ergebnisse nach Datum einsehen und vergleichen
 
-## Voraussetzungen
+## Installation (fuer Benutzer)
+
+### Installer
+
+Lade die neueste Version von `Member Extractor Setup X.X.X.exe` herunter und fuehre den Installer aus. Die App wird mit allen Abhaengigkeiten (inkl. Chromium-Browser) installiert — keine weitere Einrichtung noetig.
+
+### Pfade in der installierten Version
+
+| Daten | Speicherort |
+|-------|-------------|
+| Konfiguration (`mitglieder-config.json`) | `%AppData%/member-extractor/` |
+| Validierungsliste (`validation-list.json`) | `%AppData%/member-extractor/` |
+| Ergebnisse (`results/`) | `%AppData%/member-extractor/results/` |
+| Captures (Standard) | `Dokumente/MemberExtractor/captures/` |
+| Browser-Profil | `%AppData%/member-extractor/browser-profile/` |
+
+## Entwicklung
+
+### Voraussetzungen
 
 - **Node.js** 18+
 - **npm**
 - **Playwright Chromium** (wird bei Installation heruntergeladen)
 
-## Installation
+### Einrichtung
 
 ```bash
 cd mitglieder-extractor
@@ -34,17 +54,94 @@ Falls Chromium noch nicht installiert ist:
 npx playwright install chromium
 ```
 
-## Starten
+### Starten (Entwicklungsmodus)
 
 ```bash
 npm start
 ```
 
-Die Electron-App oeffnet sich mit einer grafischen Oberflaeche.
+Die Electron-App oeffnet sich mit einer grafischen Oberflaeche. Im Entwicklungsmodus werden alle Daten (Config, Validierung, Results) im Projektverzeichnis gespeichert.
+
+## Build (Installer erstellen)
+
+### Schnellstart
+
+```bash
+npm run dist
+```
+
+Dies fuehrt zwei Schritte aus:
+1. **Playwright-Browser vorbereiten** — Kopiert Chromium aus dem globalen Cache nach `pw-browsers/`
+2. **Electron-Builder** — Erstellt den NSIS-Installer fuer Windows (x64)
+
+### Build-Scripts im Detail
+
+| Script | Befehl | Beschreibung |
+|--------|--------|-------------|
+| `npm start` | `electron src/main.js` | App im Entwicklungsmodus starten |
+| `npm run dist` | `prepare-browsers && build` | Kompletter Build (Browser + Installer) |
+| `npm run build` | `electron-builder --win` | Nur Installer bauen (Browser muessen bereits in `pw-browsers/` liegen) |
+| `npm run build:dir` | `electron-builder --win --dir` | Portable Version (ohne Installer, nur entpackt) |
+| `npm run prepare-browsers` | `node scripts/prepare-browsers.js` | Playwright Chromium nach `pw-browsers/` kopieren |
+
+### Build-Ergebnis
+
+Nach erfolgreichem Build liegt der Installer unter:
+
+```
+dist/Member Extractor Setup X.X.X.exe
+```
+
+Typische Groesse: ~220 MB (inkl. Chromium-Browser, Electron, sharp, Tesseract.js)
+
+### Build-Konfiguration
+
+Die Build-Konfiguration befindet sich in `package.json` unter dem `"build"` Feld:
+
+| Einstellung | Wert | Beschreibung |
+|-------------|------|-------------|
+| `appId` | `com.member-extractor.app` | Eindeutige App-ID |
+| `productName` | `Member Extractor` | Angezeigter App-Name (Fenstergroesse: 1080x900) |
+| `win.target` | `nsis` (x64) | Windows NSIS-Installer |
+| `win.icon` | `build-icon.png` | App-Icon (256x256, generiert aus Original-Icon) |
+| `extraResources` | `pw-browsers/` | Playwright Chromium wird mitgeliefert |
+| `asarUnpack` | `sharp/**`, `@img/**` | Native Module werden aus dem asar entpackt |
+| `nsis.oneClick` | `false` | Benutzer kann Installationsordner waehlen |
+
+### Pfade in der gepackten App
+
+Im gepackten Modus (`app.isPackaged === true`) aendern sich die Datenpfade:
+
+| Pfad | Entwicklung | Gepackt |
+|------|-------------|---------|
+| Config/Validierung/Results | `process.cwd()` (Projektordner) | `app.getPath('userData')` (`%AppData%/member-extractor/`) |
+| Playwright-Browser | System-Cache (`%LOCALAPPDATA%/ms-playwright/`) | `process.resourcesPath/pw-browsers/` |
+| Default-Captures | `./captures` | `Dokumente/MemberExtractor/captures/` |
+| Browser-Profil | `%AppData%/member-extractor/browser-profile/` | gleich |
+
+### Neuen Build vorbereiten
+
+1. **Version erhoehen** in `package.json` (Feld `"version"`)
+2. **Browser aktualisieren** (optional): `npm run prepare-browsers`
+3. **Build erstellen**: `npm run dist`
+4. **Testen**: Installer ausfuehren und App pruefen
+
+### Hinweise zum Build
+
+- **Icon**: Das App-Icon (`build-icon.png`, 256x256) wird aus `icons_main_menu_clan_1.png` (88x87) hochskaliert. Fuer bessere Qualitaet kann ein hoehaufloessendes Icon bereitgestellt werden.
+- **Code-Signing**: Die Warnungen "no signing info identified, signing is skipped" sind normal fuer nicht-signierte Builds. Fuer Produktions-Releases kann ein Code-Signing-Zertifikat konfiguriert werden.
+- **Playwright-Import**: `main.js` nutzt einen dynamischen Import (`await import('playwright')`) damit die `PLAYWRIGHT_BROWSERS_PATH` Umgebungsvariable vor dem Laden wirkt.
+- **Native Module**: `sharp` und `@img` werden via `asarUnpack` aus dem asar-Archiv entpackt, da native Module nicht aus asar geladen werden koennen.
+- **Groesse**: Der Installer ist ~220 MB gross, hauptsaechlich wegen des gebundelten Chromium-Browsers (~150 MB komprimiert). Dies stellt sicher, dass die App sofort ohne zusaetzliche Downloads funktioniert.
 
 ## Bedienung
 
 ### Tab 1: Einstellungen
+
+#### Sprache
+- **App-Sprache**: Wechsel zwischen Deutsch und English
+- Sprache wird sofort angewandt und gespeichert
+- Alle UI-Texte, Tooltips, Dialoge und Statusmeldungen werden uebersetzt
 
 #### Browser
 - **URL**: Standard ist `https://totalbattle.com/de/`
@@ -109,7 +206,8 @@ Bildverarbeitungs- und OCR-Parameter:
 - **Capture loeschen**: Loescht den letzten Capture-Ordner
 
 #### Auswertung (OCR)
-- **Capture-Ordner**: Ordner mit Screenshots zur Auswertung (beim Durchsuchen startet der Dialog im Captures-Ordner)
+- **Capture-Ordner**: Ordner mit Screenshots zur Auswertung
+- **Durchsuchen**: Ordner waehlen | **Oeffnen**: Aktuellen Capture-Ordner im Explorer anzeigen
 - **Auswerten**: Startet die OCR-Verarbeitung
 - Ergebnistabelle mit: Rang, Name, Koordinaten, Score
 - Farbkodierte Rang-Badges (Anfuehrer, Vorgesetzter, Offizier, Veteran, etc.)
@@ -149,16 +247,34 @@ Die Validierungsliste dient als "Bekannte Spieler"-Datenbank und ermoeglicht aut
 - **Alle Vorschlaege uebernehmen**: Akzeptiert alle gelben Vorschlaege auf einmal
 - Klick auf eine Zeile waehlt sie zur manuellen Zuordnung aus
 
+##### Aktionen pro Zeile
+Jede OCR-Zeile bietet drei Aktions-Buttons:
+
+| Button | Aktion | Beschreibung |
+|--------|--------|-------------|
+| **✓** | Vorschlag uebernehmen | Akzeptiert den Fuzzy-Match-Vorschlag (nur bei gelben Eintraegen) |
+| **✏** | Name bearbeiten | Oeffnet Dialog zum Bearbeiten des OCR-Namens. Der korrigierte Name wird neu validiert |
+| **+** | Zur Liste hinzufuegen | Oeffnet Dialog zum Hinzufuegen zur Validierungsliste (Name editierbar, Duplikatschutz) |
+
+##### Mehrfachauswahl
+- **Checkboxen** an jeder Zeile ermoeglichen Mehrfachauswahl
+- **Select-All** Checkbox im Tabellenkopf
+- **"Ausgewaehlte zur Liste"** Button: Fuegt alle markierten Namen auf einmal zur Validierungsliste hinzu
+- Duplikate werden erkannt und mit Hinweis uebersprungen
+
 #### Rechte Seite: Bekannte Spieler
+Die Bekannte-Spieler-Liste ist **immer sichtbar** — auch ohne OCR-Ergebnisse. So koennen Spieler jederzeit hinzugefuegt, bearbeitet und verwaltet werden.
+
 - Durchsuchbare Liste aller bekannten Spielernamen
 - Klick auf einen Namen ordnet ihn dem links ausgewaehlten OCR-Eintrag zu
-- **Hinzufuegen**: Neuen Spielernamen manuell eintragen
+- **Hinzufuegen**: Neuen Spielernamen manuell eintragen (mit Duplikatschutz)
 - **Entfernen**: Spieler per Hover-Button loeschen
 - **Gespeicherte Korrekturen**: Zeigt alle OCR-Fehler → Korrektur Mappings (loeschbar)
 
 #### Aktionen
+- **Korrigierte CSV exportieren**: Exportiert die validierten/korrigierten Ergebnisse als CSV-Datei
 - **Importieren**: JSON-Datei laden (unterstuetzt Ground-Truth-Format und Validierungs-Format)
-- **Exportieren**: Aktuelle Liste als JSON speichern
+- **Exportieren**: Aktuelle Validierungsliste als JSON speichern
 - **Erneut validieren**: Validierung mit aktuellen OCR-Ergebnissen wiederholen
 
 #### Fuzzy-Matching
@@ -187,6 +303,7 @@ Einstellungen werden in `mitglieder-config.json` gespeichert:
 
 ```json
 {
+  "language": "de",
   "region": { "x": 677, "y": 364, "width": 729, "height": 367 },
   "scrollTicks": 6,
   "scrollDelay": 500,
@@ -217,35 +334,42 @@ Einstellungen werden in `mitglieder-config.json` gespeichert:
 
 | Datei | Beschreibung | Gitignored |
 |-------|-------------|------------|
-| `mitglieder-config.json` | Benutzer-Einstellungen (inkl. Login) | Ja |
+| `mitglieder-config.json` | Benutzer-Einstellungen (inkl. Login, Sprache) | Ja |
 | `validation-list.json` | Bekannte Spielernamen + OCR-Korrekturen | Ja |
 | `results/*.csv` | Gespeicherte OCR-Ergebnisse | Ja |
+| `pw-browsers/` | Playwright Chromium fuer Build | Ja |
+| `dist/` | Build-Artefakte (Installer) | Ja |
 
 ## Architektur
 
 ```
 mitglieder-extractor/
   src/
-    main.js              # Electron Hauptprozess (IPC, Browser, OCR, Validation)
+    main.js              # Electron Hauptprozess (IPC, Browser, OCR, Validation, i18n)
     preload.cjs          # Sichere IPC-Bruecke (contextBridge)
     validation-manager.js # Validierungsliste (Fuzzy-Match, Corrections)
     renderer/
-      index.html         # GUI-Struktur (4-Tab-Layout)
+      index.html         # GUI-Struktur (4-Tab-Layout, data-i18n Attribute)
       styles.css         # Styling (Dark Theme)
-      app.js             # Frontend-Logik (UI-Events, IPC)
-      icon.png           # App-Icon
+      app.js             # Frontend-Logik (UI-Events, IPC, i18n-Integration)
+      i18n.js            # Internationalisierung (DE/EN, ~200 Uebersetzungsschluessel)
+      icon.png           # App-Icon (Renderer)
     scroll-capturer.js   # Screenshot-Erfassung + Duplikaterkennung
     region-selector.js   # Interaktive Region-Auswahl im Browser
     ocr-processor.js     # OCR-Engine (Tesseract.js + sharp)
+  scripts/
+    prepare-browsers.js  # Build-Helfer: Playwright Chromium lokal kopieren
   test/
     ocr-benchmark.js     # Benchmark-System fuer OCR-Optimierung
     fixtures/
       ground-truth.json  # Manuell verifizierte Referenzdaten
       baseline_*/        # Baseline-Screenshots fuer Tests
+  dist/                  # Build-Output (Installer, gitignored)
+  pw-browsers/           # Lokale Playwright-Browser fuer Build (gitignored)
   captures/              # Aufgenommene Screenshots (gitignored)
   results/               # Gespeicherte CSV-Ergebnisse (gitignored)
-  mitglieder-config.json # User-Einstellungen (gitignored)
-  validation-list.json   # Validierungsliste (gitignored)
+  build-icon.png         # Skaliertes Icon (256x256) fuer electron-builder
+  icons_main_menu_clan_1.png  # Original-App-Icon
 ```
 
 ### Technologie-Stack
@@ -256,7 +380,25 @@ mitglieder-extractor/
 | Browser-Automatisierung | Playwright | ^1.50.0 |
 | Bildverarbeitung | sharp | ^0.34.5 |
 | OCR-Engine | Tesseract.js | ^7.0.0 |
+| Build-System | electron-builder | ^25.1.8 |
 | Laufzeitumgebung | Node.js | 18+ |
+
+### i18n (Internationalisierung)
+
+Die App unterstuetzt Deutsch und Englisch. Die Architektur:
+
+| Schicht | Datei | Ansatz |
+|---------|-------|--------|
+| **Uebersetzungen** | `src/renderer/i18n.js` | ~200 Schluessel-Wert-Paare pro Sprache, `t(key, vars)` Hilfsfunktion |
+| **Statische Texte** | `src/renderer/index.html` | `data-i18n`, `data-i18n-placeholder`, `data-i18n-tooltip` Attribute |
+| **Dynamische Texte** | `src/renderer/app.js` | `t('key', { var: value })` Aufrufe mit Platzhalter-Interpolation |
+| **Dialog-Titel** | `src/main.js` | Minimales Backend-i18n (`dt()`) fuer Datei-Dialoge |
+
+**Sprache wechseln:**
+1. Einstellungen-Tab → Sprache → Deutsch/English waehlen
+2. Aenderung wirkt sofort und wird in Config gespeichert
+3. Alle statischen und dynamischen UI-Texte werden aktualisiert
+4. Backend-Dialoge (Datei oeffnen/speichern) nutzen ebenfalls die gewaehlte Sprache
 
 ### IPC-Kommunikation
 
@@ -274,6 +416,7 @@ Die App verwendet Electrons IPC-System fuer die Kommunikation zwischen Haupt- un
 | R → M | `stop-ocr` | OCR abbrechen |
 | R → M | `export-csv` | CSV-Export (mit Dialog) |
 | R → M | `auto-save-csv` | CSV automatisch in results/ speichern |
+| R → M | `open-results-dir` | Results-Ordner im Explorer oeffnen (nutzt korrekten Pfad) |
 | R → M | `load-validation-list` | Validierungsliste laden (mit Auto-Init) |
 | R → M | `save-validation-list` | Validierungsliste speichern |
 | R → M | `validate-ocr-results` | OCR-Ergebnisse validieren |
@@ -396,8 +539,10 @@ Mit allen Auto-Optionen aktiviert (Standard) laeuft ein typischer Durchlauf wie 
 
 Bei Validierungsfehlern:
 - Banner zeigt Warnung mit "Zur Validierung"-Button
-- Im Validierung-Tab koennen unbekannte Namen zugeordnet werden
+- Im Validierung-Tab koennen unbekannte Namen bearbeitet, zugeordnet oder zur Liste hinzugefuegt werden
+- Mehrfachauswahl + Batch-Hinzufuegen beschleunigt das Erstellen einer Validierungsliste
 - Die Korrekturen werden gespeichert und beim naechsten Lauf automatisch angewandt
+- **"Korrigierte CSV exportieren"** speichert die korrigierten Ergebnisse
 
 ## Tests & Benchmark
 

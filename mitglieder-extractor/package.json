@@ -1,20 +1,72 @@
 {
-  "name": "mitglieder-extractor",
+  "name": "member-extractor",
   "version": "1.0.0",
-  "description": "Mitglieder Extractor - Automatische Screenshot-Erfassung von Spieler-Listen via Scroll-Capture",
+  "description": "Member Extractor - Automated scroll capture and OCR for game member lists",
   "type": "module",
   "main": "src/main.js",
   "scripts": {
-    "start": "electron src/main.js"
+    "start": "electron src/main.js",
+    "build": "electron-builder --win",
+    "build:dir": "electron-builder --win --dir",
+    "prepare-browsers": "node scripts/prepare-browsers.js",
+    "dist": "npm run prepare-browsers && npm run build"
+  },
+  "build": {
+    "appId": "com.member-extractor.app",
+    "productName": "Member Extractor",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "icons_main_menu_clan_1.png",
+      "package.json",
+      "!src/**/*.map",
+      "!test/**"
+    ],
+    "extraResources": [
+      {
+        "from": "pw-browsers",
+        "to": "pw-browsers",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "asarUnpack": [
+      "node_modules/sharp/**",
+      "node_modules/@img/**"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build-icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Member Extractor"
+    }
   },
   "keywords": [
     "totalbattle",
-    "mitglieder",
+    "member",
     "extractor",
     "scroll-capture",
     "playwright",
-    "electron"
+    "electron",
+    "ocr"
   ],
+  "author": "LinkesAuge",
   "license": "MIT",
   "dependencies": {
     "playwright": "^1.50.0",
@@ -22,6 +74,8 @@
     "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
-    "electron": "^40.2.1"
+    "electron": "^40.2.1",
+    "electron-builder": "^25.1.8",
+    "png-to-ico": "^3.0.1"
   }
 }

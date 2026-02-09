@@ -7,6 +7,66 @@ const t = (key, vars) => window.i18n.t(key, vars);
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
 
+// ─── Input-Dialog (Ersatz fuer prompt()) ─────────────────────────────────────
+
+/**
+ * Zeigt einen modalen Input-Dialog (funktioniert zuverlaessig in Electron).
+ * @param {string} title - Dialog-Titel/Frage
+ * @param {string} [defaultValue=''] - Vorausgefuellter Wert
+ * @returns {Promise<string|null>} Eingegebener Wert oder null bei Abbruch
+ */
+function showInputDialog(title, defaultValue = '') {
+  return new Promise((resolve) => {
+    const overlay = $('#inputDialog');
+    const titleEl = $('#inputDialogTitle');
+    const input = $('#inputDialogInput');
+    const btnOk = $('#inputDialogOk');
+    const btnCancel = $('#inputDialogCancel');
+
+    titleEl.textContent = title;
+    input.value = defaultValue;
+    overlay.style.display = 'flex';
+
+    // Focus und Text auswaehlen
+    setTimeout(() => {
+      input.focus();
+      input.select();
+    }, 50);
+
+    function cleanup() {
+      overlay.style.display = 'none';
+      btnOk.removeEventListener('click', onOk);
+      btnCancel.removeEventListener('click', onCancel);
+      input.removeEventListener('keydown', onKey);
+      overlay.removeEventListener('click', onOverlayClick);
+    }
+
+    function onOk() {
+      cleanup();
+      resolve(input.value);
+    }
+
+    function onCancel() {
+      cleanup();
+      resolve(null);
+    }
+
+    function onKey(e) {
+      if (e.key === 'Enter') { e.preventDefault(); onOk(); }
+      if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
+    }
+
+    function onOverlayClick(e) {
+      if (e.target === overlay) onCancel();
+    }
+
+    btnOk.addEventListener('click', onOk);
+    btnCancel.addEventListener('click', onCancel);
+    input.addEventListener('keydown', onKey);
+    overlay.addEventListener('click', onOverlayClick);
+  });
+}
+
 const urlInput = $('#urlInput');
 const btnLaunch = $('#btnLaunch');
 const btnClose = $('#btnClose');
@@ -66,6 +126,7 @@ const ocrValidationMsg = $('#ocrValidationMsg');
 const btnGoToValidation = $('#btnGoToValidation');
 const ocrFolderInput = $('#ocrFolder');
 const btnBrowseOcrFolder = $('#btnBrowseOcrFolder');
+const btnOpenOcrFolder = $('#btnOpenOcrFolder');
 const btnStartOcr = $('#btnStartOcr');
 const btnStopOcr = $('#btnStopOcr');
 const ocrStatus = $('#ocrStatus');
@@ -82,6 +143,7 @@ const auswertungSection = $('#auswertungSection');
 const validationSummary = $('#validationSummary');
 const validationEmptyHint = $('#validationEmptyHint');
 const validationContent = $('#validationContent');
+const validationOcrContent = $('#validationOcrContent');
 const validationOcrBody = $('#validationOcrBody');
 const validationSearch = $('#validationSearch');
 const validationNamesList = $('#validationNamesList');
@@ -89,7 +151,10 @@ const validationNameCount = $('#validationNameCount');
 const correctionsList = $('#correctionsList');
 const correctionCount = $('#correctionCount');
 const btnAcceptAllSuggestions = $('#btnAcceptAllSuggestions');
+const btnAddSelectedToList = $('#btnAddSelectedToList');
+const validationSelectAll = $('#validationSelectAll');
 const btnAddValidationName = $('#btnAddValidationName');
+const btnValidationExportCsv = $('#btnValidationExportCsv');
 const btnImportValidation = $('#btnImportValidation');
 const btnExportValidation = $('#btnExportValidation');
 const btnRevalidate = $('#btnRevalidate');
@@ -144,6 +209,7 @@ let validatedMembers = null;  // OCR-Ergebnisse mit Validierungsstatus
 let validationKnownNames = [];
 let validationCorrections = {};
 let selectedOcrRow = null;  // Index des ausgewaehlten OCR-Eintrags fuer Zuordnung
+let selectedOcrRows = new Set();  // Ausgewaehlte OCR-Zeilen fuer Batch-Operationen
 let validationFilter = 'all';
 let historyEntries = [];
 let selectedHistoryFile = null;
@@ -640,6 +706,13 @@ btnBrowseOcrFolder.addEventListener('click', async () => {
   }
 });
 
+btnOpenOcrFolder.addEventListener('click', () => {
+  const folder = ocrFolderInput.value;
+  if (folder) {
+    window.api.openFolder(folder);
+  }
+});
+
 btnStartOcr.addEventListener('click', () => startOcr());
 
 btnStopOcr.addEventListener('click', async () => {
@@ -954,7 +1027,7 @@ async function autoSaveCsv() {
 async function validateCurrentResults() {
   if (!ocrMembers || ocrMembers.length === 0) {
     validationEmptyHint.style.display = 'block';
-    validationContent.style.display = 'none';
+    validationOcrContent.style.display = 'none';
     validationSummary.textContent = '';
     return;
   }
@@ -963,7 +1036,7 @@ async function validateCurrentResults() {
   if (result.ok) {
     validatedMembers = result.members;
     validationEmptyHint.style.display = 'none';
-    validationContent.style.display = 'grid';
+    validationOcrContent.style.display = '';
     renderValidationOcrTable();
     updateValidationSummary();
     // Liste nach Validierung neu laden (evtl. neue Korrekturen)
@@ -993,15 +1066,21 @@ function renderValidationOcrTable() {
     unknown: t('validation.unknown'),
   };
 
+  // Sichtbare Indizes sammeln (fuer Select-All)
+  const visibleIndices = [];
+
   validatedMembers.forEach((m, idx) => {
     // Filter anwenden
     if (validationFilter !== 'all' && m.validationStatus !== validationFilter) return;
+
+    visibleIndices.push(idx);
 
     const tr = document.createElement('tr');
     tr.className = `v-row-${m.validationStatus}`;
     if (selectedOcrRow === idx) tr.classList.add('selected');
 
     const statusLabel = statusLabels[m.validationStatus] || m.validationStatus;
+    const isChecked = selectedOcrRows.has(idx) ? 'checked' : '';
 
     let correctionHtml = '';
     if (m.validationStatus === 'corrected' && m.originalName !== m.name) {
@@ -1015,26 +1094,48 @@ function renderValidationOcrTable() {
     if (m.validationStatus === 'suggested' && m.suggestion) {
       actionHtml = `<button class="v-action-btn accept" data-idx="${idx}" data-action="accept-suggestion" title="${t('tooltip.acceptSuggestion')}">&#10003;</button>`;
     }
-    if (m.validationStatus === 'unknown' || m.validationStatus === 'suggested') {
-      actionHtml += ` <button class="v-action-btn" data-idx="${idx}" data-action="select-for-assign" title="${t('tooltip.startAssignment')}">&#9998;</button>`;
-    }
+    // Edit-Button: Name bearbeiten
+    actionHtml += ` <button class="v-action-btn" data-idx="${idx}" data-action="edit-name" title="${t('tooltip.editName')}">&#9998;</button>`;
+    // Add-to-list-Button: Zur Validierungsliste hinzufuegen
+    actionHtml += ` <button class="v-action-btn add-to-list" data-idx="${idx}" data-action="add-to-list" title="${t('tooltip.addToList')}">&#43;</button>`;
 
     tr.innerHTML = `
+      <td class="td-checkbox"><input type="checkbox" class="v-row-checkbox" data-idx="${idx}" ${isChecked}></td>
       <td><span class="v-status v-status-${m.validationStatus}"></span> ${statusLabel}</td>
       <td>${escapeHtml(m.validationStatus === 'corrected' ? m.originalName : m.name)}</td>
       <td>${correctionHtml}</td>
-      <td>${actionHtml}</td>
+      <td class="td-actions">${actionHtml}</td>
     `;
 
-    // Klick auf Zeile = Auswahl fuer Zuordnung
+    // Klick auf Zeile = Auswahl fuer Zuordnung (nicht auf Checkbox oder Buttons)
     tr.addEventListener('click', (e) => {
-      if (e.target.closest('.v-action-btn')) return; // Button-Klicks separat
+      if (e.target.closest('.v-action-btn') || e.target.closest('.v-row-checkbox')) return;
       selectedOcrRow = idx;
       renderValidationOcrTable();
     });
 
     validationOcrBody.appendChild(tr);
   });
+
+  // Checkboxen verdrahten
+  validationOcrBody.querySelectorAll('.v-row-checkbox').forEach(cb => {
+    cb.addEventListener('change', (e) => {
+      e.stopPropagation();
+      const idx = parseInt(cb.dataset.idx);
+      if (cb.checked) {
+        selectedOcrRows.add(idx);
+      } else {
+        selectedOcrRows.delete(idx);
+      }
+      updateBatchButtonState();
+    });
+  });
+
+  // Select-All Checkbox aktualisieren
+  if (validationSelectAll) {
+    const allChecked = visibleIndices.length > 0 && visibleIndices.every(i => selectedOcrRows.has(i));
+    validationSelectAll.checked = allChecked;
+  }
 
   // Action-Buttons verdrahten
   validationOcrBody.querySelectorAll('.v-action-btn').forEach(btn => {
@@ -1047,16 +1148,112 @@ function renderValidationOcrTable() {
         const member = validatedMembers[idx];
         if (member.suggestion) {
           await window.api.addCorrection(member.originalName || member.name, member.suggestion);
-          // Name im OCR-Ergebnis aktualisieren
           ocrMembers[idx].name = member.suggestion;
           await validateCurrentResults();
         }
-      } else if (action === 'select-for-assign') {
-        selectedOcrRow = idx;
-        renderValidationOcrTable();
+      } else if (action === 'edit-name') {
+        await editOcrEntryName(idx);
+      } else if (action === 'add-to-list') {
+        await addOcrNameToValidationList(idx);
       }
     });
   });
+
+  updateBatchButtonState();
+}
+
+/**
+ * Aktualisiert den Zustand des Batch-Buttons.
+ */
+function updateBatchButtonState() {
+  if (btnAddSelectedToList) {
+    btnAddSelectedToList.disabled = selectedOcrRows.size === 0;
+    if (selectedOcrRows.size > 0) {
+      btnAddSelectedToList.textContent = t('btn.addSelectedToListCount', { count: selectedOcrRows.size });
+    } else {
+      btnAddSelectedToList.textContent = t('btn.addSelectedToList');
+    }
+  }
+}
+
+/**
+ * Bearbeitet den Namen eines OCR-Eintrags (Edit-Dialog).
+ */
+async function editOcrEntryName(idx) {
+  const member = validatedMembers[idx];
+  if (!member) return;
+
+  const currentName = member.originalName || member.name;
+  const newName = await showInputDialog(t('prompt.editName'), currentName);
+  if (newName === null || newName.trim() === '' || newName.trim() === currentName) return;
+
+  ocrMembers[idx].name = newName.trim();
+  await validateCurrentResults();
+}
+
+/**
+ * Fuegt einen einzelnen OCR-Namen zur Validierungsliste hinzu (mit Edit-Dialog).
+ */
+async function addOcrNameToValidationList(idx) {
+  const member = validatedMembers[idx];
+  if (!member) return;
+
+  const currentName = member.name;
+  const nameToAdd = await showInputDialog(t('prompt.addToList'), currentName);
+  if (nameToAdd === null || nameToAdd.trim() === '') return;
+
+  const trimmed = nameToAdd.trim();
+
+  // Duplikatpruefung
+  if (validationKnownNames.includes(trimmed)) {
+    alert(t('alert.nameAlreadyExists', { name: trimmed }));
+    return;
+  }
+
+  await window.api.addValidationName(trimmed);
+  await loadValidationList();
+  if (validatedMembers) await validateCurrentResults();
+}
+
+/**
+ * Fuegt alle ausgewaehlten OCR-Namen zur Validierungsliste hinzu (Batch).
+ */
+async function addSelectedOcrNamesToValidationList() {
+  if (selectedOcrRows.size === 0 || !validatedMembers) return;
+
+  const namesToAdd = [];
+  const duplicates = [];
+
+  for (const idx of selectedOcrRows) {
+    const member = validatedMembers[idx];
+    if (!member) continue;
+    const name = member.name;
+    if (validationKnownNames.includes(name)) {
+      duplicates.push(name);
+    } else if (!namesToAdd.includes(name)) {
+      namesToAdd.push(name);
+    }
+  }
+
+  if (namesToAdd.length === 0 && duplicates.length > 0) {
+    alert(t('alert.allNamesAlreadyExist', { count: duplicates.length }));
+    return;
+  }
+
+  let confirmMsg = t('confirm.addNamesToList', { count: namesToAdd.length });
+  if (duplicates.length > 0) {
+    confirmMsg += '\n\n' + t('alert.duplicatesSkipped', { count: duplicates.length, names: duplicates.join(', ') });
+  }
+
+  if (!confirm(confirmMsg)) return;
+
+  for (const name of namesToAdd) {
+    await window.api.addValidationName(name);
+  }
+
+  selectedOcrRows.clear();
+  await loadValidationList();
+  if (validatedMembers) await validateCurrentResults();
 }
 
 function renderValidationNames() {
@@ -1148,8 +1345,31 @@ validationFilterBtns.forEach(btn => {
     validationFilterBtns.forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     validationFilter = btn.dataset.filter;
+    selectedOcrRows.clear();
     renderValidationOcrTable();
   });
+});
+
+// Select-All Checkbox
+validationSelectAll.addEventListener('change', () => {
+  if (!validatedMembers) return;
+  const checkboxes = validationOcrBody.querySelectorAll('.v-row-checkbox');
+  checkboxes.forEach(cb => {
+    const idx = parseInt(cb.dataset.idx);
+    if (validationSelectAll.checked) {
+      selectedOcrRows.add(idx);
+      cb.checked = true;
+    } else {
+      selectedOcrRows.delete(idx);
+      cb.checked = false;
+    }
+  });
+  updateBatchButtonState();
+});
+
+// Batch: Ausgewaehlte zur Validierungsliste hinzufuegen
+btnAddSelectedToList.addEventListener('click', async () => {
+  await addSelectedOcrNamesToValidationList();
 });
 
 // Suche in Namensliste
@@ -1159,9 +1379,15 @@ validationSearch.addEventListener('input', () => {
 
 // Name hinzufuegen
 btnAddValidationName.addEventListener('click', async () => {
-  const name = prompt(t('prompt.addName'));
+  const name = await showInputDialog(t('prompt.addName'));
   if (name && name.trim()) {
-    await window.api.addValidationName(name.trim());
+    const trimmed = name.trim();
+    // Duplikatpruefung
+    if (validationKnownNames.includes(trimmed)) {
+      alert(t('alert.nameAlreadyExists', { name: trimmed }));
+      return;
+    }
+    await window.api.addValidationName(trimmed);
     await loadValidationList();
     if (validatedMembers) await validateCurrentResults();
   }
@@ -1184,6 +1410,18 @@ btnAcceptAllSuggestions.addEventListener('click', async () => {
   }
 
   await validateCurrentResults();
+});
+
+// Korrigierte Ergebnisse als CSV exportieren
+btnValidationExportCsv.addEventListener('click', async () => {
+  // validatedMembers enthaelt die korrigierten Namen
+  const membersToExport = validatedMembers || ocrMembers;
+  if (!membersToExport || membersToExport.length === 0) return;
+  const defaultName = `mitglieder_${localDateString()}.csv`;
+  const result = await window.api.exportCsv(membersToExport, defaultName);
+  if (result.ok) {
+    validationSummary.textContent = t('status.csvSaved', { path: result.path });
+  }
 });
 
 // Import / Export
@@ -1312,7 +1550,7 @@ function renderHistoryDetail(members, fileName) {
 btnRefreshHistory.addEventListener('click', () => loadHistory());
 
 btnOpenResultsDir.addEventListener('click', () => {
-  window.api.openFolder('./results');
+  window.api.openResultsDir();
 });
 
 btnHistoryExportCsv.addEventListener('click', async () => {

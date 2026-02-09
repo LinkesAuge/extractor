@@ -15,6 +15,10 @@ out/
 mitglieder-extractor/dist/
 mitglieder-extractor/out/
 
+# Playwright browsers (bundled for build, too large for git)
+pw-browsers/
+mitglieder-extractor/pw-browsers/
+
 # OS files
 Thumbs.db
 Desktop.ini

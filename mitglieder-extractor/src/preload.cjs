@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld('api', {
 
   // Ordner oeffnen / waehlen / loeschen
   openFolder: (path) => ipcRenderer.invoke('open-folder', path),
+  openResultsDir: () => ipcRenderer.invoke('open-results-dir'),
   browseFolder: (options) => ipcRenderer.invoke('browse-folder', options),
   browseCaptureFolder: (defaultPath) => ipcRenderer.invoke('browse-capture-folder', defaultPath),
   deleteFolder: (path) => ipcRenderer.invoke('delete-folder', path),

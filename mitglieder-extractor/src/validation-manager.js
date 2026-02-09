@@ -1,8 +1,6 @@
 import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 
-const VALIDATION_FILE = join(process.cwd(), 'validation-list.json');
-
 /**
  * Verwaltet eine Liste bekannter Spielernamen und OCR-Korrektur-Mappings.
  *
@@ -15,7 +13,12 @@ const VALIDATION_FILE = join(process.cwd(), 'validation-list.json');
  *   3) Fuzzy-Matching fuer Vorschlaege
  */
 export class ValidationManager {
-  constructor() {
+  /**
+   * @param {string} [dataDir] - Verzeichnis fuer die Validierungsdatei.
+   *   Falls nicht angegeben, wird process.cwd() verwendet.
+   */
+  constructor(dataDir) {
+    this.dataFile = join(dataDir || process.cwd(), 'validation-list.json');
     this.knownNames = [];
     this.corrections = {};
   }
@@ -24,7 +27,7 @@ export class ValidationManager {
 
   async load() {
     try {
-      const data = await readFile(VALIDATION_FILE, 'utf-8');
+      const data = await readFile(this.dataFile, 'utf-8');
       const parsed = JSON.parse(data);
       this.knownNames = parsed.knownNames || [];
       this.corrections = parsed.corrections || {};
@@ -41,7 +44,7 @@ export class ValidationManager {
       knownNames: this.knownNames.slice().sort((a, b) => a.localeCompare(b, 'de')),
       corrections: this.corrections,
     };
-    await writeFile(VALIDATION_FILE, JSON.stringify(data, null, 2), 'utf-8');
+    await writeFile(this.dataFile, JSON.stringify(data, null, 2), 'utf-8');
   }
 
   getState() {
