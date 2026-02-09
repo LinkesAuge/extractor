@@ -569,7 +569,8 @@ body {
 /* ─── Log ────────────────────────────────────────────────────── */
 
 .log-container {
-  max-height: 120px;
+  max-height: 300px;
+  min-height: 100px;
   overflow-y: auto;
   background: #0d1117;
   border-radius: 6px;
@@ -577,12 +578,26 @@ body {
   font-family: 'Cascadia Code', 'Consolas', monospace;
   font-size: 11px;
   line-height: 1.6;
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
 }
 
 .log-entry {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.log-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.log-section-title .btn {
+  margin-left: auto;
 }
 
 .log-info { color: #58a6ff; }
@@ -759,7 +774,7 @@ body {
 
 .validation-side-by-side {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 3fr 1fr;
   gap: 8px;
 }
 
@@ -767,6 +782,10 @@ body {
   min-height: 300px;
   display: flex;
   flex-direction: column;
+}
+
+.validation-left-panel {
+  min-width: 0; /* allow shrinking within grid */
 }
 
 .validation-empty-hint {
@@ -907,6 +926,23 @@ body {
   background: #1a8c4e;
 }
 
+.v-action-btn.make-correction {
+  background: #1a4a6b;
+}
+
+.v-action-btn.make-correction:hover {
+  background: #2574a9;
+}
+
+.v-action-btn.screenshot-btn {
+  background: #4a4a6a;
+  font-size: 11px;
+}
+
+.v-action-btn.screenshot-btn:hover {
+  background: #6a6a9a;
+}
+
 /* Checkbox column */
 .th-checkbox,
 .td-checkbox {
@@ -944,7 +980,7 @@ body {
 
 .validation-names-container {
   flex: 1;
-  max-height: 200px;
+  max-height: 350px;
   overflow-y: auto;
   border: 1px solid #0f3460;
   border-radius: 6px;
@@ -992,22 +1028,120 @@ body {
   opacity: 1;
 }
 
-/* Corrections Section */
-.validation-corrections-section {
-  margin-top: 10px;
-}
-
-.section-subtitle {
-  font-size: 11px;
-  color: #8892a4;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+/* Validation Mode Sub-Tab Bar */
+#validationModeSubTabBar {
   margin-bottom: 6px;
 }
 
+/* Editable Score Cells */
+.td-score {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: #8892a4;
+  cursor: pointer;
+  padding: 2px 6px !important;
+  min-width: 70px;
+}
+
+.td-score:hover {
+  background: rgba(52, 152, 219, 0.1);
+  border-radius: 3px;
+}
+
+.td-score input.score-edit-input {
+  width: 100%;
+  min-width: 60px;
+  padding: 2px 4px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  background: #1a1a2e;
+  border: 1px solid #3498db;
+  border-radius: 3px;
+  color: #e0e0e0;
+  outline: none;
+}
+
+.td-score input.score-edit-input:focus {
+  border-color: #e94560;
+}
+
+.td-score.score-edited {
+  color: #f39c12;
+}
+
+.td-score.score-warning {
+  color: #e74c3c;
+  background: rgba(231, 76, 60, 0.1);
+  font-weight: 600;
+}
+
+/* Right Panel Sub-Tabs */
+.validation-right-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.validation-right-panel .sub-tab-bar {
+  margin-bottom: 8px;
+}
+
+.validation-right-panel .sub-tab-content {
+  flex: 1;
+  display: none;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.validation-right-panel .sub-tab-content.active {
+  display: flex;
+}
+
+.validation-count-label {
+  display: block;
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+
+/* Correction Add Form */
+.correction-add-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.correction-add-form .input-small {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.correction-add-form .btn-small {
+  padding: 4px 10px;
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* Correction Search */
+.correction-search-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.correction-search-row .input {
+  flex: 1;
+}
+
+/* Corrections List */
 .validation-corrections-list {
-  max-height: 120px;
+  flex: 1;
+  max-height: 350px;
   overflow-y: auto;
   border: 1px solid #0f3460;
   border-radius: 6px;
@@ -1065,6 +1199,22 @@ body {
 
 .correction-item:hover .remove-btn {
   opacity: 1;
+}
+
+/* Highlight correction items that were actively used in current results */
+.correction-item.active-correction {
+  background: rgba(52, 152, 219, 0.15);
+  border-left: 2px solid #3498db;
+}
+
+.correction-item.active-correction .remove-btn {
+  opacity: 0.5;
+}
+
+.correction-active-badge {
+  color: #3498db;
+  font-size: 8px;
+  flex-shrink: 0;
 }
 
 /* ─── History Tab ────────────────────────────────────────────── */
@@ -1183,4 +1333,69 @@ body {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+/* ─── Sub-Tab Navigation ──────────────────────────────────────── */
+
+.sub-tab-bar {
+  display: flex;
+  gap: 0;
+  margin-bottom: 16px;
+  border-bottom: 2px solid #0f3460;
+}
+
+.sub-tab-btn {
+  padding: 8px 20px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  color: #6b7b8d;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.sub-tab-btn:hover {
+  color: #e0e0e0;
+}
+
+.sub-tab-btn.active {
+  color: #e94560;
+  border-bottom-color: #e94560;
+}
+
+.sub-tab-content {
+  display: none;
+}
+
+.sub-tab-content.active {
+  display: block;
+}
+
+/* ─── Validation Mode Indicator ──────────────────────────────── */
+
+.validation-mode-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-left: 10px;
+  vertical-align: middle;
+}
+
+.validation-mode-badge.mode-member {
+  background: #0f3460;
+  color: #6b9fff;
+}
+
+.validation-mode-badge.mode-event {
+  background: #3d1f00;
+  color: #f39c12;
 }

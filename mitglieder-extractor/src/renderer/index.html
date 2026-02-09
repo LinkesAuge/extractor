@@ -77,6 +77,15 @@
         </div>
       </section>
 
+      <!-- Sub-Tab Navigation fuer Settings -->
+      <div class="sub-tab-bar" id="settingsSubTabBar">
+        <button class="sub-tab-btn active" data-subtab="settings-member" data-i18n="subtab.member">Mitglieder</button>
+        <button class="sub-tab-btn" data-subtab="settings-event" data-i18n="subtab.event">Event</button>
+      </div>
+
+      <!-- ═══ Sub-Tab: Mitglieder Einstellungen ═══ -->
+      <div id="settings-member" class="sub-tab-content active">
+
       <!-- Region Section -->
       <section class="section" id="regionSection">
         <h2 class="section-title" data-i18n="section.region">Region</h2>
@@ -127,7 +136,7 @@
         </div>
         <div class="control-row">
           <label class="label has-tooltip" for="outputDir" data-i18n="label.outputDir" data-i18n-tooltip="tooltip.outputDir" data-tooltip="Ordner in dem die Screenshots gespeichert werden. Pro Durchlauf wird ein Unterordner mit Zeitstempel erstellt.">Ausgabeordner:</label>
-          <input type="text" id="outputDir" class="input" value="./captures">
+          <input type="text" id="outputDir" class="input" value="./captures/mitglieder">
           <button id="btnBrowseDir" class="btn btn-small btn-secondary" data-i18n="btn.browse">Durchsuchen</button>
           <button id="btnOpenOutputDir" class="btn btn-small btn-secondary" data-i18n="btn.open">Oeffnen</button>
         </div>
@@ -212,12 +221,163 @@
         </div>
       </section>
 
+      </div><!-- /settings-member -->
+
+      <!-- ═══ Sub-Tab: Event Einstellungen ═══ -->
+      <div id="settings-event" class="sub-tab-content">
+
+      <!-- Event Region Section -->
+      <section class="section" id="eventRegionSection">
+        <h2 class="section-title" data-i18n="section.eventRegion">Event-Region</h2>
+        <div class="row">
+          <button id="btnSelectEventRegion" class="btn btn-primary" disabled data-i18n="btn.selectEventRegion">Event-Region auswaehlen</button>
+          <span id="eventRegionInfo" class="info-text" data-i18n="status.noRegion">Keine Region ausgewaehlt</span>
+        </div>
+        <div id="eventRegionPreviewContainer" class="preview-container" style="display:none;">
+          <img id="eventRegionPreview" class="preview-img" alt="Event Region Preview">
+        </div>
+      </section>
+
+      <!-- Event Calibration Section -->
+      <section class="section" id="eventCalibrationSection">
+        <h2 class="section-title" data-i18n="section.eventCalibration">Event-Kalibrierung</h2>
+        <div class="control-row">
+          <label class="label has-tooltip" for="eventScrollTicks" data-i18n="label.scrollTicks" data-i18n-tooltip="tooltip.scrollTicks" data-tooltip="Anzahl der Mausrad-Scroll-Schritte zwischen Screenshots.">Mausrad-Ticks:</label>
+          <input type="range" id="eventScrollTicks" class="slider" min="1" max="50" value="6">
+          <span id="eventScrollTicksValue" class="slider-value">6</span>
+        </div>
+        <div class="control-row">
+          <label class="label has-tooltip" for="eventScrollDelay" data-i18n="label.scrollDelay" data-i18n-tooltip="tooltip.scrollDelay" data-tooltip="Wartezeit in Millisekunden nach dem Scrollen.">Scroll-Delay (ms):</label>
+          <input type="range" id="eventScrollDelay" class="slider" min="100" max="2000" step="50" value="500">
+          <span id="eventScrollDelayValue" class="slider-value">500</span>
+        </div>
+        <div class="row" style="margin-top: 8px;">
+          <button id="btnTestEventScroll" class="btn btn-secondary" disabled data-i18n="btn.testEventScroll">Test-Scroll</button>
+          <span id="eventTestInfo" class="info-text"></span>
+        </div>
+        <div id="eventTestPreviewContainer" class="test-preview-container" style="display:none;">
+          <div class="test-preview-item">
+            <span class="test-preview-label" data-i18n="label.before">Vorher</span>
+            <img id="eventTestBefore" class="preview-img" alt="Before">
+          </div>
+          <div class="test-preview-item">
+            <span class="test-preview-label" data-i18n="label.after">Nachher</span>
+            <img id="eventTestAfter" class="preview-img" alt="After">
+          </div>
+        </div>
+      </section>
+
+      <!-- Event Capture Settings -->
+      <section class="section" id="eventCaptureSection">
+        <h2 class="section-title" data-i18n="section.eventCapture">Event-Capture</h2>
+        <div class="control-row">
+          <label class="label has-tooltip" for="eventMaxScreenshots" data-i18n="label.maxScreenshots" data-i18n-tooltip="tooltip.maxScreenshots" data-tooltip="Maximale Anzahl von Screenshots pro Capture-Durchlauf.">Max Screenshots:</label>
+          <input type="number" id="eventMaxScreenshots" class="input input-small" value="50" min="1" max="1000">
+        </div>
+        <div class="control-row">
+          <label class="label has-tooltip" for="eventOutputDir" data-i18n="label.outputDir" data-i18n-tooltip="tooltip.outputDir" data-tooltip="Ordner in dem die Event-Screenshots gespeichert werden.">Ausgabeordner:</label>
+          <input type="text" id="eventOutputDir" class="input" value="./captures/events">
+          <button id="btnBrowseEventDir" class="btn btn-small btn-secondary" data-i18n="btn.browse">Durchsuchen</button>
+          <button id="btnOpenEventOutputDir" class="btn btn-small btn-secondary" data-i18n="btn.open">Oeffnen</button>
+        </div>
+      </section>
+
+      <!-- Event OCR Settings -->
+      <section class="section" id="eventOcrSettingsSection">
+        <h2 class="section-title">
+          <span data-i18n="section.eventOcrSettings">Event-OCR Einstellungen</span>
+          <div class="section-title-actions" style="gap: 12px;">
+            <label class="toggle-label has-tooltip" data-i18n-tooltip="tooltip.autoOcr">
+              <span class="toggle-hint" data-i18n="toggle.autoOcr">Auto-OCR</span>
+              <input type="checkbox" id="eventAutoOcrEnabled" class="toggle-checkbox" checked>
+              <span class="toggle-text" id="eventAutoOcrToggleText" data-i18n="toggle.on">An</span>
+            </label>
+            <label class="toggle-label has-tooltip" data-i18n-tooltip="tooltip.autoValidation">
+              <span class="toggle-hint" data-i18n="toggle.autoValidation">Auto-Valid.</span>
+              <input type="checkbox" id="eventAutoValidationEnabled" class="toggle-checkbox" checked>
+              <span class="toggle-text" id="eventAutoValidationToggleText" data-i18n="toggle.on">An</span>
+            </label>
+            <label class="toggle-label has-tooltip" data-i18n-tooltip="tooltip.autoSave">
+              <span class="toggle-hint" data-i18n="toggle.autoSave">Auto-Save</span>
+              <input type="checkbox" id="eventAutoSaveEnabled" class="toggle-checkbox" checked>
+              <span class="toggle-text" id="eventAutoSaveToggleText" data-i18n="toggle.on">An</span>
+            </label>
+          </div>
+        </h2>
+        <div class="ocr-settings-grid">
+          <div class="control-row">
+            <label class="label has-tooltip" data-i18n="label.scale" data-i18n-tooltip="tooltip.scale">Skalierung:</label>
+            <input type="range" id="eventOcrScale" class="slider" min="1" max="4" step="0.5" value="3">
+            <span id="eventOcrScaleValue" class="slider-value">3x</span>
+          </div>
+          <div class="control-row">
+            <label class="label has-tooltip" data-i18n="label.greyscale" data-i18n-tooltip="tooltip.greyscale">Graustufen:</label>
+            <label class="toggle-label">
+              <input type="checkbox" id="eventOcrGreyscale" class="toggle-checkbox">
+              <span class="toggle-text" id="eventOcrGreyscaleText" data-i18n="toggle.off">Aus</span>
+            </label>
+          </div>
+          <div class="control-row">
+            <label class="label has-tooltip" data-i18n="label.sharpen" data-i18n-tooltip="tooltip.sharpen">Schaerfe (sigma):</label>
+            <input type="range" id="eventOcrSharpen" class="slider" min="0" max="3" step="0.1" value="0.3">
+            <span id="eventOcrSharpenValue" class="slider-value">0.3</span>
+          </div>
+          <div class="control-row">
+            <label class="label has-tooltip" data-i18n="label.contrast" data-i18n-tooltip="tooltip.contrast">Kontrast:</label>
+            <input type="range" id="eventOcrContrast" class="slider" min="1" max="3" step="0.1" value="1.5">
+            <span id="eventOcrContrastValue" class="slider-value">1.5</span>
+          </div>
+          <div class="control-row">
+            <label class="label has-tooltip" data-i18n="label.threshold" data-i18n-tooltip="tooltip.threshold">Schwellwert:</label>
+            <label class="toggle-label" style="min-width: 60px;">
+              <input type="checkbox" id="eventOcrThresholdEnabled" class="toggle-checkbox">
+              <span class="toggle-text" id="eventOcrThresholdText" data-i18n="toggle.off">Aus</span>
+            </label>
+            <input type="range" id="eventOcrThresholdVal" class="slider" min="50" max="230" value="152" disabled>
+            <span id="eventOcrThresholdDisplay" class="slider-value">152</span>
+          </div>
+          <div class="control-row">
+            <label class="label has-tooltip" data-i18n="label.psm" data-i18n-tooltip="tooltip.psm">PSM-Modus:</label>
+            <select id="eventOcrPsm" class="input input-select">
+              <option value="3" selected data-i18n="option.automatic">Automatisch (Standard)</option>
+              <option value="4" data-i18n="option.singleColumn">Einzelne Spalte</option>
+              <option value="6" data-i18n="option.uniformBlock">Einheitlicher Block</option>
+              <option value="11" data-i18n="option.sparseText">Sparse Text</option>
+              <option value="12" data-i18n="option.sparseTextOsd">Sparse Text + OSD</option>
+            </select>
+          </div>
+          <div class="control-row">
+            <label class="label has-tooltip" data-i18n="label.ocrLang" data-i18n-tooltip="tooltip.ocrLang">Sprache:</label>
+            <select id="eventOcrLang" class="input input-select">
+              <option value="deu" selected data-i18n="option.german">Deutsch</option>
+              <option value="eng" data-i18n="option.english">Englisch</option>
+              <option value="deu+eng" data-i18n="option.germanEnglish">Deutsch + Englisch</option>
+            </select>
+          </div>
+          <div class="control-row">
+            <label class="label has-tooltip" data-i18n="label.minScore" data-i18n-tooltip="tooltip.minScore">Min. Score:</label>
+            <input type="number" id="eventOcrMinScore" class="input input-small" value="5000" min="0" max="1000000" step="1000">
+          </div>
+        </div>
+      </section>
+
+      </div><!-- /settings-event -->
+
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════════ -->
     <!-- TAB 2: AUFNAHME & ERGEBNISSE                                  -->
     <!-- ═══════════════════════════════════════════════════════════════ -->
     <div id="tab-capture" class="tab-content">
+
+      <!-- Sub-Tab Navigation fuer Capture -->
+      <div class="sub-tab-bar" id="captureSubTabBar">
+        <button class="sub-tab-btn active" data-subtab="capture-member" data-i18n="subtab.member">Mitglieder</button>
+        <button class="sub-tab-btn" data-subtab="capture-event" data-i18n="subtab.event">Event</button>
+      </div>
+
+      <!-- ═══ Sub-Tab: Mitglieder Capture ═══ -->
+      <div id="capture-member" class="sub-tab-content active">
 
       <!-- Capture Controls -->
       <section class="section">
@@ -295,10 +455,94 @@
         </div>
       </section>
 
-      <!-- Log Section -->
+      </div><!-- /capture-member -->
+
+      <!-- ═══ Sub-Tab: Event Capture ═══ -->
+      <div id="capture-event" class="sub-tab-content">
+
+      <!-- Event Capture Controls -->
       <section class="section">
+        <h2 class="section-title" data-i18n="section.eventCapture">Event-Capture</h2>
+        <div class="row">
+          <button id="btnStartEventCapture" class="btn btn-accent" disabled data-i18n="btn.startEventCapture">Event-Capture starten</button>
+          <button id="btnStopEventCapture" class="btn btn-danger" disabled data-i18n="btn.stop">Stop</button>
+        </div>
+        <div id="eventProgressContainer" class="progress-container" style="display:none;">
+          <div class="progress-bar">
+            <div id="eventProgressFill" class="progress-fill"></div>
+          </div>
+          <span id="eventProgressText" class="progress-text">0 / 50</span>
+        </div>
+      </section>
+
+      <!-- Event Gallery Section -->
+      <section class="section" id="eventGallerySection" style="display:none;">
         <h2 class="section-title">
+          <span data-i18n="section.eventGallery">Event-Galerie</span>
+          <div class="section-title-actions">
+            <button id="btnOpenEventFolder" class="btn btn-small btn-secondary" data-i18n="btn.openFolder">Ordner oeffnen</button>
+            <button id="btnDeleteEventCapture" class="btn btn-small btn-danger" data-i18n="btn.deleteCapture">Capture loeschen</button>
+          </div>
+        </h2>
+        <div id="eventGallery" class="gallery"></div>
+        <div id="eventCaptureResult" class="result-text"></div>
+      </section>
+
+      <!-- Event Auswertung Section -->
+      <section class="section" id="eventAuswertungSection">
+        <h2 class="section-title" data-i18n="section.eventEvaluation">Event-Auswertung (OCR)</h2>
+        <div class="control-row">
+          <label class="label" for="eventOcrFolder" data-i18n="label.eventCaptureFolder">Event-Capture-Ordner:</label>
+          <input type="text" id="eventOcrFolder" class="input" data-i18n-placeholder="placeholder.eventOcrFolder" placeholder="Ordner mit Event-Screenshots...">
+          <button id="btnBrowseEventOcrFolder" class="btn btn-small btn-secondary" data-i18n="btn.browse">Durchsuchen</button>
+          <button id="btnOpenEventOcrFolder" class="btn btn-small btn-secondary" data-i18n="btn.open">Oeffnen</button>
+        </div>
+        <div class="row" style="margin-top: 8px;">
+          <button id="btnStartEventOcr" class="btn btn-primary" data-i18n="btn.eventEvaluate">Auswerten</button>
+          <button id="btnStopEventOcr" class="btn btn-danger" disabled data-i18n="btn.stop">Stop</button>
+          <span id="eventOcrStatus" class="info-text"></span>
+        </div>
+        <div id="eventOcrProgressContainer" class="progress-container" style="display:none;">
+          <div class="progress-bar">
+            <div id="eventOcrProgressFill" class="progress-fill"></div>
+          </div>
+          <span id="eventOcrProgressText" class="progress-text">0 / 0</span>
+        </div>
+        <div id="eventOcrResultContainer" style="display:none;">
+          <div class="ocr-result-header">
+            <span id="eventOcrResultCount" class="result-text"></span>
+            <button id="btnExportEventCsv" class="btn btn-small btn-accent" data-i18n="btn.exportEventCsv">Event-CSV exportieren</button>
+          </div>
+          <div class="ocr-table-container">
+            <table class="ocr-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th data-i18n="th.name">Name</th>
+                  <th data-i18n="th.power">Macht</th>
+                  <th data-i18n="th.eventPoints">Event-Punkte</th>
+                </tr>
+              </thead>
+              <tbody id="eventOcrTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <!-- Event Validierungs-Hinweis -->
+        <div id="eventOcrValidationBanner" class="ocr-validation-banner" style="display:none;">
+          <span id="eventOcrValidationIcon" class="ocr-validation-icon"></span>
+          <span id="eventOcrValidationMsg" class="ocr-validation-msg"></span>
+          <button id="btnGoToEventValidation" class="btn btn-small btn-primary" data-i18n="btn.goToValidation">Zur Validierung</button>
+        </div>
+      </section>
+
+      </div><!-- /capture-event -->
+
+      <!-- Log Section (shared) -->
+      <section class="section">
+        <h2 class="section-title log-section-title">
           <span data-i18n="section.log">Log</span>
+          <button id="btnCopyLog" class="btn btn-small btn-secondary" data-i18n="btn.copyLog">Kopieren</button>
+          <button id="btnOpenLogFolder" class="btn btn-small btn-secondary" data-i18n="btn.openLogFolder">Log-Ordner</button>
           <button id="btnClearLog" class="btn btn-small btn-secondary" data-i18n="btn.clearLog">Log leeren</button>
         </h2>
         <div id="logContainer" class="log-container"></div>
@@ -311,6 +555,12 @@
     <!-- ═══════════════════════════════════════════════════════════════ -->
     <div id="tab-validation" class="tab-content">
 
+      <!-- Sub-Tab Navigation: Mitglieder / Event -->
+      <div class="sub-tab-bar" id="validationModeSubTabBar">
+        <button class="sub-tab-btn active" data-subtab="validation-mode-member" data-i18n="subtab.member">Mitglieder</button>
+        <button class="sub-tab-btn" data-subtab="validation-mode-event" data-i18n="subtab.event">Event</button>
+      </div>
+
       <!-- Validierungsstatus -->
       <section class="section">
         <h2 class="section-title">
@@ -321,11 +571,11 @@
         </h2>
       </section>
 
-      <!-- Side-by-Side Layout (immer sichtbar) -->
+      <!-- Side-by-Side Layout -->
       <div id="validationContent" class="validation-side-by-side">
 
         <!-- Linke Seite: OCR-Ergebnisse -->
-        <section class="section validation-panel">
+        <section class="section validation-panel validation-left-panel">
           <h2 class="section-title">
             <span data-i18n="section.ocrResults">OCR-Ergebnisse</span>
             <div class="section-title-actions">
@@ -347,7 +597,7 @@
             </div>
             <div class="validation-table-container">
               <table class="ocr-table validation-table">
-                <thead>
+                <thead id="validationOcrHead">
                   <tr>
                     <th class="th-checkbox"><input type="checkbox" id="validationSelectAll" title="Alle auswaehlen"></th>
                     <th data-i18n="th.status">Status</th>
@@ -362,21 +612,37 @@
           </div>
         </section>
 
-        <!-- Rechte Seite: Bekannte Spieler (immer sichtbar) -->
-        <section class="section validation-panel">
-          <h2 class="section-title">
-            <span data-i18n="section.knownPlayers">Bekannte Spieler</span>
-            <span id="validationNameCount" class="info-text"></span>
-          </h2>
-          <div class="validation-search-row">
-            <input type="text" id="validationSearch" class="input" data-i18n-placeholder="placeholder.searchPlayer" placeholder="Spieler suchen...">
-            <button id="btnAddValidationName" class="btn btn-small btn-primary" data-i18n-title="btn.addName" title="Name hinzufuegen" data-i18n="btn.addName">+ Hinzufuegen</button>
+        <!-- Rechte Seite: Bekannte Spieler / Korrekturen (Sub-Tabs) -->
+        <section class="section validation-panel validation-right-panel">
+          <div class="sub-tab-bar" id="validationRightSubTabBar">
+            <button class="sub-tab-btn active" data-subtab="validation-players" data-i18n="subtab.knownPlayers">Bekannte Spieler</button>
+            <button class="sub-tab-btn" data-subtab="validation-corrections" data-i18n="subtab.corrections">Korrekturen</button>
           </div>
-          <div class="validation-names-container" id="validationNamesContainer">
-            <div id="validationNamesList" class="validation-names-list"></div>
+
+          <!-- ═══ Sub-Tab: Bekannte Spieler ═══ -->
+          <div id="validation-players" class="sub-tab-content active">
+            <div class="validation-search-row">
+              <input type="text" id="validationSearch" class="input" data-i18n-placeholder="placeholder.searchPlayer" placeholder="Spieler suchen...">
+              <button id="btnAddValidationName" class="btn btn-small btn-primary" data-i18n-title="btn.addName" title="Name hinzufuegen" data-i18n="btn.addName">+ Hinzufuegen</button>
+            </div>
+            <span id="validationNameCount" class="info-text validation-count-label"></span>
+            <div class="validation-names-container" id="validationNamesContainer">
+              <div id="validationNamesList" class="validation-names-list"></div>
+            </div>
           </div>
-          <div class="validation-corrections-section">
-            <h3 class="section-subtitle"><span data-i18n="label.savedCorrections">Gespeicherte Korrekturen</span> (<span id="correctionCount">0</span>)</h3>
+
+          <!-- ═══ Sub-Tab: Gespeicherte Korrekturen ═══ -->
+          <div id="validation-corrections" class="sub-tab-content">
+            <div class="correction-add-form">
+              <input type="text" id="correctionFromInput" class="input input-small" data-i18n-placeholder="placeholder.correctionFrom" placeholder="OCR-Name (falsch)...">
+              <span class="correction-arrow">&rarr;</span>
+              <input type="text" id="correctionToInput" class="input input-small" data-i18n-placeholder="placeholder.correctionTo" placeholder="Korrekter Name...">
+              <button id="btnAddManualCorrection" class="btn btn-small btn-primary" data-i18n-title="btn.addCorrection" title="Korrektur hinzufuegen">+</button>
+            </div>
+            <div class="correction-search-row">
+              <input type="text" id="correctionSearch" class="input" data-i18n-placeholder="placeholder.searchCorrection" placeholder="Korrektur suchen...">
+            </div>
+            <span id="correctionCount" class="info-text validation-count-label">0</span>
             <div id="correctionsList" class="validation-corrections-list"></div>
           </div>
         </section>
@@ -417,6 +683,7 @@
             <thead>
               <tr>
                 <th data-i18n="th.date">Datum</th>
+                <th data-i18n="th.type">Typ</th>
                 <th data-i18n="th.members">Mitglieder</th>
                 <th data-i18n="th.file">Datei</th>
                 <th></th>
@@ -435,7 +702,8 @@
           </div>
         </h2>
         <div id="historyDetailCount" class="result-text" style="margin-bottom: 8px;"></div>
-        <div class="ocr-table-container">
+        <!-- Member Detail Table -->
+        <div id="historyMemberTable" class="ocr-table-container">
           <table class="ocr-table">
             <thead>
               <tr>
@@ -447,6 +715,20 @@
               </tr>
             </thead>
             <tbody id="historyDetailBody"></tbody>
+          </table>
+        </div>
+        <!-- Event Detail Table -->
+        <div id="historyEventTable" class="ocr-table-container" style="display:none;">
+          <table class="ocr-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th data-i18n="th.name">Name</th>
+                <th data-i18n="th.power">Macht</th>
+                <th data-i18n="th.eventPoints">Event-Punkte</th>
+              </tr>
+            </thead>
+            <tbody id="historyEventDetailBody"></tbody>
           </table>
         </div>
       </section>

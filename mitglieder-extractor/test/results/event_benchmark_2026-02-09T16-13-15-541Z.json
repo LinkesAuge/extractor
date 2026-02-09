@@ -1,0 +1,21 @@
+[
+  {
+    "preset": "current",
+    "label": "Aktuell (Scale3 Contrast1.5 Thresh152 Sharp0.3)",
+    "found": 97,
+    "missing": 3,
+    "nameCorrect": 85,
+    "nameAcceptable": 1,
+    "powerExact": 82,
+    "powerClose": 3,
+    "powerMissing": 0,
+    "powerWrong": 12,
+    "eventExact": 96,
+    "eventClose": 0,
+    "eventMissing": 1,
+    "eventWrong": 0,
+    "extra": 6,
+    "quality": 940,
+    "elapsed": "41.0"
+  }
+]

@@ -1,5 +1,6 @@
 import { mkdir, writeFile, unlink } from 'fs/promises';
 import { join } from 'path';
+import sharp from 'sharp';
 
 /**
  * Screenshot + Scroll + Pixel-Vergleich Capture-Loop.
@@ -64,7 +65,7 @@ class ScrollCapturer {
       type: 'png',
     });
 
-    const similarity = this.compareBuffers(before, after);
+    const similarity = await this.compareBuffers(before, after);
     return { before, after, similarity };
   }
 
@@ -112,7 +113,7 @@ class ScrollCapturer {
       });
 
       if (prevBuffer) {
-        const similarity = this.compareBuffers(prevBuffer, buffer);
+        const similarity = await this.compareBuffers(prevBuffer, buffer);
         if (similarity >= this.similarityThreshold) {
           consecutiveSimilar++;
           this.logger.info(
@@ -160,25 +161,46 @@ class ScrollCapturer {
   }
 
   /**
-   * Vergleicht zwei PNG-Buffer und gibt die Aehnlichkeit zurueck (0-1).
+   * Vergleicht zwei PNG-Buffer auf Pixel-Ebene und gibt die Aehnlichkeit zurueck (0-1).
+   * Dekodiert die PNGs zu Rohpixeln, damit Animationen, Timer und andere
+   * kleine visuelle Aenderungen die Erkennung nicht stoeren.
+   * Ein Pixel gilt als "gleich" wenn die Differenz pro Kanal <= pixelTolerance ist.
    */
-  compareBuffers(bufA, bufB) {
-    if (bufA.length !== bufB.length) {
-      const sizeDiff = Math.abs(bufA.length - bufB.length);
-      const maxSize = Math.max(bufA.length, bufB.length);
-      if (sizeDiff / maxSize > 0.05) return 0;
-    }
+  async compareBuffers(bufA, bufB, pixelTolerance = 5) {
+    try {
+      const [rawA, rawB] = await Promise.all([
+        sharp(bufA).raw().toBuffer({ resolveWithObject: true }),
+        sharp(bufB).raw().toBuffer({ resolveWithObject: true }),
+      ]);
 
-    const len = Math.min(bufA.length, bufB.length);
-    let matching = 0;
-
-    for (let i = 0; i < len; i++) {
-      if (bufA[i] === bufB[i]) {
-        matching++;
+      // Unterschiedliche Dimensionen → nicht gleich
+      if (rawA.info.width !== rawB.info.width || rawA.info.height !== rawB.info.height) {
+        return 0;
       }
-    }
 
-    return matching / Math.max(bufA.length, bufB.length);
+      const pixelsA = rawA.data;
+      const pixelsB = rawB.data;
+      const totalPixels = rawA.info.width * rawA.info.height;
+      const channels = rawA.info.channels;
+      let matchingPixels = 0;
+
+      for (let i = 0; i < totalPixels; i++) {
+        const off = i * channels;
+        let pixelMatch = true;
+        for (let c = 0; c < channels; c++) {
+          if (Math.abs(pixelsA[off + c] - pixelsB[off + c]) > pixelTolerance) {
+            pixelMatch = false;
+            break;
+          }
+        }
+        if (pixelMatch) matchingPixels++;
+      }
+
+      return matchingPixels / totalPixels;
+    } catch {
+      // Fallback: Bei Fehler als unterschiedlich betrachten
+      return 0;
+    }
   }
 
   sleep(ms) {

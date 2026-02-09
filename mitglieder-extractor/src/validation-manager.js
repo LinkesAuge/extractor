@@ -111,7 +111,21 @@ export class ValidationManager {
   // ─── OCR-Ergebnisse korrigieren und validieren ───────────────────────────
 
   /**
+   * Clan-Tag (z.B. [K98]) aus einem Namen entfernen.
+   * Wird fuer Event-Modus verwendet, damit der reine Spielername validiert wird.
+   */
+  static stripClanTag(name) {
+    // Entferne Clan-Tags wie [K98], [K99], (K98), etc.
+    return name.replace(/[\[(\{<]?\s*[K1l|]\s*[:;.]?\s*\d{1,3}\s*[\])\}>]\s*/gi, '').trim();
+  }
+
+  /**
    * Wendet bekannte Korrekturen an und validiert jeden Namen.
+   *
+   * @param {Array} members - Array von Objekten mit .name Property
+   * @param {Object} [options] - Optionen
+   * @param {string} [options.mode='member'] - 'member' oder 'event'
+   *   Bei 'event' wird der Clan-Tag [K98] vor der Validierung entfernt.
    *
    * Gibt fuer jedes Mitglied zurueck:
    *   - originalName: der OCR-Originalname
@@ -119,10 +133,13 @@ export class ValidationManager {
    *   - status: 'confirmed' | 'corrected' | 'suggested' | 'unknown'
    *   - suggestion: vorgeschlagener Name (bei status='suggested')
    */
-  validateMembers(members) {
+  validateMembers(members, options = {}) {
+    const mode = options.mode || 'member';
+
     return members.map(member => {
       const original = member.name;
-      let name = original;
+      // Im Event-Modus: Clan-Tag entfernen bevor validiert wird
+      let name = mode === 'event' ? ValidationManager.stripClanTag(original) : original;
       let status = 'unknown';
       let suggestion = null;
 

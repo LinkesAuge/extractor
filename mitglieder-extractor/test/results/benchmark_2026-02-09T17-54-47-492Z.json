@@ -1,0 +1,16 @@
+[
+  {
+    "preset": "current",
+    "label": "Aktuell (Scale3 Contrast1.5 Thresh152 Sharp0.3)",
+    "found": 65,
+    "missing": 1,
+    "nameCorrect": 62,
+    "scoreExact": 64,
+    "scoreClose": 0,
+    "scoreMissing": 0,
+    "scoreWrong": 1,
+    "extra": 0,
+    "quality": 628,
+    "elapsed": "28.3"
+  }
+]

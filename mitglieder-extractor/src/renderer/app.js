@@ -112,6 +112,8 @@ const btnTogglePassword = $('#btnTogglePassword');
 
 const logContainer = $('#logContainer');
 const btnClearLog = $('#btnClearLog');
+const btnCopyLog = $('#btnCopyLog');
+const btnOpenLogFolder = $('#btnOpenLogFolder');
 
 // OCR Auswertung
 const autoOcrEnabled = $('#autoOcrEnabled');
@@ -150,9 +152,15 @@ const validationNamesList = $('#validationNamesList');
 const validationNameCount = $('#validationNameCount');
 const correctionsList = $('#correctionsList');
 const correctionCount = $('#correctionCount');
+const correctionFromInput = $('#correctionFromInput');
+const correctionToInput = $('#correctionToInput');
+const btnAddManualCorrection = $('#btnAddManualCorrection');
+const correctionSearch = $('#correctionSearch');
 const btnAcceptAllSuggestions = $('#btnAcceptAllSuggestions');
 const btnAddSelectedToList = $('#btnAddSelectedToList');
 const validationSelectAll = $('#validationSelectAll');
+const validationOcrHead = $('#validationOcrHead');
+const validationModeSubTabBar = $('#validationModeSubTabBar');
 const btnAddValidationName = $('#btnAddValidationName');
 const btnValidationExportCsv = $('#btnValidationExportCsv');
 const btnImportValidation = $('#btnImportValidation');
@@ -192,9 +200,91 @@ const btnHistoryExportCsv = $('#btnHistoryExportCsv');
 // Language
 const appLanguageSelect = $('#appLanguageSelect');
 
+// Event DOM Elements
+const btnSelectEventRegion = $('#btnSelectEventRegion');
+const eventRegionInfo = $('#eventRegionInfo');
+const eventRegionPreviewContainer = $('#eventRegionPreviewContainer');
+const eventRegionPreview = $('#eventRegionPreview');
+
+const eventScrollTicksSlider = $('#eventScrollTicks');
+const eventScrollTicksValue = $('#eventScrollTicksValue');
+const eventScrollDelaySlider = $('#eventScrollDelay');
+const eventScrollDelayValue = $('#eventScrollDelayValue');
+const btnTestEventScroll = $('#btnTestEventScroll');
+const eventTestInfo = $('#eventTestInfo');
+const eventTestPreviewContainer = $('#eventTestPreviewContainer');
+const eventTestBefore = $('#eventTestBefore');
+const eventTestAfter = $('#eventTestAfter');
+
+const eventMaxScreenshotsInput = $('#eventMaxScreenshots');
+const eventOutputDirInput = $('#eventOutputDir');
+const btnBrowseEventDir = $('#btnBrowseEventDir');
+const btnOpenEventOutputDir = $('#btnOpenEventOutputDir');
+const btnStartEventCapture = $('#btnStartEventCapture');
+const btnStopEventCapture = $('#btnStopEventCapture');
+const eventProgressContainer = $('#eventProgressContainer');
+const eventProgressFill = $('#eventProgressFill');
+const eventProgressText = $('#eventProgressText');
+
+const eventGallerySection = $('#eventGallerySection');
+const eventGallery = $('#eventGallery');
+const btnOpenEventFolder = $('#btnOpenEventFolder');
+const btnDeleteEventCapture = $('#btnDeleteEventCapture');
+const eventCaptureResult = $('#eventCaptureResult');
+
+const eventAutoOcrEnabled = $('#eventAutoOcrEnabled');
+const eventAutoOcrToggleText = $('#eventAutoOcrToggleText');
+const eventAutoValidationEnabled = $('#eventAutoValidationEnabled');
+const eventAutoValidationToggleText = $('#eventAutoValidationToggleText');
+const eventAutoSaveEnabled = $('#eventAutoSaveEnabled');
+const eventAutoSaveToggleText = $('#eventAutoSaveToggleText');
+
+const eventOcrFolderInput = $('#eventOcrFolder');
+const btnBrowseEventOcrFolder = $('#btnBrowseEventOcrFolder');
+const btnOpenEventOcrFolder = $('#btnOpenEventOcrFolder');
+const btnStartEventOcr = $('#btnStartEventOcr');
+const btnStopEventOcr = $('#btnStopEventOcr');
+const eventOcrStatus = $('#eventOcrStatus');
+const eventOcrProgressContainer = $('#eventOcrProgressContainer');
+const eventOcrProgressFill = $('#eventOcrProgressFill');
+const eventOcrProgressText = $('#eventOcrProgressText');
+const eventOcrResultContainer = $('#eventOcrResultContainer');
+const eventOcrResultCount = $('#eventOcrResultCount');
+const eventOcrTableBody = $('#eventOcrTableBody');
+const btnExportEventCsv = $('#btnExportEventCsv');
+const eventAuswertungSection = $('#eventAuswertungSection');
+const eventOcrValidationBanner = $('#eventOcrValidationBanner');
+const eventOcrValidationIcon = $('#eventOcrValidationIcon');
+const eventOcrValidationMsg = $('#eventOcrValidationMsg');
+const btnGoToEventValidation = $('#btnGoToEventValidation');
+
+const eventOcrScaleSlider = $('#eventOcrScale');
+const eventOcrScaleValue = $('#eventOcrScaleValue');
+const eventOcrGreyscaleCheckbox = $('#eventOcrGreyscale');
+const eventOcrGreyscaleText = $('#eventOcrGreyscaleText');
+const eventOcrSharpenSlider = $('#eventOcrSharpen');
+const eventOcrSharpenValue = $('#eventOcrSharpenValue');
+const eventOcrContrastSlider = $('#eventOcrContrast');
+const eventOcrContrastValue = $('#eventOcrContrastValue');
+const eventOcrThresholdEnabled = $('#eventOcrThresholdEnabled');
+const eventOcrThresholdText = $('#eventOcrThresholdText');
+const eventOcrThresholdValSlider = $('#eventOcrThresholdVal');
+const eventOcrThresholdDisplay = $('#eventOcrThresholdDisplay');
+const eventOcrPsmSelect = $('#eventOcrPsm');
+const eventOcrLangSelect = $('#eventOcrLang');
+const eventOcrMinScoreInput = $('#eventOcrMinScore');
+
+// History Event Table
+const historyEventTable = $('#historyEventTable');
+const historyEventDetailBody = $('#historyEventDetailBody');
+const historyMemberTable = $('#historyMemberTable');
+
 // Tab Navigation
 const tabBtns = $$('.tab-btn');
 const tabContents = $$('.tab-content');
+
+// Sub-Tab Navigation
+const subTabBtns = $$('.sub-tab-btn');
 
 // ─── State ──────────────────────────────────────────────────────────────────
 
@@ -211,9 +301,18 @@ let validationCorrections = {};
 let selectedOcrRow = null;  // Index des ausgewaehlten OCR-Eintrags fuer Zuordnung
 let selectedOcrRows = new Set();  // Ausgewaehlte OCR-Zeilen fuer Batch-Operationen
 let validationFilter = 'all';
+let activeCorrections = new Set();  // OCR-Namen die in aktuellen Ergebnissen korrigiert wurden
 let historyEntries = [];
 let selectedHistoryFile = null;
 let historyMembers = null;
+
+// Event-spezifischer State
+let eventRegion = null;
+let eventCapturing = false;
+let eventLastOutputDir = null;
+let eventOcrRunning = false;
+let eventOcrEntries = null;  // letzte Event-OCR-Ergebnisse [{ name, power, eventPoints }]
+let validationMode = 'member';  // 'member' oder 'event' — bestimmt den aktuellen Validierungsmodus
 
 // ─── Init: Config laden ─────────────────────────────────────────────────────
 
@@ -293,6 +392,58 @@ let historyMembers = null;
       if (s.lang) ocrLangSelect.value = s.lang;
       if (s.minScore != null) ocrMinScoreInput.value = s.minScore;
     }
+
+    // ─── Event-Einstellungen wiederherstellen ─────────────────────
+    if (c.eventRegion) {
+      eventRegion = c.eventRegion;
+      eventRegionInfo.textContent = `${c.eventRegion.width} x ${c.eventRegion.height} @ (${c.eventRegion.x}, ${c.eventRegion.y})`;
+    }
+    if (c.eventScrollTicks) {
+      eventScrollTicksSlider.value = c.eventScrollTicks;
+      eventScrollTicksValue.textContent = c.eventScrollTicks;
+    }
+    if (c.eventScrollDelay) {
+      eventScrollDelaySlider.value = c.eventScrollDelay;
+      eventScrollDelayValue.textContent = c.eventScrollDelay;
+    }
+    if (c.eventMaxScreenshots) eventMaxScreenshotsInput.value = c.eventMaxScreenshots;
+    if (c.eventOutputDir) eventOutputDirInput.value = c.eventOutputDir;
+    if (c.eventOcrFolder) eventOcrFolderInput.value = c.eventOcrFolder;
+    if (c.eventAutoOcr === false) {
+      eventAutoOcrEnabled.checked = false;
+      eventAutoOcrToggleText.textContent = t('toggle.off');
+    }
+    if (c.eventAutoValidation === false) {
+      eventAutoValidationEnabled.checked = false;
+      eventAutoValidationToggleText.textContent = t('toggle.off');
+    }
+    if (c.eventAutoSave === false) {
+      eventAutoSaveEnabled.checked = false;
+      eventAutoSaveToggleText.textContent = t('toggle.off');
+    }
+    if (c.eventOcrSettings) {
+      const s = c.eventOcrSettings;
+      if (s.scale != null) { eventOcrScaleSlider.value = s.scale; eventOcrScaleValue.textContent = s.scale + 'x'; }
+      if (s.greyscale != null) { eventOcrGreyscaleCheckbox.checked = s.greyscale; eventOcrGreyscaleText.textContent = s.greyscale ? t('toggle.on') : t('toggle.off'); }
+      if (s.sharpen != null) { eventOcrSharpenSlider.value = s.sharpen; eventOcrSharpenValue.textContent = s.sharpen; }
+      if (s.contrast != null) { eventOcrContrastSlider.value = s.contrast; eventOcrContrastValue.textContent = s.contrast; }
+      if (s.threshold != null) {
+        if (s.threshold > 0) {
+          eventOcrThresholdEnabled.checked = true;
+          eventOcrThresholdText.textContent = t('toggle.on');
+          eventOcrThresholdValSlider.disabled = false;
+          eventOcrThresholdValSlider.value = s.threshold;
+          eventOcrThresholdDisplay.textContent = s.threshold;
+        } else {
+          eventOcrThresholdEnabled.checked = false;
+          eventOcrThresholdText.textContent = t('toggle.off');
+          eventOcrThresholdValSlider.disabled = true;
+        }
+      }
+      if (s.psm != null) eventOcrPsmSelect.value = s.psm;
+      if (s.lang) eventOcrLangSelect.value = s.lang;
+      if (s.minScore != null) eventOcrMinScoreInput.value = s.minScore;
+    }
   }
 
   // Initiale Uebersetzungen anwenden (nach Config-Load fuer korrekte Sprache)
@@ -320,6 +471,13 @@ function refreshDynamicUI() {
   ocrGreyscaleText.textContent = ocrGreyscaleCheckbox.checked ? t('toggle.on') : t('toggle.off');
   ocrThresholdText.textContent = ocrThresholdEnabled.checked ? t('toggle.on') : t('toggle.off');
 
+  // Event-Toggle-Texte
+  eventAutoOcrToggleText.textContent = eventAutoOcrEnabled.checked ? t('toggle.on') : t('toggle.off');
+  eventAutoValidationToggleText.textContent = eventAutoValidationEnabled.checked ? t('toggle.on') : t('toggle.off');
+  eventAutoSaveToggleText.textContent = eventAutoSaveEnabled.checked ? t('toggle.on') : t('toggle.off');
+  eventOcrGreyscaleText.textContent = eventOcrGreyscaleCheckbox.checked ? t('toggle.on') : t('toggle.off');
+  eventOcrThresholdText.textContent = eventOcrThresholdEnabled.checked ? t('toggle.on') : t('toggle.off');
+
   // Passwort-Toggle
   const isPassword = loginPassword.type === 'password';
   btnTogglePassword.textContent = isPassword ? t('btn.showPassword') : t('btn.hidePassword');
@@ -335,6 +493,14 @@ function refreshDynamicUI() {
   // Region Info aktualisieren wenn keine Region gesetzt
   if (!currentRegion) {
     regionInfo.textContent = t('status.noRegion');
+  }
+  if (!eventRegion) {
+    eventRegionInfo.textContent = t('status.noRegion');
+  }
+
+  // Event-OCR-Ergebnisse neu rendern
+  if (eventOcrEntries) {
+    renderEventOcrResults(eventOcrEntries);
   }
 
   // OCR-Ergebnisse und Validierung neu rendern
@@ -439,7 +605,9 @@ window.api.onBrowserStatus((data) => {
       btnLaunch.disabled = true;
       btnClose.disabled = false;
       btnSelectRegion.disabled = false;
+      btnSelectEventRegion.disabled = false;
       updateCaptureButtons();
+      updateEventCaptureButtons();
       // Auto-Login ausfuehren falls aktiviert (nur einmal pro Sitzung)
       if (!autoLoginAttempted && autoLoginEnabled.checked && loginEmail.value && loginPassword.value) {
         autoLoginAttempted = true;
@@ -448,6 +616,9 @@ window.api.onBrowserStatus((data) => {
       // Gespeicherte Region: frischen Preview holen
       if (currentRegion) {
         loadSavedRegionPreview();
+      }
+      if (eventRegion) {
+        loadSavedEventRegionPreview();
       }
       break;
     case 'closed':
@@ -460,6 +631,9 @@ window.api.onBrowserStatus((data) => {
       btnSelectRegion.disabled = true;
       btnTestScroll.disabled = true;
       btnStartCapture.disabled = true;
+      btnSelectEventRegion.disabled = true;
+      btnTestEventScroll.disabled = true;
+      btnStartEventCapture.disabled = true;
       break;
     case 'error':
       browserStatus.textContent = t('status.error', { error: data.error });
@@ -695,7 +869,7 @@ btnGoToValidation.addEventListener('click', () => {
 });
 
 btnBrowseOcrFolder.addEventListener('click', async () => {
-  const defaultPath = lastOutputDir || outputDirInput.value || './captures';
+  const defaultPath = lastOutputDir || outputDirInput.value || './captures/mitglieder';
   const result = await window.api.browseFolder({
     title: 'Capture-Ordner fuer OCR waehlen',
     defaultPath,
@@ -788,6 +962,10 @@ window.api.onOcrProgress((data) => {
 
 window.api.onOcrDone(async (data) => {
   ocrMembers = data.members;
+  validationMode = 'member';
+  // Sync sub-tab bar state
+  validationModeSubTabBar.querySelectorAll('.sub-tab-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.subtab === 'validation-mode-member'));
   renderOcrResults(data.members);
 
   // Auto-Validierung
@@ -899,8 +1077,17 @@ tabBtns.forEach(btn => {
     });
 
     // Beim Wechsel zum Validierung-Tab: automatisch validieren falls OCR-Ergebnisse vorhanden
-    if (target === 'validation' && ocrMembers && ocrMembers.length > 0 && !validatedMembers) {
-      validateCurrentResults();
+    if (target === 'validation') {
+      const hasMembers = ocrMembers && ocrMembers.length > 0;
+      const hasEvents = eventOcrEntries && eventOcrEntries.length > 0;
+      if ((hasMembers || hasEvents) && !validatedMembers) {
+        // Default: validiere den zuletzt aktiven Modus
+        if (hasEvents && !hasMembers) validationMode = 'event';
+        // Sync sub-tab bar state
+        validationModeSubTabBar.querySelectorAll('.sub-tab-btn').forEach(b =>
+          b.classList.toggle('active', b.dataset.subtab === (validationMode === 'event' ? 'validation-mode-event' : 'validation-mode-member')));
+        validateCurrentResults();
+      }
     }
     // Beim Wechsel zum History-Tab: History laden
     if (target === 'history') {
@@ -923,6 +1110,21 @@ function switchToTab(tabName) {
 
 btnClearLog.addEventListener('click', () => {
   logContainer.innerHTML = '';
+});
+
+btnCopyLog.addEventListener('click', () => {
+  const text = Array.from(logContainer.querySelectorAll('.log-entry'))
+    .map(el => el.textContent)
+    .join('\n');
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btnCopyLog.textContent;
+    btnCopyLog.textContent = t('btn.copied');
+    setTimeout(() => { btnCopyLog.textContent = orig; }, 1500);
+  });
+});
+
+btnOpenLogFolder.addEventListener('click', () => {
+  window.api.openLogFolder();
 });
 
 // ─── Letzten Capture-Ordner loeschen ─────────────────────────────────────────
@@ -1025,14 +1227,17 @@ async function autoSaveCsv() {
 }
 
 async function validateCurrentResults() {
-  if (!ocrMembers || ocrMembers.length === 0) {
+  // Determine which data to validate based on mode
+  const members = validationMode === 'event' ? eventOcrEntries : ocrMembers;
+  if (!members || members.length === 0) {
     validationEmptyHint.style.display = 'block';
     validationOcrContent.style.display = 'none';
     validationSummary.textContent = '';
     return;
   }
 
-  const result = await window.api.validateOcrResults(ocrMembers);
+  const options = validationMode === 'event' ? { mode: 'event' } : {};
+  const result = await window.api.validateOcrResults(members, options);
   if (result.ok) {
     validatedMembers = result.members;
     validationEmptyHint.style.display = 'none';
@@ -1059,6 +1264,45 @@ function renderValidationOcrTable() {
   validationOcrBody.innerHTML = '';
   if (!validatedMembers) return;
 
+  const isEvent = validationMode === 'event';
+
+  // Update table header based on mode
+  validationOcrHead.innerHTML = '';
+  const headerTr = document.createElement('tr');
+  if (isEvent) {
+    headerTr.innerHTML = `
+      <th class="th-checkbox"><input type="checkbox" id="validationSelectAll" title="Alle auswaehlen"></th>
+      <th>${t('th.status')}</th>
+      <th>${t('th.ocrName')}</th>
+      <th>${t('th.correctionSuggestion')}</th>
+      <th>${t('th.power')}</th>
+      <th>${t('th.eventPoints')}</th>
+      <th></th>
+    `;
+  } else {
+    headerTr.innerHTML = `
+      <th class="th-checkbox"><input type="checkbox" id="validationSelectAll" title="Alle auswaehlen"></th>
+      <th>${t('th.status')}</th>
+      <th>${t('th.ocrName')}</th>
+      <th>${t('th.correctionSuggestion')}</th>
+      <th>${t('th.coords')}</th>
+      <th>${t('th.score')}</th>
+      <th></th>
+    `;
+  }
+  validationOcrHead.appendChild(headerTr);
+
+  // Re-bind Select-All (since we recreated the header)
+  const newSelectAll = validationOcrHead.querySelector('#validationSelectAll');
+
+  // Track which corrections are actively used in current results
+  activeCorrections.clear();
+  validatedMembers.forEach(m => {
+    if (m.validationStatus === 'corrected' && m.originalName && m.originalName !== m.name) {
+      activeCorrections.add(m.originalName);
+    }
+  });
+
   const statusLabels = {
     confirmed: t('validation.confirmed'),
     corrected: t('validation.corrected'),
@@ -1068,6 +1312,7 @@ function renderValidationOcrTable() {
 
   // Sichtbare Indizes sammeln (fuer Select-All)
   const visibleIndices = [];
+  const activeEntries = isEvent ? eventOcrEntries : ocrMembers;
 
   validatedMembers.forEach((m, idx) => {
     // Filter anwenden
@@ -1094,22 +1339,57 @@ function renderValidationOcrTable() {
     if (m.validationStatus === 'suggested' && m.suggestion) {
       actionHtml = `<button class="v-action-btn accept" data-idx="${idx}" data-action="accept-suggestion" title="${t('tooltip.acceptSuggestion')}">&#10003;</button>`;
     }
-    // Edit-Button: Name bearbeiten
+    if (m.validationStatus !== 'corrected' && m.validationStatus !== 'confirmed') {
+      actionHtml += ` <button class="v-action-btn make-correction" data-idx="${idx}" data-action="make-correction" title="${t('tooltip.makeCorrection')}">&#8644;</button>`;
+    }
     actionHtml += ` <button class="v-action-btn" data-idx="${idx}" data-action="edit-name" title="${t('tooltip.editName')}">&#9998;</button>`;
-    // Add-to-list-Button: Zur Validierungsliste hinzufuegen
     actionHtml += ` <button class="v-action-btn add-to-list" data-idx="${idx}" data-action="add-to-list" title="${t('tooltip.addToList')}">&#43;</button>`;
+
+    // Score columns based on mode
+    let scoreColumnsHtml = '';
+    const srcEntry = activeEntries && activeEntries[idx];
+
+    // Screenshot-Button: nur anzeigen wenn Quelldateien vorhanden
+    if (srcEntry && srcEntry._sourceFiles && srcEntry._sourceFiles.length > 0) {
+      const count = srcEntry._sourceFiles.length;
+      const tipText = count === 1
+        ? t('tooltip.openScreenshot')
+        : t('tooltip.openScreenshots', { count });
+      actionHtml += ` <button class="v-action-btn screenshot-btn" data-idx="${idx}" data-action="open-screenshot" title="${tipText}">&#128065;</button>`;
+    }
+    if (isEvent && srcEntry) {
+      const hasWarning = srcEntry._warning;
+      const powerEdited = srcEntry._powerEdited ? ' score-edited' : '';
+      const epEdited = srcEntry._eventPointsEdited ? ' score-edited' : '';
+      const warnClass = hasWarning ? ' score-warning' : '';
+      const warnTitle = hasWarning ? t('tooltip.scoreWarning') : t('tooltip.clickToEdit');
+      scoreColumnsHtml = `
+        <td class="td-score${powerEdited}${warnClass}" data-idx="${idx}" data-field="power" title="${warnTitle}">${srcEntry.power.toLocaleString('de-DE')}</td>
+        <td class="td-score${epEdited}${warnClass}" data-idx="${idx}" data-field="eventPoints" title="${warnTitle}">${srcEntry.eventPoints.toLocaleString('de-DE')}</td>
+      `;
+    } else if (!isEvent && srcEntry) {
+      const coordsEdited = srcEntry._coordsEdited ? ' score-edited' : '';
+      const scoreEdited = srcEntry._scoreEdited ? ' score-edited' : '';
+      scoreColumnsHtml = `
+        <td class="td-score${coordsEdited}" data-idx="${idx}" data-field="coords" title="${t('tooltip.clickToEdit')}">${escapeHtml(srcEntry.coords || '')}</td>
+        <td class="td-score${scoreEdited}" data-idx="${idx}" data-field="score" title="${t('tooltip.clickToEdit')}">${(srcEntry.score || 0).toLocaleString('de-DE')}</td>
+      `;
+    } else {
+      scoreColumnsHtml = isEvent ? '<td class="td-score">-</td><td class="td-score">-</td>' : '<td class="td-score">-</td><td class="td-score">-</td>';
+    }
 
     tr.innerHTML = `
       <td class="td-checkbox"><input type="checkbox" class="v-row-checkbox" data-idx="${idx}" ${isChecked}></td>
       <td><span class="v-status v-status-${m.validationStatus}"></span> ${statusLabel}</td>
       <td>${escapeHtml(m.validationStatus === 'corrected' ? m.originalName : m.name)}</td>
       <td>${correctionHtml}</td>
+      ${scoreColumnsHtml}
       <td class="td-actions">${actionHtml}</td>
     `;
 
-    // Klick auf Zeile = Auswahl fuer Zuordnung (nicht auf Checkbox oder Buttons)
+    // Klick auf Zeile = Auswahl fuer Zuordnung (nicht auf Checkbox, Buttons oder Score-Zellen)
     tr.addEventListener('click', (e) => {
-      if (e.target.closest('.v-action-btn') || e.target.closest('.v-row-checkbox')) return;
+      if (e.target.closest('.v-action-btn') || e.target.closest('.v-row-checkbox') || e.target.closest('.td-score')) return;
       selectedOcrRow = idx;
       renderValidationOcrTable();
     });
@@ -1131,11 +1411,87 @@ function renderValidationOcrTable() {
     });
   });
 
-  // Select-All Checkbox aktualisieren
-  if (validationSelectAll) {
+  // Select-All Checkbox aktualisieren und verdrahten
+  if (newSelectAll) {
     const allChecked = visibleIndices.length > 0 && visibleIndices.every(i => selectedOcrRows.has(i));
-    validationSelectAll.checked = allChecked;
+    newSelectAll.checked = allChecked;
+    newSelectAll.addEventListener('change', () => {
+      const checkboxes = validationOcrBody.querySelectorAll('.v-row-checkbox');
+      checkboxes.forEach(cb => {
+        const idx = parseInt(cb.dataset.idx);
+        if (newSelectAll.checked) {
+          selectedOcrRows.add(idx);
+          cb.checked = true;
+        } else {
+          selectedOcrRows.delete(idx);
+          cb.checked = false;
+        }
+      });
+      updateBatchButtonState();
+    });
   }
+
+  // Score-Zellen: Klick-zum-Bearbeiten
+  validationOcrBody.querySelectorAll('.td-score').forEach(td => {
+    td.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (td.querySelector('input')) return; // already editing
+
+      const idx = parseInt(td.dataset.idx);
+      const field = td.dataset.field;
+      if (isNaN(idx) || !field) return;
+
+      const entry = activeEntries && activeEntries[idx];
+      if (!entry) return;
+
+      const currentValue = field === 'coords' ? (entry.coords || '') : (entry[field] || 0);
+      const displayValue = field === 'coords' ? currentValue : currentValue.toString();
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'score-edit-input';
+      input.value = displayValue;
+
+      const originalHtml = td.innerHTML;
+      td.innerHTML = '';
+      td.appendChild(input);
+      input.focus();
+      input.select();
+
+      const commitEdit = () => {
+        const rawVal = input.value.trim();
+        if (field === 'coords') {
+          if (rawVal !== (entry.coords || '')) {
+            entry.coords = rawVal;
+            entry._coordsEdited = true;
+          }
+          td.textContent = entry.coords || '';
+        } else {
+          const parsed = parseInt(rawVal.replace(/[,.\u00A0\s]/g, ''));
+          const numVal = isNaN(parsed) ? 0 : parsed;
+          if (numVal !== entry[field]) {
+            entry[field] = numVal;
+            entry[`_${field}Edited`] = true;
+          }
+          td.textContent = entry[field].toLocaleString('de-DE');
+        }
+        if (entry[`_${field}Edited`]) {
+          td.classList.add('score-edited');
+        }
+      };
+
+      input.addEventListener('blur', commitEdit);
+      input.addEventListener('keydown', (ke) => {
+        if (ke.key === 'Enter') {
+          ke.preventDefault();
+          input.blur();
+        } else if (ke.key === 'Escape') {
+          ke.preventDefault();
+          td.innerHTML = originalHtml;
+        }
+      });
+    });
+  });
 
   // Action-Buttons verdrahten
   validationOcrBody.querySelectorAll('.v-action-btn').forEach(btn => {
@@ -1148,13 +1504,22 @@ function renderValidationOcrTable() {
         const member = validatedMembers[idx];
         if (member.suggestion) {
           await window.api.addCorrection(member.originalName || member.name, member.suggestion);
-          ocrMembers[idx].name = member.suggestion;
+          if (activeEntries && activeEntries[idx]) activeEntries[idx].name = member.suggestion;
           await validateCurrentResults();
         }
+      } else if (action === 'make-correction') {
+        await makeOcrCorrection(idx);
       } else if (action === 'edit-name') {
         await editOcrEntryName(idx);
       } else if (action === 'add-to-list') {
         await addOcrNameToValidationList(idx);
+      } else if (action === 'open-screenshot') {
+        const entry = activeEntries && activeEntries[idx];
+        if (entry && entry._sourceFiles) {
+          for (const filePath of entry._sourceFiles) {
+            await window.api.openScreenshot(filePath);
+          }
+        }
       }
     });
   });
@@ -1187,8 +1552,39 @@ async function editOcrEntryName(idx) {
   const newName = await showInputDialog(t('prompt.editName'), currentName);
   if (newName === null || newName.trim() === '' || newName.trim() === currentName) return;
 
-  ocrMembers[idx].name = newName.trim();
+  const activeEntries = validationMode === 'event' ? eventOcrEntries : ocrMembers;
+  if (activeEntries && activeEntries[idx]) activeEntries[idx].name = newName.trim();
   await validateCurrentResults();
+}
+
+/**
+ * Erstellt eine Korrektur-Regel fuer einen OCR-Eintrag.
+ * Der OCR-Name wird uebernommen, der Benutzer gibt den korrekten Namen ein.
+ */
+async function makeOcrCorrection(idx) {
+  const member = validatedMembers[idx];
+  if (!member) return;
+
+  const ocrName = member.originalName || member.name;
+  const correctName = await showInputDialog(t('prompt.makeCorrection', { name: ocrName }), member.suggestion || '');
+  if (correctName === null || correctName.trim() === '' || correctName.trim() === ocrName) return;
+
+  const trimmed = correctName.trim();
+  await window.api.addCorrection(ocrName, trimmed);
+
+  // Aktive Eintraege aktualisieren
+  const activeEntries = validationMode === 'event' ? eventOcrEntries : ocrMembers;
+  if (activeEntries && activeEntries[idx]) activeEntries[idx].name = trimmed;
+
+  await loadValidationList();
+  await validateCurrentResults();
+
+  // Switch to corrections sub-tab to show the new correction
+  const bar = document.getElementById('validationRightSubTabBar');
+  if (bar) {
+    bar.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.subtab === 'validation-corrections'));
+    bar.parentElement.querySelectorAll('.sub-tab-content').forEach(tc => tc.classList.toggle('active', tc.id === 'validation-corrections'));
+  }
 }
 
 /**
@@ -1295,7 +1691,8 @@ function renderValidationNames() {
       const ocrName = member.originalName || member.name;
       await window.api.addCorrection(ocrName, name);
       // OCR-Ergebnis aktualisieren
-      ocrMembers[selectedOcrRow].name = name;
+      const activeEntries = validationMode === 'event' ? eventOcrEntries : ocrMembers;
+      if (activeEntries && activeEntries[selectedOcrRow]) activeEntries[selectedOcrRow].name = name;
       selectedOcrRow = null;
       await validateCurrentResults();
     });
@@ -1316,16 +1713,36 @@ function renderValidationNames() {
 
 function renderCorrections() {
   correctionsList.innerHTML = '';
-  const entries = Object.entries(validationCorrections);
-  correctionCount.textContent = entries.length;
+  const allEntries = Object.entries(validationCorrections);
+  const searchTerm = (correctionSearch ? correctionSearch.value.trim().toLowerCase() : '');
+
+  // Filter by search term (match against both OCR name and corrected name)
+  const entries = searchTerm
+    ? allEntries.filter(([from, to]) =>
+        from.toLowerCase().includes(searchTerm) || to.toLowerCase().includes(searchTerm))
+    : allEntries;
+
+  // Sort: active corrections first, then alphabetical
+  entries.sort((a, b) => {
+    const aActive = activeCorrections.has(a[0]) ? 0 : 1;
+    const bActive = activeCorrections.has(b[0]) ? 0 : 1;
+    if (aActive !== bActive) return aActive - bActive;
+    return a[0].localeCompare(b[0], 'de');
+  });
+
+  correctionCount.textContent = searchTerm
+    ? `${entries.length}/${allEntries.length}`
+    : `${allEntries.length}`;
 
   entries.forEach(([from, to]) => {
     const item = document.createElement('div');
-    item.className = 'correction-item';
+    const isActive = activeCorrections.has(from);
+    item.className = 'correction-item' + (isActive ? ' active-correction' : '');
     item.innerHTML = `
       <span class="correction-from" title="${escapeHtml(from)}">${escapeHtml(from)}</span>
       <span class="correction-arrow">&rarr;</span>
       <span class="correction-to" title="${escapeHtml(to)}">${escapeHtml(to)}</span>
+      ${isActive ? '<span class="correction-active-badge" title="' + t('tooltip.correctionActive') + '">&#9679;</span>' : ''}
       <button class="remove-btn" title="${t('tooltip.removeCorrection')}">&times;</button>
     `;
 
@@ -1339,6 +1756,35 @@ function renderCorrections() {
   });
 }
 
+// Manuelle Korrektur hinzufuegen
+btnAddManualCorrection.addEventListener('click', async () => {
+  const from = correctionFromInput.value.trim();
+  const to = correctionToInput.value.trim();
+  if (!from || !to) return;
+  if (from === to) return;
+
+  await window.api.addCorrection(from, to);
+  correctionFromInput.value = '';
+  correctionToInput.value = '';
+  await loadValidationList();
+  if (validatedMembers) await validateCurrentResults();
+});
+
+// Enter-Taste in Korrektur-Eingabefeldern
+correctionToInput.addEventListener('keydown', async (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    btnAddManualCorrection.click();
+  }
+});
+
+correctionFromInput.addEventListener('keydown', async (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    correctionToInput.focus();
+  }
+});
+
 // Filter-Buttons
 validationFilterBtns.forEach(btn => {
   btn.addEventListener('click', () => {
@@ -1350,22 +1796,8 @@ validationFilterBtns.forEach(btn => {
   });
 });
 
-// Select-All Checkbox
-validationSelectAll.addEventListener('change', () => {
-  if (!validatedMembers) return;
-  const checkboxes = validationOcrBody.querySelectorAll('.v-row-checkbox');
-  checkboxes.forEach(cb => {
-    const idx = parseInt(cb.dataset.idx);
-    if (validationSelectAll.checked) {
-      selectedOcrRows.add(idx);
-      cb.checked = true;
-    } else {
-      selectedOcrRows.delete(idx);
-      cb.checked = false;
-    }
-  });
-  updateBatchButtonState();
-});
+// Select-All Checkbox — wird dynamisch in renderValidationOcrTable() gebunden,
+// da der Header bei jedem Render neu erstellt wird.
 
 // Batch: Ausgewaehlte zur Validierungsliste hinzufuegen
 btnAddSelectedToList.addEventListener('click', async () => {
@@ -1375,6 +1807,11 @@ btnAddSelectedToList.addEventListener('click', async () => {
 // Suche in Namensliste
 validationSearch.addEventListener('input', () => {
   renderValidationNames();
+});
+
+// Suche in Korrekturen-Liste
+correctionSearch.addEventListener('input', () => {
+  renderCorrections();
 });
 
 // Name hinzufuegen
@@ -1401,12 +1838,13 @@ btnAcceptAllSuggestions.addEventListener('click', async () => {
 
   if (!confirm(t('confirm.acceptSuggestions', { count: suggestions.length }))) return;
 
+  const activeEntries = validationMode === 'event' ? eventOcrEntries : ocrMembers;
   for (const member of suggestions) {
     const ocrName = member.originalName || member.name;
     await window.api.addCorrection(ocrName, member.suggestion);
-    // Auch in ocrMembers aktualisieren
+    // Aktive Eintraege aktualisieren
     const idx = validatedMembers.indexOf(member);
-    if (idx >= 0) ocrMembers[idx].name = member.suggestion;
+    if (idx >= 0 && activeEntries && activeEntries[idx]) activeEntries[idx].name = member.suggestion;
   }
 
   await validateCurrentResults();
@@ -1414,13 +1852,22 @@ btnAcceptAllSuggestions.addEventListener('click', async () => {
 
 // Korrigierte Ergebnisse als CSV exportieren
 btnValidationExportCsv.addEventListener('click', async () => {
-  // validatedMembers enthaelt die korrigierten Namen
-  const membersToExport = validatedMembers || ocrMembers;
-  if (!membersToExport || membersToExport.length === 0) return;
-  const defaultName = `mitglieder_${localDateString()}.csv`;
-  const result = await window.api.exportCsv(membersToExport, defaultName);
-  if (result.ok) {
-    validationSummary.textContent = t('status.csvSaved', { path: result.path });
+  if (validationMode === 'event') {
+    const entriesToExport = eventOcrEntries;
+    if (!entriesToExport || entriesToExport.length === 0) return;
+    const defaultName = `event_${localDateString()}.csv`;
+    const result = await window.api.exportEventCsv(entriesToExport, defaultName);
+    if (result.ok) {
+      validationSummary.textContent = t('status.eventCsvSaved', { path: result.path });
+    }
+  } else {
+    const membersToExport = validatedMembers || ocrMembers;
+    if (!membersToExport || membersToExport.length === 0) return;
+    const defaultName = `mitglieder_${localDateString()}.csv`;
+    const result = await window.api.exportCsv(membersToExport, defaultName);
+    if (result.ok) {
+      validationSummary.textContent = t('status.csvSaved', { path: result.path });
+    }
   }
 });
 
@@ -1439,7 +1886,10 @@ btnExportValidation.addEventListener('click', async () => {
 
 // Erneut validieren
 btnRevalidate.addEventListener('click', async () => {
-  if (ocrMembers && ocrMembers.length > 0) {
+  const hasData = (validationMode === 'event')
+    ? (eventOcrEntries && eventOcrEntries.length > 0)
+    : (ocrMembers && ocrMembers.length > 0);
+  if (hasData) {
     await validateCurrentResults();
     switchToTab('validation');
   }
@@ -1478,9 +1928,15 @@ function renderHistoryList() {
       weekday: 'short', year: 'numeric', month: '2-digit', day: '2-digit',
     });
 
+    const typeLabel = entry.type === 'event' ? t('history.typeEvent') : t('history.typeMember');
+    const countLabel = entry.type === 'event'
+      ? t('format.eventPlayerCount', { count: entry.memberCount })
+      : t('format.memberCount', { count: entry.memberCount });
+
     tr.innerHTML = `
       <td><span class="history-date">${dateFormatted}</span></td>
-      <td>${t('format.memberCount', { count: entry.memberCount })}</td>
+      <td><span class="validation-mode-badge mode-${entry.type || 'member'}">${typeLabel}</span></td>
+      <td>${countLabel}</td>
       <td class="info-text">${escapeHtml(entry.fileName)}</td>
       <td><button class="history-delete-btn" title="${t('tooltip.removeName')}">&times;</button></td>
     `;
@@ -1512,16 +1968,23 @@ async function loadHistoryDetail(fileName) {
   const result = await window.api.loadHistoryEntry(fileName);
   if (!result.ok) return;
 
-  historyMembers = result.members;
-  renderHistoryDetail(result.members, fileName);
+  const type = result.type || 'member';
+  if (type === 'event') {
+    historyMembers = null;
+    renderHistoryEventDetail(result.entries || [], fileName);
+  } else {
+    historyMembers = result.members;
+    renderHistoryDetail(result.members, fileName);
+  }
 }
 
 function renderHistoryDetail(members, fileName) {
   historyDetailSection.style.display = 'block';
+  historyMemberTable.style.display = '';
+  historyEventTable.style.display = 'none';
 
   const locale = window.i18n.getLanguage() === 'en' ? 'en-US' : 'de-DE';
 
-  // Datum aus Dateiname extrahieren
   const dateMatch = fileName.match(/(\d{4}-\d{2}-\d{2})/);
   const dateStr = dateMatch
     ? new Date(dateMatch[1] + 'T00:00:00').toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' })
@@ -1543,7 +2006,35 @@ function renderHistoryDetail(members, fileName) {
     historyDetailBody.appendChild(tr);
   });
 
-  // Zum Detail scrollen
+  setTimeout(() => historyDetailSection.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+}
+
+function renderHistoryEventDetail(entries, fileName) {
+  historyDetailSection.style.display = 'block';
+  historyMemberTable.style.display = 'none';
+  historyEventTable.style.display = '';
+
+  const locale = window.i18n.getLanguage() === 'en' ? 'en-US' : 'de-DE';
+
+  const dateMatch = fileName.match(/(\d{4}-\d{2}-\d{2})/);
+  const dateStr = dateMatch
+    ? new Date(dateMatch[1] + 'T00:00:00').toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' })
+    : fileName;
+  historyDetailTitle.textContent = t('history.resultTitle', { date: dateStr });
+  historyDetailCount.textContent = t('format.eventPlayerCount', { count: entries.length });
+
+  historyEventDetailBody.innerHTML = '';
+  entries.forEach((e, idx) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${idx + 1}</td>
+      <td>${escapeHtml(e.name)}</td>
+      <td>${e.power.toLocaleString('de-DE')}</td>
+      <td>${e.eventPoints.toLocaleString('de-DE')}</td>
+    `;
+    historyEventDetailBody.appendChild(tr);
+  });
+
   setTimeout(() => historyDetailSection.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
 }
 
@@ -1554,10 +2045,525 @@ btnOpenResultsDir.addEventListener('click', () => {
 });
 
 btnHistoryExportCsv.addEventListener('click', async () => {
-  if (!historyMembers || historyMembers.length === 0) return;
-  const defaultName = selectedHistoryFile || `mitglieder_${localDateString()}.csv`;
-  await window.api.exportCsv(historyMembers, defaultName);
+  // Determine type from selectedHistoryFile prefix
+  const isEvent = selectedHistoryFile && selectedHistoryFile.startsWith('event_');
+  if (isEvent) {
+    // Re-load and export as event CSV
+    const result = await window.api.loadHistoryEntry(selectedHistoryFile);
+    if (result.ok && result.entries) {
+      const defaultName = selectedHistoryFile || `event_${localDateString()}.csv`;
+      await window.api.exportEventCsv(result.entries, defaultName);
+    }
+  } else {
+    if (!historyMembers || historyMembers.length === 0) return;
+    const defaultName = selectedHistoryFile || `mitglieder_${localDateString()}.csv`;
+    await window.api.exportCsv(historyMembers, defaultName);
+  }
 });
+
+// ─── Sub-Tab Navigation ──────────────────────────────────────────────────────
+
+subTabBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const target = btn.dataset.subtab;
+    // Spezialbehandlung: Validation Mode Sub-Tabs (Mitglieder/Event)
+    if (btn.parentElement === validationModeSubTabBar) return; // handled separately below
+
+    // Alle Sub-Tab-Buttons im gleichen Container deaktivieren
+    const bar = btn.parentElement;
+    bar.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    // Sub-Tab-Inhalte im gleichen Eltern-Tab umschalten
+    const parentTab = bar.parentElement;
+    parentTab.querySelectorAll('.sub-tab-content').forEach(tc => {
+      tc.classList.toggle('active', tc.id === target);
+    });
+  });
+});
+
+// ─── Validation Mode Sub-Tab (Mitglieder / Event) ─────────────────────────
+validationModeSubTabBar.querySelectorAll('.sub-tab-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const target = btn.dataset.subtab;
+    validationModeSubTabBar.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    const newMode = target === 'validation-mode-event' ? 'event' : 'member';
+    if (newMode !== validationMode) {
+      validationMode = newMode;
+      // Reset selection state
+      selectedOcrRow = null;
+      selectedOcrRows.clear();
+      validatedMembers = null;
+      // Re-validate with new mode's data
+      await validateCurrentResults();
+    }
+  });
+});
+
+// ─── Event Region ────────────────────────────────────────────────────────────
+
+btnSelectEventRegion.addEventListener('click', async () => {
+  btnSelectEventRegion.disabled = true;
+  eventRegionInfo.textContent = t('status.selectInBrowser');
+
+  const result = await window.api.selectEventRegion();
+  btnSelectEventRegion.disabled = false;
+
+  if (result.ok) {
+    eventRegion = result.region;
+    const r = result.region;
+    eventRegionInfo.textContent = `${r.width} x ${r.height} @ (${r.x}, ${r.y})`;
+
+    if (result.preview) {
+      eventRegionPreview.src = `data:image/png;base64,${result.preview}`;
+      eventRegionPreviewContainer.style.display = 'block';
+    }
+
+    updateEventCaptureButtons();
+    saveCurrentConfig();
+  } else {
+    eventRegionInfo.textContent = t('status.error', { error: result.error });
+  }
+});
+
+async function loadSavedEventRegionPreview() {
+  if (!eventRegion || !browserReady) return;
+  const r = eventRegion;
+  eventRegionInfo.textContent = t('status.loadingPreview', { w: r.width, h: r.height, x: r.x, y: r.y });
+
+  const result = await window.api.previewEventRegion(eventRegion);
+  if (result.ok) {
+    eventRegionPreview.src = `data:image/png;base64,${result.preview}`;
+    eventRegionPreviewContainer.style.display = 'block';
+    eventRegionInfo.textContent = t('status.regionSaved', { w: r.width, h: r.height, x: r.x, y: r.y });
+  } else {
+    eventRegionInfo.textContent = t('status.previewFailed', { w: r.width, h: r.height, x: r.x, y: r.y });
+  }
+}
+
+// ─── Event Kalibrierung ──────────────────────────────────────────────────────
+
+eventScrollTicksSlider.addEventListener('input', () => {
+  eventScrollTicksValue.textContent = eventScrollTicksSlider.value;
+});
+eventScrollTicksSlider.addEventListener('change', saveCurrentConfig);
+
+eventScrollDelaySlider.addEventListener('input', () => {
+  eventScrollDelayValue.textContent = eventScrollDelaySlider.value;
+});
+eventScrollDelaySlider.addEventListener('change', saveCurrentConfig);
+
+eventMaxScreenshotsInput.addEventListener('change', saveCurrentConfig);
+eventOutputDirInput.addEventListener('change', saveCurrentConfig);
+
+btnBrowseEventDir.addEventListener('click', async () => {
+  const result = await window.api.browseFolder();
+  if (result.ok) {
+    eventOutputDirInput.value = result.path;
+    saveCurrentConfig();
+  }
+});
+
+btnOpenEventOutputDir.addEventListener('click', () => {
+  window.api.openFolder(eventOutputDirInput.value);
+});
+
+btnTestEventScroll.addEventListener('click', async () => {
+  if (!eventRegion) return;
+
+  btnTestEventScroll.disabled = true;
+  eventTestInfo.textContent = t('status.scrolling');
+
+  const result = await window.api.testEventScroll({
+    region: eventRegion,
+    scrollTicks: parseInt(eventScrollTicksSlider.value),
+    scrollDelay: parseInt(eventScrollDelaySlider.value),
+  });
+
+  btnTestEventScroll.disabled = false;
+
+  if (result.ok) {
+    const diff = ((1 - result.similarity) * 100).toFixed(1);
+    eventTestInfo.textContent = t('status.difference', { pct: diff });
+    eventTestBefore.src = `data:image/png;base64,${result.before}`;
+    eventTestAfter.src = `data:image/png;base64,${result.after}`;
+    eventTestPreviewContainer.style.display = 'flex';
+  } else {
+    eventTestInfo.textContent = t('status.error', { error: result.error });
+  }
+});
+
+function updateEventCaptureButtons() {
+  const ready = browserReady && eventRegion;
+  btnTestEventScroll.disabled = !ready;
+  btnStartEventCapture.disabled = !ready || eventCapturing;
+}
+
+// ─── Event Capture ──────────────────────────────────────────────────────────
+
+btnStartEventCapture.addEventListener('click', async () => {
+  if (!eventRegion || !browserReady) return;
+
+  eventCapturing = true;
+  btnStartEventCapture.disabled = true;
+  btnStopEventCapture.disabled = false;
+  eventProgressContainer.style.display = 'flex';
+  eventProgressFill.style.width = '0%';
+  eventProgressText.textContent = '0 / ' + eventMaxScreenshotsInput.value;
+  eventGallery.innerHTML = '';
+  eventGallerySection.style.display = 'block';
+  eventCaptureResult.textContent = '';
+
+  switchToTab('capture');
+  // Switch to event sub-tab
+  const captureBar = $('#captureSubTabBar');
+  captureBar.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.subtab === 'capture-event'));
+  captureBar.parentElement.querySelectorAll('.sub-tab-content').forEach(tc => tc.classList.toggle('active', tc.id === 'capture-event'));
+  setTimeout(() => eventGallerySection.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+
+  saveCurrentConfig();
+
+  await window.api.startEventCapture({
+    region: eventRegion,
+    scrollTicks: parseInt(eventScrollTicksSlider.value),
+    scrollDelay: parseInt(eventScrollDelaySlider.value),
+    maxScreenshots: parseInt(eventMaxScreenshotsInput.value),
+    outputDir: eventOutputDirInput.value,
+  });
+});
+
+btnStopEventCapture.addEventListener('click', async () => {
+  await window.api.stopEventCapture();
+  btnStopEventCapture.disabled = true;
+});
+
+window.api.onEventCaptureProgress((data) => {
+  const max = data.max || parseInt(eventMaxScreenshotsInput.value);
+  const pct = Math.round((data.count / max) * 100);
+  eventProgressFill.style.width = pct + '%';
+  eventProgressText.textContent = `${data.count} / ${max}`;
+
+  if (data.thumbnail && data.status === 'capturing') {
+    const item = document.createElement('div');
+    item.className = 'gallery-item';
+    item.innerHTML = `
+      <img src="data:image/png;base64,${data.thumbnail}" alt="${data.filename}">
+      <span class="gallery-label">${data.filename}</span>
+    `;
+    item.addEventListener('click', () => {
+      showLightbox(`data:image/png;base64,${data.thumbnail}`);
+    });
+    eventGallery.appendChild(item);
+    eventGallery.scrollTop = eventGallery.scrollHeight;
+  }
+
+  if (data.status === 'end-detected') {
+    while (eventGallery.children.length > data.count) {
+      eventGallery.removeChild(eventGallery.lastChild);
+    }
+    eventProgressText.textContent = `${data.count} / ${max}`;
+    eventCaptureResult.textContent = t('status.listEndDetected', { count: data.count });
+  }
+});
+
+window.api.onEventCaptureDone((data) => {
+  eventCapturing = false;
+  btnStartEventCapture.disabled = false;
+  btnStopEventCapture.disabled = true;
+  eventLastOutputDir = data.outputDir;
+
+  eventCaptureResult.textContent = t('status.captureComplete', { count: data.count, dir: data.outputDir });
+  eventProgressFill.style.width = '100%';
+
+  eventOcrFolderInput.value = data.outputDir;
+
+  if (eventAutoOcrEnabled.checked && data.count > 0) {
+    startEventOcr(data.outputDir);
+  }
+});
+
+btnOpenEventFolder.addEventListener('click', () => {
+  if (eventLastOutputDir) {
+    window.api.openFolder(eventLastOutputDir);
+  }
+});
+
+btnDeleteEventCapture.addEventListener('click', async () => {
+  if (!eventLastOutputDir) return;
+
+  const ok = confirm(t('confirm.deleteCapture', { path: eventLastOutputDir }));
+  if (!ok) return;
+
+  const result = await window.api.deleteFolder(eventLastOutputDir);
+  if (result.ok) {
+    eventGallerySection.style.display = 'none';
+    eventGallery.innerHTML = '';
+    eventCaptureResult.textContent = '';
+    eventLastOutputDir = null;
+    eventOcrFolderInput.value = '';
+    eventOcrResultContainer.style.display = 'none';
+    eventOcrTableBody.innerHTML = '';
+    eventOcrEntries = null;
+  }
+});
+
+// ─── Event OCR Auswertung ───────────────────────────────────────────────────
+
+eventAutoOcrEnabled.addEventListener('change', () => {
+  eventAutoOcrToggleText.textContent = eventAutoOcrEnabled.checked ? t('toggle.on') : t('toggle.off');
+  saveCurrentConfig();
+});
+
+eventAutoValidationEnabled.addEventListener('change', () => {
+  eventAutoValidationToggleText.textContent = eventAutoValidationEnabled.checked ? t('toggle.on') : t('toggle.off');
+  saveCurrentConfig();
+});
+
+eventAutoSaveEnabled.addEventListener('change', () => {
+  eventAutoSaveToggleText.textContent = eventAutoSaveEnabled.checked ? t('toggle.on') : t('toggle.off');
+  saveCurrentConfig();
+});
+
+// Event OCR Einstellungen Event-Listener
+eventOcrScaleSlider.addEventListener('input', () => {
+  eventOcrScaleValue.textContent = eventOcrScaleSlider.value + 'x';
+});
+eventOcrScaleSlider.addEventListener('change', saveCurrentConfig);
+
+eventOcrGreyscaleCheckbox.addEventListener('change', () => {
+  eventOcrGreyscaleText.textContent = eventOcrGreyscaleCheckbox.checked ? t('toggle.on') : t('toggle.off');
+  saveCurrentConfig();
+});
+
+eventOcrSharpenSlider.addEventListener('input', () => {
+  eventOcrSharpenValue.textContent = eventOcrSharpenSlider.value;
+});
+eventOcrSharpenSlider.addEventListener('change', saveCurrentConfig);
+
+eventOcrContrastSlider.addEventListener('input', () => {
+  eventOcrContrastValue.textContent = eventOcrContrastSlider.value;
+});
+eventOcrContrastSlider.addEventListener('change', saveCurrentConfig);
+
+eventOcrThresholdEnabled.addEventListener('change', () => {
+  const on = eventOcrThresholdEnabled.checked;
+  eventOcrThresholdText.textContent = on ? t('toggle.on') : t('toggle.off');
+  eventOcrThresholdValSlider.disabled = !on;
+  saveCurrentConfig();
+});
+eventOcrThresholdValSlider.addEventListener('input', () => {
+  eventOcrThresholdDisplay.textContent = eventOcrThresholdValSlider.value;
+});
+eventOcrThresholdValSlider.addEventListener('change', saveCurrentConfig);
+
+eventOcrPsmSelect.addEventListener('change', saveCurrentConfig);
+eventOcrLangSelect.addEventListener('change', saveCurrentConfig);
+eventOcrMinScoreInput.addEventListener('change', saveCurrentConfig);
+
+btnGoToEventValidation.addEventListener('click', () => {
+  validationMode = 'event';
+  // Sync sub-tab bar state
+  validationModeSubTabBar.querySelectorAll('.sub-tab-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.subtab === 'validation-mode-event'));
+  switchToTab('validation');
+  validateCurrentResults();
+});
+
+btnBrowseEventOcrFolder.addEventListener('click', async () => {
+  const defaultPath = eventLastOutputDir || eventOutputDirInput.value || './captures/events';
+  const result = await window.api.browseFolder({
+    title: 'Event-Capture-Ordner fuer OCR waehlen',
+    defaultPath,
+  });
+  if (result.ok) {
+    eventOcrFolderInput.value = result.path;
+    saveCurrentConfig();
+  }
+});
+
+btnOpenEventOcrFolder.addEventListener('click', () => {
+  const folder = eventOcrFolderInput.value;
+  if (folder) {
+    window.api.openFolder(folder);
+  }
+});
+
+btnStartEventOcr.addEventListener('click', () => startEventOcr());
+
+btnStopEventOcr.addEventListener('click', async () => {
+  await window.api.stopEventOcr();
+  btnStopEventOcr.disabled = true;
+});
+
+btnExportEventCsv.addEventListener('click', async () => {
+  if (!eventOcrEntries || eventOcrEntries.length === 0) return;
+  const defaultName = `event_${localDateString()}.csv`;
+  const result = await window.api.exportEventCsv(eventOcrEntries, defaultName);
+  if (result.ok) {
+    eventOcrStatus.textContent = t('status.eventCsvSaved', { path: result.path });
+  }
+});
+
+function getEventOcrSettings() {
+  return {
+    scale: parseFloat(eventOcrScaleSlider.value),
+    greyscale: eventOcrGreyscaleCheckbox.checked,
+    sharpen: parseFloat(eventOcrSharpenSlider.value),
+    contrast: parseFloat(eventOcrContrastSlider.value),
+    threshold: eventOcrThresholdEnabled.checked ? parseInt(eventOcrThresholdValSlider.value) : 0,
+    psm: parseInt(eventOcrPsmSelect.value),
+    lang: eventOcrLangSelect.value,
+    minScore: parseInt(eventOcrMinScoreInput.value) || 5000,
+  };
+}
+
+async function startEventOcr(folderPath) {
+  const folder = folderPath || eventOcrFolderInput.value;
+  if (!folder) {
+    eventOcrStatus.textContent = t('status.noFolder');
+    return;
+  }
+
+  eventOcrRunning = true;
+  eventOcrEntries = null;
+  btnStartEventOcr.disabled = true;
+  btnStopEventOcr.disabled = false;
+  eventOcrStatus.textContent = t('status.initOcr');
+  eventOcrProgressContainer.style.display = 'flex';
+  eventOcrProgressFill.style.width = '0%';
+  eventOcrProgressText.textContent = '0 / ?';
+  eventOcrResultContainer.style.display = 'none';
+  eventOcrTableBody.innerHTML = '';
+
+  switchToTab('capture');
+  // Switch to event sub-tab
+  const captureBar = $('#captureSubTabBar');
+  captureBar.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.subtab === 'capture-event'));
+  captureBar.parentElement.querySelectorAll('.sub-tab-content').forEach(tc => tc.classList.toggle('active', tc.id === 'capture-event'));
+  setTimeout(() => eventAuswertungSection.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+
+  const result = await window.api.startEventOcr(folder, getEventOcrSettings());
+
+  eventOcrRunning = false;
+  btnStartEventOcr.disabled = false;
+  btnStopEventOcr.disabled = true;
+
+  if (result.ok) {
+    eventOcrStatus.textContent = t('status.eventMembersDetected', { count: result.entries.length });
+    eventOcrProgressFill.style.width = '100%';
+  } else {
+    eventOcrStatus.textContent = t('status.error', { error: result.error });
+  }
+}
+
+window.api.onEventOcrProgress((data) => {
+  const pct = Math.round((data.current / data.total) * 100);
+  eventOcrProgressFill.style.width = pct + '%';
+  eventOcrProgressText.textContent = `${data.current} / ${data.total}`;
+  eventOcrStatus.textContent = t('status.processing', { file: data.file });
+});
+
+window.api.onEventOcrDone(async (data) => {
+  eventOcrEntries = data.entries;
+  renderEventOcrResults(data.entries);
+
+  // Auto-Validierung fuer Events
+  if (eventAutoValidationEnabled.checked && validationKnownNames.length > 0) {
+    validationMode = 'event';
+    // Sync sub-tab bar state
+    validationModeSubTabBar.querySelectorAll('.sub-tab-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.subtab === 'validation-mode-event'));
+    await validateEventResults();
+    showEventOcrValidationBanner();
+
+    // Auto-Save
+    if (eventAutoSaveEnabled.checked && eventOcrEntries) {
+      await autoSaveEventCsv();
+    }
+  }
+});
+
+function renderEventOcrResults(entries) {
+  eventOcrResultContainer.style.display = 'block';
+  eventOcrResultCount.textContent = t('result.eventPlayersFound', { count: entries.length });
+  eventOcrTableBody.innerHTML = '';
+
+  entries.forEach((e, idx) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${idx + 1}</td>
+      <td>${escapeHtml(e.name)}</td>
+      <td>${e.power.toLocaleString('de-DE')}</td>
+      <td>${e.eventPoints.toLocaleString('de-DE')}</td>
+    `;
+    eventOcrTableBody.appendChild(tr);
+  });
+}
+
+async function validateEventResults() {
+  if (!eventOcrEntries || eventOcrEntries.length === 0) return;
+
+  const result = await window.api.validateOcrResults(eventOcrEntries, { mode: 'event' });
+  if (result.ok) {
+    // Merge validation status back into eventOcrEntries for display
+    validatedMembers = result.members;
+    validationMode = 'event';
+    validationEmptyHint.style.display = 'none';
+    validationOcrContent.style.display = '';
+    renderValidationOcrTable();
+    updateValidationSummary();
+  }
+}
+
+function showEventOcrValidationBanner() {
+  if (!validatedMembers || !eventAutoValidationEnabled.checked) {
+    eventOcrValidationBanner.style.display = 'none';
+    return;
+  }
+
+  const counts = { confirmed: 0, corrected: 0, suggested: 0, unknown: 0 };
+  validatedMembers.forEach(m => counts[m.validationStatus]++);
+  const total = validatedMembers.length;
+  const ok = counts.confirmed + counts.corrected;
+  const errors = counts.suggested + counts.unknown;
+
+  eventOcrValidationBanner.style.display = 'flex';
+
+  if (errors === 0) {
+    eventOcrValidationBanner.className = 'ocr-validation-banner banner-success';
+    eventOcrValidationIcon.textContent = '\u2714';
+    eventOcrValidationMsg.textContent = t('validation.bannerSuccess', { total });
+    btnGoToEventValidation.style.display = 'none';
+    eventOcrStatus.textContent = t('status.allValidated', { total });
+  } else if (counts.unknown > 0) {
+    eventOcrValidationBanner.className = 'ocr-validation-banner banner-error';
+    eventOcrValidationIcon.textContent = '\u2716';
+    eventOcrValidationMsg.textContent = t('validation.bannerError', {
+      errors, unknown: counts.unknown, suggested: counts.suggested, ok, total,
+    });
+    btnGoToEventValidation.style.display = '';
+    eventOcrStatus.textContent = t('status.validationErrors', { total, errors });
+  } else {
+    eventOcrValidationBanner.className = 'ocr-validation-banner banner-warning';
+    eventOcrValidationIcon.textContent = '\u26A0';
+    eventOcrValidationMsg.textContent = t('validation.bannerWarning', {
+      suggested: counts.suggested, ok, total,
+    });
+    btnGoToEventValidation.style.display = '';
+    eventOcrStatus.textContent = t('status.validationSuggestions', { total, suggested: counts.suggested });
+  }
+}
+
+async function autoSaveEventCsv() {
+  if (!eventOcrEntries || eventOcrEntries.length === 0) return;
+
+  const result = await window.api.autoSaveEventCsv(eventOcrEntries);
+  if (result.ok) {
+    eventOcrStatus.textContent += ` ${t('status.eventCsvAutoSaved', { fileName: result.fileName })}`;
+  }
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -1586,5 +2592,16 @@ async function saveCurrentConfig() {
     autoSave: autoSaveEnabled.checked,
     ocrFolder: ocrFolderInput.value,
     ocrSettings: getOcrSettings(),
+    // Event-Einstellungen
+    eventRegion: eventRegion,
+    eventScrollTicks: parseInt(eventScrollTicksSlider.value),
+    eventScrollDelay: parseInt(eventScrollDelaySlider.value),
+    eventMaxScreenshots: parseInt(eventMaxScreenshotsInput.value),
+    eventOutputDir: eventOutputDirInput.value,
+    eventAutoOcr: eventAutoOcrEnabled.checked,
+    eventAutoValidation: eventAutoValidationEnabled.checked,
+    eventAutoSave: eventAutoSaveEnabled.checked,
+    eventOcrFolder: eventOcrFolderInput.value,
+    eventOcrSettings: getEventOcrSettings(),
   });
 }

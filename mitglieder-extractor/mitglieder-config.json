@@ -1,0 +1,54 @@
+{
+  "language": "de",
+  "region": {
+    "x": 686,
+    "y": 366,
+    "width": 712,
+    "height": 363
+  },
+  "scrollTicks": 6,
+  "scrollDelay": 500,
+  "maxScreenshots": 100,
+  "outputDir": "./captures/mitglieder",
+  "autoLogin": true,
+  "loginEmail": "",
+  "loginPassword": "",
+  "autoOcr": true,
+  "autoValidation": true,
+  "autoSave": true,
+  "ocrFolder": "C:\\Users\\RS-Pr\\OneDrive\\Dokumente\\ChillerExtractor\\mitglieder-extractor\\captures\\event_20260209_20_11",
+  "ocrSettings": {
+    "scale": 3,
+    "greyscale": true,
+    "sharpen": 0.3,
+    "contrast": 1.5,
+    "threshold": 152,
+    "psm": 11,
+    "lang": "deu",
+    "minScore": 5000
+  },
+  "eventRegion": {
+    "x": 735,
+    "y": 303,
+    "width": 572,
+    "height": 386
+  },
+  "eventScrollTicks": 6,
+  "eventScrollDelay": 500,
+  "eventMaxScreenshots": 100,
+  "eventOutputDir": "./captures/events",
+  "eventAutoOcr": true,
+  "eventAutoValidation": true,
+  "eventAutoSave": true,
+  "eventOcrFolder": "C:\\Users\\RS-Pr\\OneDrive\\Dokumente\\ChillerExtractor\\mitglieder-extractor\\captures\\event_20260209_20_11",
+  "eventOcrSettings": {
+    "scale": 3,
+    "greyscale": false,
+    "sharpen": 0.3,
+    "contrast": 1.5,
+    "threshold": 0,
+    "psm": 3,
+    "lang": "deu",
+    "minScore": 5000
+  }
+}

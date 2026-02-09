@@ -1,5 +1,5 @@
 import { app, BrowserWindow, ipcMain, shell, dialog, nativeImage } from 'electron';
-import { readFile, writeFile, mkdir, unlink, rm, readdir, stat } from 'fs/promises';
+import { readFile, writeFile, mkdir, unlink, rm, readdir, stat, appendFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join, dirname, resolve, basename } from 'path';
 import { fileURLToPath } from 'url';
@@ -32,6 +32,9 @@ const APP_DATA_DIR = app.isPackaged ? app.getPath('userData') : process.cwd();
 const CONFIG_FILE = join(APP_DATA_DIR, 'mitglieder-config.json');
 const BROWSER_PROFILE_DIR = join(app.getPath('userData'), 'browser-profile');
 const RESULTS_DIR = join(APP_DATA_DIR, 'results');
+const MEMBER_RESULTS_DIR = join(RESULTS_DIR, 'mitglieder');
+const EVENT_RESULTS_DIR = join(RESULTS_DIR, 'events');
+const LOGS_DIR = join(APP_DATA_DIR, 'logs');
 
 // App-Icon: im gepackten Modus liegt es im asar/resources
 const APP_ICON = app.isPackaged
@@ -39,9 +42,12 @@ const APP_ICON = app.isPackaged
   : join(dirname(__dirname), 'icons_main_menu_clan_1.png');
 
 // Default-Capture-Ordner: im gepackten Modus Dokumente, sonst ./captures
-const DEFAULT_CAPTURES_DIR = app.isPackaged
-  ? join(app.getPath('documents'), 'MemberExtractor', 'captures')
-  : join(process.cwd(), 'captures');
+const DEFAULT_MEMBER_CAPTURES_DIR = app.isPackaged
+  ? join(app.getPath('documents'), 'MemberExtractor', 'captures', 'mitglieder')
+  : join(process.cwd(), 'captures', 'mitglieder');
+const DEFAULT_EVENT_CAPTURES_DIR = app.isPackaged
+  ? join(app.getPath('documents'), 'MemberExtractor', 'captures', 'events')
+  : join(process.cwd(), 'captures', 'events');
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -93,27 +99,54 @@ let mainWindow = null;
 let browserContext = null;
 let page = null;
 let captureAborted = false;
+let eventCaptureAborted = false;
 let ocrProcessor = null;
+let eventOcrProcessor = null;
 let validationManager = new ValidationManager(APP_DATA_DIR);
 
-// ─── Logger fuer GUI ────────────────────────────────────────────────────────
+// ─── Logger fuer GUI (mit Log-Datei Persistierung) ──────────────────────────
+
+let currentLogFile = null; // Aktive Log-Datei fuer den aktuellen Run
+
+/**
+ * Startet eine neue Log-Session mit eigener Datei.
+ * @param {string} prefix - z.B. 'member-capture', 'event-ocr'
+ * @returns {string} Pfad zur neuen Log-Datei
+ */
+async function startLogSession(prefix) {
+  await mkdir(LOGS_DIR, { recursive: true });
+  const ts = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').substring(0, 19);
+  const logPath = join(LOGS_DIR, `${prefix}_${ts}.log`);
+  currentLogFile = logPath;
+  return logPath;
+}
+
+function formatLogLine(level, msg) {
+  const time = new Date().toISOString().substring(11, 23);
+  const icons = { info: 'ℹ', success: '✔', warn: '⚠', error: '✖' };
+  return `[${time}] ${icons[level] || '·'} ${msg}`;
+}
 
 const guiLogger = {
   info(msg) {
     console.log(`[GUI] ℹ ${msg}`);
     mainWindow?.webContents.send('log', { level: 'info', message: msg });
+    if (currentLogFile) appendFile(currentLogFile, formatLogLine('info', msg) + '\n').catch(() => {});
   },
   success(msg) {
     console.log(`[GUI] ✔ ${msg}`);
     mainWindow?.webContents.send('log', { level: 'success', message: msg });
+    if (currentLogFile) appendFile(currentLogFile, formatLogLine('success', msg) + '\n').catch(() => {});
   },
   warn(msg) {
     console.warn(`[GUI] ⚠ ${msg}`);
     mainWindow?.webContents.send('log', { level: 'warn', message: msg });
+    if (currentLogFile) appendFile(currentLogFile, formatLogLine('warn', msg) + '\n').catch(() => {});
   },
   error(msg) {
     console.error(`[GUI] ✖ ${msg}`);
     mainWindow?.webContents.send('log', { level: 'error', message: msg });
+    if (currentLogFile) appendFile(currentLogFile, formatLogLine('error', msg) + '\n').catch(() => {});
   },
 };
 
@@ -573,10 +606,11 @@ ipcMain.handle('test-scroll', async (_e, options) => {
 ipcMain.handle('start-capture', async (_e, options) => {
   if (!page) return { ok: false, error: 'Browser nicht gestartet' };
 
+  await startLogSession('member-capture');
   captureAborted = false;
 
   try {
-    const outputDir = options.outputDir || './captures';
+    const outputDir = options.outputDir || './captures/mitglieder';
 
     // Timestamp fuer Session: screenshot_YYYYMMDD_HH_MM
     const now = new Date();
@@ -628,7 +662,7 @@ ipcMain.handle('start-capture', async (_e, options) => {
       // Pixel-Vergleich
       if (prevBuffer) {
         const capturer = new ScrollCapturer(page, guiLogger, {});
-        const similarity = capturer.compareBuffers(prevBuffer, buffer);
+        const similarity = await capturer.compareBuffers(prevBuffer, buffer);
         if (similarity >= similarityThreshold) {
           consecutiveSimilar++;
           const pct = (similarity * 100).toFixed(1);
@@ -748,6 +782,18 @@ ipcMain.handle('open-folder', async (_e, folderPath) => {
   return { ok: true };
 });
 
+ipcMain.handle('open-screenshot', async (_e, filePath) => {
+  const absPath = resolve(filePath);
+  shell.openPath(absPath);
+  return { ok: true };
+});
+
+ipcMain.handle('open-log-folder', async () => {
+  await mkdir(LOGS_DIR, { recursive: true });
+  shell.openPath(LOGS_DIR);
+  return { ok: true };
+});
+
 ipcMain.handle('open-results-dir', async () => {
   await mkdir(RESULTS_DIR, { recursive: true });
   shell.openPath(RESULTS_DIR);
@@ -811,6 +857,7 @@ ipcMain.handle('delete-folder', async (_e, folderPath) => {
 
 ipcMain.handle('start-ocr', async (_e, folderPath, ocrSettings) => {
   try {
+    await startLogSession('member-ocr');
     const absPath = resolve(folderPath);
     guiLogger.info(`Starte OCR-Auswertung: ${absPath}`);
 
@@ -844,10 +891,10 @@ ipcMain.handle('stop-ocr', async () => {
 
 ipcMain.handle('export-csv', async (_e, members, defaultName) => {
   try {
-    await mkdir(RESULTS_DIR, { recursive: true });
+    await mkdir(MEMBER_RESULTS_DIR, { recursive: true });
     const result = await dialog.showSaveDialog(mainWindow, {
       title: dt('exportCsv'),
-      defaultPath: join(RESULTS_DIR, defaultName || 'mitglieder.csv'),
+      defaultPath: join(MEMBER_RESULTS_DIR, defaultName || 'mitglieder.csv'),
       filters: [
         { name: dt('csvFiles'), extensions: ['csv'] },
         { name: dt('allFiles'), extensions: ['*'] },
@@ -869,13 +916,13 @@ ipcMain.handle('export-csv', async (_e, members, defaultName) => {
   }
 });
 
-// Auto-Save: direkt in results/ speichern (max 1 pro Tag)
+// Auto-Save: direkt in results/mitglieder/ speichern (max 1 pro Tag)
 ipcMain.handle('auto-save-csv', async (_e, members) => {
   try {
-    await mkdir(RESULTS_DIR, { recursive: true });
+    await mkdir(MEMBER_RESULTS_DIR, { recursive: true });
     const today = localDate();
     const fileName = `mitglieder_${today}.csv`;
-    const filePath = join(RESULTS_DIR, fileName);
+    const filePath = join(MEMBER_RESULTS_DIR, fileName);
 
     const csv = OcrProcessor.toCSV(members);
     await writeFile(filePath, csv, 'utf-8');
@@ -888,37 +935,356 @@ ipcMain.handle('auto-save-csv', async (_e, members) => {
   }
 });
 
+// ─── IPC: Event Region ──────────────────────────────────────────────────────
+
+ipcMain.handle('select-event-region', async () => {
+  if (!page) return { ok: false, error: 'Browser nicht gestartet' };
+
+  try {
+    const region = await selectRegion(page);
+
+    const preview = await page.screenshot({
+      clip: { x: region.x, y: region.y, width: region.width, height: region.height },
+      type: 'png',
+    });
+    const previewBase64 = preview.toString('base64');
+
+    return { ok: true, region, preview: previewBase64 };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('preview-event-region', async (_e, region) => {
+  if (!page) return { ok: false, error: 'Browser nicht gestartet' };
+
+  try {
+    const preview = await page.screenshot({
+      clip: { x: region.x, y: region.y, width: region.width, height: region.height },
+      type: 'png',
+    });
+    return { ok: true, preview: preview.toString('base64') };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// ─── IPC: Event Kalibrierung ────────────────────────────────────────────────
+
+ipcMain.handle('test-event-scroll', async (_e, options) => {
+  if (!page) return { ok: false, error: 'Browser nicht gestartet' };
+
+  try {
+    const capturer = new ScrollCapturer(page, guiLogger, {
+      scrollTicks: options.scrollTicks || 10,
+      scrollDelay: options.scrollDelay || 500,
+    });
+
+    const result = await capturer.testScroll(options.region);
+
+    return {
+      ok: true,
+      before: result.before.toString('base64'),
+      after: result.after.toString('base64'),
+      similarity: result.similarity,
+    };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// ─── IPC: Event Capture ─────────────────────────────────────────────────────
+
+ipcMain.handle('start-event-capture', async (_e, options) => {
+  if (!page) return { ok: false, error: 'Browser nicht gestartet' };
+
+  await startLogSession('event-capture');
+  eventCaptureAborted = false;
+
+  try {
+    const outputDir = options.outputDir || './captures/events';
+
+    const now = new Date();
+    const datePart = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, '0'),
+      String(now.getDate()).padStart(2, '0'),
+    ].join('');
+    const timePart = [
+      String(now.getHours()).padStart(2, '0'),
+      String(now.getMinutes()).padStart(2, '0'),
+    ].join('_');
+    const sessionPrefix = `event_${datePart}_${timePart}`;
+    const sessionDir = join(outputDir, sessionPrefix);
+    await mkdir(sessionDir, { recursive: true });
+
+    const region = options.region;
+    const scrollTicks = options.scrollTicks || 10;
+    const scrollDelay = options.scrollDelay || 500;
+    const maxScreenshots = options.maxScreenshots || 50;
+    const tickDelta = 100;
+    const tickPause = 30;
+    const similarityThreshold = 0.98;
+
+    guiLogger.info(`Event-Capture gestartet: ${sessionDir}`);
+    guiLogger.info(`Region: ${region.x}, ${region.y} | ${region.width} x ${region.height}`);
+    guiLogger.info(`Scroll: ${scrollTicks} Ticks | Delay: ${scrollDelay}ms | Max: ${maxScreenshots}`);
+
+    const centerX = region.x + region.width / 2;
+    const centerY = region.y + region.height / 2;
+    await page.mouse.move(centerX, centerY);
+
+    let prevBuffer = null;
+    let count = 0;
+    let consecutiveSimilar = 0;
+    const duplicateFiles = [];
+
+    for (let i = 0; i < maxScreenshots; i++) {
+      if (eventCaptureAborted) {
+        guiLogger.warn(`Event-Capture abgebrochen nach ${count} Screenshots.`);
+        break;
+      }
+
+      const buffer = await page.screenshot({
+        clip: { x: region.x, y: region.y, width: region.width, height: region.height },
+        type: 'png',
+      });
+
+      if (prevBuffer) {
+        const capturer = new ScrollCapturer(page, guiLogger, {});
+        const similarity = await capturer.compareBuffers(prevBuffer, buffer);
+        if (similarity >= similarityThreshold) {
+          consecutiveSimilar++;
+          const pct = (similarity * 100).toFixed(1);
+          guiLogger.info(`Event-Screenshot ${i + 1}: ${pct}% identisch (${consecutiveSimilar}/2 zum Stoppen)`);
+          if (consecutiveSimilar >= 2) {
+            for (const dupFile of duplicateFiles) {
+              await unlink(dupFile).catch(() => {});
+              count--;
+              guiLogger.info(`Duplikat geloescht: ${dupFile.split(/[\\/]/).pop()}`);
+            }
+            guiLogger.success('Event-Listenende erkannt! Duplikate entfernt.');
+            mainWindow?.webContents.send('event-capture-progress', {
+              count, max: maxScreenshots, status: 'end-detected',
+            });
+            break;
+          }
+        } else {
+          consecutiveSimilar = 0;
+          duplicateFiles.length = 0;
+        }
+      }
+
+      count++;
+      const filename = `${sessionPrefix}_${String(count).padStart(4, '0')}.png`;
+      const filePath = join(sessionDir, filename);
+      await writeFile(filePath, buffer);
+
+      if (consecutiveSimilar > 0) {
+        duplicateFiles.push(filePath);
+      }
+
+      guiLogger.success(`Event-Screenshot ${count}: ${filename}`);
+
+      const thumbBase64 = buffer.toString('base64');
+      mainWindow?.webContents.send('event-capture-progress', {
+        count,
+        max: maxScreenshots,
+        filename,
+        thumbnail: thumbBase64,
+        status: 'capturing',
+      });
+
+      prevBuffer = buffer;
+
+      for (let t = 0; t < scrollTicks; t++) {
+        await page.mouse.move(centerX, centerY);
+        await page.mouse.wheel(0, tickDelta);
+        if (t < scrollTicks - 1) {
+          await new Promise((r) => setTimeout(r, tickPause));
+        }
+      }
+
+      await new Promise((r) => setTimeout(r, scrollDelay));
+    }
+
+    if (count >= maxScreenshots) {
+      guiLogger.warn(`Maximum von ${maxScreenshots} Event-Screenshots erreicht.`);
+    }
+
+    guiLogger.success(`Fertig! ${count} Event-Screenshots in ${sessionDir}`);
+
+    mainWindow?.webContents.send('event-capture-done', {
+      count,
+      outputDir: sessionDir,
+    });
+
+    return { ok: true, count, outputDir: sessionDir };
+  } catch (err) {
+    guiLogger.error(`Event-Capture-Fehler: ${err.message}`);
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('stop-event-capture', async () => {
+  eventCaptureAborted = true;
+  return { ok: true };
+});
+
+// ─── IPC: Event OCR Auswertung ──────────────────────────────────────────────
+
+ipcMain.handle('start-event-ocr', async (_e, folderPath, ocrSettings) => {
+  try {
+    await startLogSession('event-ocr');
+    const absPath = resolve(folderPath);
+    guiLogger.info(`Starte Event-OCR-Auswertung: ${absPath}`);
+
+    eventOcrProcessor = new OcrProcessor(guiLogger, ocrSettings || {});
+
+    const entries = await eventOcrProcessor.processEventFolder(absPath, (progress) => {
+      mainWindow?.webContents.send('event-ocr-progress', {
+        current: progress.current,
+        total: progress.total,
+        file: progress.file,
+      });
+    });
+
+    mainWindow?.webContents.send('event-ocr-done', { entries });
+    eventOcrProcessor = null;
+
+    return { ok: true, entries };
+  } catch (err) {
+    guiLogger.error(`Event-OCR-Fehler: ${err.message}`);
+    eventOcrProcessor = null;
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('stop-event-ocr', async () => {
+  if (eventOcrProcessor) {
+    eventOcrProcessor.abort();
+  }
+  return { ok: true };
+});
+
+ipcMain.handle('export-event-csv', async (_e, entries, defaultName) => {
+  try {
+    await mkdir(EVENT_RESULTS_DIR, { recursive: true });
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: dt('exportCsv'),
+      defaultPath: join(EVENT_RESULTS_DIR, defaultName || 'event.csv'),
+      filters: [
+        { name: dt('csvFiles'), extensions: ['csv'] },
+        { name: dt('allFiles'), extensions: ['*'] },
+      ],
+    });
+
+    if (result.canceled || !result.filePath) {
+      return { ok: false };
+    }
+
+    const csv = OcrProcessor.toEventCSV(entries);
+    await writeFile(result.filePath, csv, 'utf-8');
+    guiLogger.success(`Event-CSV exportiert: ${result.filePath}`);
+
+    return { ok: true, path: result.filePath };
+  } catch (err) {
+    guiLogger.error(`Event-CSV-Export fehlgeschlagen: ${err.message}`);
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('auto-save-event-csv', async (_e, entries) => {
+  try {
+    await mkdir(EVENT_RESULTS_DIR, { recursive: true });
+    const today = localDate();
+    const fileName = `event_${today}.csv`;
+    const filePath = join(EVENT_RESULTS_DIR, fileName);
+
+    const csv = OcrProcessor.toEventCSV(entries);
+    await writeFile(filePath, csv, 'utf-8');
+    guiLogger.success(`Event-Auto-Save: ${filePath}`);
+
+    return { ok: true, path: filePath, fileName };
+  } catch (err) {
+    guiLogger.error(`Event-Auto-Save fehlgeschlagen: ${err.message}`);
+    return { ok: false, error: err.message };
+  }
+});
+
 // ─── IPC: History ────────────────────────────────────────────────────────────
 
-ipcMain.handle('load-history', async () => {
-  try {
-    await mkdir(RESULTS_DIR, { recursive: true });
-    const files = await readdir(RESULTS_DIR);
-    const csvFiles = files.filter(f => f.endsWith('.csv')).sort().reverse();
+/**
+ * Ermittelt den korrekten Pfad einer History-Datei.
+ * Sucht zuerst in den Unterordnern (mitglieder/events), dann im alten results/ Root.
+ */
+function resolveHistoryFilePath(fileName) {
+  const type = fileName.startsWith('event_') ? 'event' : 'member';
+  const subDir = type === 'event' ? EVENT_RESULTS_DIR : MEMBER_RESULTS_DIR;
+  const subPath = join(subDir, fileName);
+  if (existsSync(subPath)) return subPath;
+  // Fallback: alte Struktur (direkt in results/)
+  const legacyPath = join(RESULTS_DIR, fileName);
+  if (existsSync(legacyPath)) return legacyPath;
+  return subPath; // Default: neuer Pfad
+}
 
-    const entries = [];
+/**
+ * Liest CSV-Dateien aus einem Verzeichnis und gibt History-Eintraege zurueck.
+ */
+async function scanResultsDir(dirPath) {
+  const entries = [];
+  try {
+    await mkdir(dirPath, { recursive: true });
+    const files = await readdir(dirPath);
+    const csvFiles = files.filter(f => f.endsWith('.csv'));
+
     for (const file of csvFiles) {
-      const filePath = join(RESULTS_DIR, file);
+      const filePath = join(dirPath, file);
       const fileStat = await stat(filePath);
-      // Datum aus Dateiname extrahieren (mitglieder_YYYY-MM-DD.csv)
       const dateMatch = file.match(/(\d{4}-\d{2}-\d{2})/);
       const date = dateMatch ? dateMatch[1] : fileStat.mtime.toLocaleDateString('sv-SE');
+      const type = file.startsWith('event_') ? 'event' : 'member';
 
-      // Schnell: Zeilen zaehlen fuer Member-Count (Header abziehen)
       const content = await readFile(filePath, 'utf-8');
       const lines = content.trim().split(/\r?\n/).filter(l => l.trim());
-      const memberCount = Math.max(0, lines.length - 1); // Header abziehen
+      const memberCount = Math.max(0, lines.length - 1);
 
       entries.push({
         fileName: file,
         date,
+        type,
         memberCount,
         modified: fileStat.mtime.toISOString(),
         size: fileStat.size,
       });
     }
+  } catch {
+    // Verzeichnis existiert noch nicht — kein Fehler
+  }
+  return entries;
+}
 
-    return { ok: true, entries };
+ipcMain.handle('load-history', async () => {
+  try {
+    // Alle drei Verzeichnisse scannen (mitglieder, events, und legacy root)
+    const [memberEntries, eventEntries, legacyEntries] = await Promise.all([
+      scanResultsDir(MEMBER_RESULTS_DIR),
+      scanResultsDir(EVENT_RESULTS_DIR),
+      scanResultsDir(RESULTS_DIR),
+    ]);
+
+    // Legacy-Eintraege nur hinzufuegen wenn sie nicht schon in den Unterordnern sind
+    const subFileNames = new Set([
+      ...memberEntries.map(e => e.fileName),
+      ...eventEntries.map(e => e.fileName),
+    ]);
+    const uniqueLegacy = legacyEntries.filter(e => !subFileNames.has(e.fileName));
+
+    const allEntries = [...memberEntries, ...eventEntries, ...uniqueLegacy]
+      .sort((a, b) => b.fileName.localeCompare(a.fileName));
+
+    return { ok: true, entries: allEntries };
   } catch (err) {
     return { ok: false, error: err.message };
   }
@@ -926,29 +1292,45 @@ ipcMain.handle('load-history', async () => {
 
 ipcMain.handle('load-history-entry', async (_e, fileName) => {
   try {
-    const filePath = join(RESULTS_DIR, fileName);
+    const filePath = resolveHistoryFilePath(fileName);
     const content = await readFile(filePath, 'utf-8');
+    const type = fileName.startsWith('event_') ? 'event' : 'member';
 
     // CSV parsen (BOM entfernen, Header ueberspringen)
     const clean = content.replace(/^\uFEFF/, '');
     const lines = clean.trim().split(/\r?\n/).filter(l => l.trim());
-    if (lines.length < 2) return { ok: true, members: [] };
+    if (lines.length < 2) return { ok: true, members: [], entries: [], type };
 
-    const members = [];
-    for (let i = 1; i < lines.length; i++) {
-      // CSV-Parsing: Rang,"Name","Koordinaten",Score
-      const match = lines[i].match(/^([^,]*),("(?:[^"]|"")*"|[^,]*),("(?:[^"]|"")*"|[^,]*),(\d+)$/);
-      if (match) {
-        members.push({
-          rank: match[1],
-          name: match[2].replace(/^"|"$/g, '').replace(/""/g, '"'),
-          coords: match[3].replace(/^"|"$/g, '').replace(/""/g, '"'),
-          score: parseInt(match[4]) || 0,
-        });
+    if (type === 'event') {
+      // Event-CSV: "Name",Macht,Event-Punkte
+      const entries = [];
+      for (let i = 1; i < lines.length; i++) {
+        const match = lines[i].match(/^("(?:[^"]|"")*"|[^,]*),(\d+),(\d+)$/);
+        if (match) {
+          entries.push({
+            name: match[1].replace(/^"|"$/g, '').replace(/""/g, '"'),
+            power: parseInt(match[2]) || 0,
+            eventPoints: parseInt(match[3]) || 0,
+          });
+        }
       }
+      return { ok: true, entries, type, fileName };
+    } else {
+      // Member-CSV: Rang,"Name","Koordinaten",Score
+      const members = [];
+      for (let i = 1; i < lines.length; i++) {
+        const match = lines[i].match(/^([^,]*),("(?:[^"]|"")*"|[^,]*),("(?:[^"]|"")*"|[^,]*),(\d+)$/);
+        if (match) {
+          members.push({
+            rank: match[1],
+            name: match[2].replace(/^"|"$/g, '').replace(/""/g, '"'),
+            coords: match[3].replace(/^"|"$/g, '').replace(/""/g, '"'),
+            score: parseInt(match[4]) || 0,
+          });
+        }
+      }
+      return { ok: true, members, type, fileName };
     }
-
-    return { ok: true, members, fileName };
   } catch (err) {
     return { ok: false, error: err.message };
   }
@@ -956,7 +1338,7 @@ ipcMain.handle('load-history-entry', async (_e, fileName) => {
 
 ipcMain.handle('delete-history-entry', async (_e, fileName) => {
   try {
-    const filePath = join(RESULTS_DIR, fileName);
+    const filePath = resolveHistoryFilePath(fileName);
     await unlink(filePath);
     guiLogger.success(`History-Eintrag geloescht: ${fileName}`);
     return { ok: true };
@@ -970,25 +1352,6 @@ ipcMain.handle('delete-history-entry', async (_e, fileName) => {
 ipcMain.handle('load-validation-list', async () => {
   try {
     const state = await validationManager.load();
-
-    // Auto-Initialisierung: Wenn die Liste leer ist, aus Ground-Truth seeden
-    if (state.knownNames.length === 0) {
-      try {
-        const gtPath = join(__dirname, '..', 'test', 'fixtures', 'ground-truth.json');
-        const gtData = await readFile(gtPath, 'utf-8');
-        const gt = JSON.parse(gtData);
-        if (gt.members && Array.isArray(gt.members)) {
-          const names = gt.members.map(m => m.name).filter(Boolean);
-          const added = validationManager.importNames(names);
-          if (added > 0) {
-            await validationManager.save();
-            guiLogger.info(`Validierungsliste mit ${added} Namen aus Ground-Truth initialisiert.`);
-          }
-        }
-      } catch {
-        // Ground-Truth nicht vorhanden — kein Problem, Liste bleibt leer
-      }
-    }
 
     return { ok: true, ...validationManager.getState() };
   } catch (err) {
@@ -1029,10 +1392,10 @@ ipcMain.handle('remove-correction', async (_e, ocrName) => {
   return { ok: true, state: validationManager.getState() };
 });
 
-ipcMain.handle('validate-ocr-results', async (_e, members) => {
+ipcMain.handle('validate-ocr-results', async (_e, members, options) => {
   try {
     await validationManager.load();
-    const validated = validationManager.validateMembers(members);
+    const validated = validationManager.validateMembers(members, options || {});
     return { ok: true, members: validated };
   } catch (err) {
     return { ok: false, error: err.message };

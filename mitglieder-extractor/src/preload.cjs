@@ -27,7 +27,9 @@ contextBridge.exposeInMainWorld('api', {
 
   // Ordner oeffnen / waehlen / loeschen
   openFolder: (path) => ipcRenderer.invoke('open-folder', path),
+  openScreenshot: (path) => ipcRenderer.invoke('open-screenshot', path),
   openResultsDir: () => ipcRenderer.invoke('open-results-dir'),
+  openLogFolder: () => ipcRenderer.invoke('open-log-folder'),
   browseFolder: (options) => ipcRenderer.invoke('browse-folder', options),
   browseCaptureFolder: (defaultPath) => ipcRenderer.invoke('browse-capture-folder', defaultPath),
   deleteFolder: (path) => ipcRenderer.invoke('delete-folder', path),
@@ -37,6 +39,23 @@ contextBridge.exposeInMainWorld('api', {
   stopOcr: () => ipcRenderer.invoke('stop-ocr'),
   exportCsv: (members, defaultName) => ipcRenderer.invoke('export-csv', members, defaultName),
   autoSaveCsv: (members) => ipcRenderer.invoke('auto-save-csv', members),
+
+  // Event Region
+  selectEventRegion: () => ipcRenderer.invoke('select-event-region'),
+  previewEventRegion: (region) => ipcRenderer.invoke('preview-event-region', region),
+
+  // Event Kalibrierung
+  testEventScroll: (options) => ipcRenderer.invoke('test-event-scroll', options),
+
+  // Event Capture
+  startEventCapture: (options) => ipcRenderer.invoke('start-event-capture', options),
+  stopEventCapture: () => ipcRenderer.invoke('stop-event-capture'),
+
+  // Event OCR Auswertung
+  startEventOcr: (folderPath, settings) => ipcRenderer.invoke('start-event-ocr', folderPath, settings),
+  stopEventOcr: () => ipcRenderer.invoke('stop-event-ocr'),
+  exportEventCsv: (entries, defaultName) => ipcRenderer.invoke('export-event-csv', entries, defaultName),
+  autoSaveEventCsv: (entries) => ipcRenderer.invoke('auto-save-event-csv', entries),
 
   // History
   loadHistory: () => ipcRenderer.invoke('load-history'),
@@ -50,7 +69,7 @@ contextBridge.exposeInMainWorld('api', {
   removeValidationName: (name) => ipcRenderer.invoke('remove-validation-name', name),
   addCorrection: (ocrName, correctName) => ipcRenderer.invoke('add-correction', ocrName, correctName),
   removeCorrection: (ocrName) => ipcRenderer.invoke('remove-correction', ocrName),
-  validateOcrResults: (members) => ipcRenderer.invoke('validate-ocr-results', members),
+  validateOcrResults: (members, options) => ipcRenderer.invoke('validate-ocr-results', members, options),
   importValidationList: () => ipcRenderer.invoke('import-validation-list'),
   exportValidationList: () => ipcRenderer.invoke('export-validation-list'),
 
@@ -69,6 +88,19 @@ contextBridge.exposeInMainWorld('api', {
   },
   onOcrDone: (callback) => {
     ipcRenderer.on('ocr-done', (_e, data) => callback(data));
+  },
+  // Event-spezifische Events
+  onEventCaptureProgress: (callback) => {
+    ipcRenderer.on('event-capture-progress', (_e, data) => callback(data));
+  },
+  onEventCaptureDone: (callback) => {
+    ipcRenderer.on('event-capture-done', (_e, data) => callback(data));
+  },
+  onEventOcrProgress: (callback) => {
+    ipcRenderer.on('event-ocr-progress', (_e, data) => callback(data));
+  },
+  onEventOcrDone: (callback) => {
+    ipcRenderer.on('event-ocr-done', (_e, data) => callback(data));
   },
   onLog: (callback) => {
     ipcRenderer.on('log', (_e, data) => callback(data));
