@@ -73,6 +73,16 @@ contextBridge.exposeInMainWorld('api', {
   importValidationList: () => ipcRenderer.invoke('import-validation-list'),
   exportValidationList: () => ipcRenderer.invoke('export-validation-list'),
 
+  // Ollama / Vision Model
+  ollamaStatus: () => ipcRenderer.invoke('ollama-status'),
+  ollamaInstall: () => ipcRenderer.invoke('ollama-install'),
+  ollamaStart: () => ipcRenderer.invoke('ollama-start'),
+  ollamaStop: () => ipcRenderer.invoke('ollama-stop'),
+  ollamaModelRegistry: () => ipcRenderer.invoke('ollama-model-registry'),
+  ollamaListModels: () => ipcRenderer.invoke('ollama-list-models'),
+  ollamaPullModel: (modelId) => ipcRenderer.invoke('ollama-pull-model', modelId),
+  ollamaDeleteModel: (modelId) => ipcRenderer.invoke('ollama-delete-model', modelId),
+
   // Events vom Main Process empfangen
   onBrowserStatus: (callback) => {
     ipcRenderer.on('browser-status', (_e, data) => callback(data));
@@ -104,5 +114,12 @@ contextBridge.exposeInMainWorld('api', {
   },
   onLog: (callback) => {
     ipcRenderer.on('log', (_e, data) => callback(data));
+  },
+  // Ollama Events
+  onOllamaInstallProgress: (callback) => {
+    ipcRenderer.on('ollama-install-progress', (_e, data) => callback(data));
+  },
+  onOllamaPullProgress: (callback) => {
+    ipcRenderer.on('ollama-pull-progress', (_e, data) => callback(data));
   },
 });
