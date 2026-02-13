@@ -39,6 +39,7 @@
       'status.ready': 'Bereit: {title}',
       'status.pageLoading': 'Seite laedt...',
       'status.browserClosed': 'Browser geschlossen',
+      'status.waitingForGame': 'Warte auf Spiel...',
       'status.error': 'Fehler: {error}',
 
       // Auto-Login
@@ -112,6 +113,30 @@
       'tooltip.autoOcr': 'Startet OCR automatisch nach jedem Capture-Durchlauf.',
       'tooltip.autoValidation': 'Validiert OCR-Ergebnisse automatisch gegen die Validierungsliste. Bei Fehlern wird ein Hinweis angezeigt.',
       'tooltip.autoSave': 'Speichert die CSV-Datei automatisch wenn die Validierung fehlerfrei ist (alle Namen bestaetigt/korrigiert).',
+      // Engine Selector
+      'engine.tesseract': 'Tesseract (Built-in)',
+      'engine.tesseractHint': 'Empfohlen fuer die meisten Nutzer',
+      'engine.vision': 'Vision Model (Advanced)',
+      'engine.visionHint': 'Lokale KI-Modelle fuer bessere Erkennung',
+
+      // Ollama Setup
+      'ollama.step1Title': 'Ollama Runtime',
+      'ollama.step2Title': 'Modell auswaehlen',
+      'ollama.step3Title': 'Test',
+      'ollama.installBtn': 'Ollama herunterladen & installieren',
+      'ollama.startBtn': 'Ollama starten',
+      'ollama.testBtn': 'Test mit Beispielbild ausfuehren',
+      'ollama.checking': 'Pruefe...',
+      'ollama.running': 'Laeuft',
+      'ollama.installed': 'Installiert (nicht gestartet)',
+      'ollama.notInstalled': 'Nicht installiert',
+      'ollama.starting': 'Wird gestartet...',
+      'ollama.downloading': 'Wird heruntergeladen...',
+      'ollama.pulling': 'Wird heruntergeladen...',
+      'ollama.download': 'Download',
+      'ollama.delete': 'Loeschen',
+      'ollama.error': 'Fehler',
+
       'tooltip.scale': 'Vergroesserungsfaktor fuer die Bildvorverarbeitung. Groessere Werte (3-4x) verbessern die OCR-Erkennung, erhoehen aber die Verarbeitungszeit.',
       'tooltip.greyscale': 'Konvertiert das Bild in Graustufen. Kann die Erkennung bei farbigem Hintergrund verbessern und dient als Verifikations-Pass fuer Scores.',
       'tooltip.sharpen': 'Schaerfe-Sigma fuer Bildschaerfung. Werte um 0.3 sind optimal fuer TotalBattle. 0 = keine Schaerfung, hoehere Werte koennen Artefakte erzeugen.',
@@ -200,6 +225,7 @@
       'tooltip.openScreenshots': 'Screenshots oeffnen ({count} Dateien)',
       'tooltip.removeName': 'Entfernen',
       'tooltip.removeCorrection': 'Korrektur entfernen',
+      'tooltip.selectAll': 'Alle auswaehlen',
       'btn.addSelectedToList': 'Ausgewaehlte zur Liste',
       'btn.addSelectedToListCount': '{count} zur Liste hinzufuegen',
       'prompt.editName': 'Name bearbeiten:',
@@ -210,6 +236,9 @@
       'confirm.addNamesToList': '{count} Namen zur Validierungsliste hinzufuegen?',
       'btn.ok': 'OK',
       'btn.cancel': 'Abbrechen',
+      'btn.previous': 'Zurueck',
+      'btn.next': 'Weiter',
+      'pagination.pageOf': 'Seite {page} von {total}',
 
       // Sub-Tabs
       'subtab.member': 'Mitglieder',
@@ -269,6 +298,9 @@
       'btn.copied': 'Kopiert!',
       'btn.openLogFolder': 'Log-Ordner',
 
+      // Dialog
+      'dialog.selectOcrFolder': 'Capture-Ordner fuer OCR waehlen',
+
       // CSV auto-save
       'status.csvAutoSaved': 'CSV: {fileName}',
     },
@@ -306,6 +338,7 @@
       'status.ready': 'Ready: {title}',
       'status.pageLoading': 'Page loading...',
       'status.browserClosed': 'Browser closed',
+      'status.waitingForGame': 'Waiting for game...',
       'status.error': 'Error: {error}',
 
       // Auto-Login
@@ -379,6 +412,30 @@
       'tooltip.autoOcr': 'Starts OCR automatically after each capture run.',
       'tooltip.autoValidation': 'Validates OCR results automatically against the validation list. Shows a notification if errors are found.',
       'tooltip.autoSave': 'Saves the CSV file automatically when validation is error-free (all names confirmed/corrected).',
+      // Engine Selector
+      'engine.tesseract': 'Tesseract (Built-in)',
+      'engine.tesseractHint': 'Recommended for most users',
+      'engine.vision': 'Vision Model (Advanced)',
+      'engine.visionHint': 'Local AI models for better accuracy',
+
+      // Ollama Setup
+      'ollama.step1Title': 'Ollama Runtime',
+      'ollama.step2Title': 'Select Model',
+      'ollama.step3Title': 'Test',
+      'ollama.installBtn': 'Download & Install Ollama',
+      'ollama.startBtn': 'Start Ollama',
+      'ollama.testBtn': 'Run test with sample image',
+      'ollama.checking': 'Checking...',
+      'ollama.running': 'Running',
+      'ollama.installed': 'Installed (not running)',
+      'ollama.notInstalled': 'Not installed',
+      'ollama.starting': 'Starting...',
+      'ollama.downloading': 'Downloading...',
+      'ollama.pulling': 'Downloading...',
+      'ollama.download': 'Download',
+      'ollama.delete': 'Delete',
+      'ollama.error': 'Error',
+
       'tooltip.scale': 'Magnification factor for image preprocessing. Larger values (3-4x) improve OCR accuracy but increase processing time.',
       'tooltip.greyscale': 'Converts the image to greyscale. Can improve detection with colored backgrounds and serves as a verification pass for scores.',
       'tooltip.sharpen': 'Sharpness sigma for image sharpening. Values around 0.3 are optimal for TotalBattle. 0 = no sharpening, higher values may produce artifacts.',
@@ -467,6 +524,7 @@
       'tooltip.openScreenshots': 'Open screenshots ({count} files)',
       'tooltip.removeName': 'Remove',
       'tooltip.removeCorrection': 'Remove correction',
+      'tooltip.selectAll': 'Select all',
       'btn.addSelectedToList': 'Add selected to list',
       'btn.addSelectedToListCount': 'Add {count} to list',
       'prompt.editName': 'Edit name:',
@@ -477,6 +535,9 @@
       'confirm.addNamesToList': 'Add {count} names to the validation list?',
       'btn.ok': 'OK',
       'btn.cancel': 'Cancel',
+      'btn.previous': 'Previous',
+      'btn.next': 'Next',
+      'pagination.pageOf': 'Page {page} of {total}',
 
       // Sub-Tabs
       'subtab.member': 'Members',
@@ -535,6 +596,9 @@
       'btn.copyLog': 'Copy',
       'btn.copied': 'Copied!',
       'btn.openLogFolder': 'Log Folder',
+
+      // Dialog
+      'dialog.selectOcrFolder': 'Select capture folder for OCR',
 
       // CSV auto-save
       'status.csvAutoSaved': 'CSV: {fileName}',

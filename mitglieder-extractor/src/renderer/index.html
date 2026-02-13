@@ -15,11 +15,11 @@
   </header>
 
   <!-- Tab Navigation -->
-  <nav class="tab-bar">
-    <button class="tab-btn active" data-tab="settings" data-i18n="tab.settings">Einstellungen</button>
-    <button class="tab-btn" data-tab="capture" data-i18n="tab.capture">Aufnahme &amp; Ergebnisse</button>
-    <button class="tab-btn" data-tab="validation" data-i18n="tab.validation">Validierung</button>
-    <button class="tab-btn" data-tab="history" data-i18n="tab.history">History</button>
+  <nav class="tab-bar" role="tablist">
+    <button id="tab-settings-btn" class="tab-btn active" role="tab" aria-selected="true" aria-controls="tab-settings" data-tab="settings" data-i18n="tab.settings">Einstellungen</button>
+    <button id="tab-capture-btn" class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-capture" data-tab="capture" data-i18n="tab.capture">Aufnahme &amp; Ergebnisse</button>
+    <button id="tab-validation-btn" class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-validation" data-tab="validation" data-i18n="tab.validation">Validierung</button>
+    <button id="tab-history-btn" class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-history" data-tab="history" data-i18n="tab.history">History</button>
   </nav>
 
   <main class="container">
@@ -27,7 +27,7 @@
     <!-- ═══════════════════════════════════════════════════════════════ -->
     <!-- TAB 1: EINSTELLUNGEN                                          -->
     <!-- ═══════════════════════════════════════════════════════════════ -->
-    <div id="tab-settings" class="tab-content active">
+    <div id="tab-settings" class="tab-content active" role="tabpanel" aria-labelledby="tab-settings-btn">
 
       <!-- Language Section -->
       <section class="section">
@@ -78,13 +78,13 @@
       </section>
 
       <!-- Sub-Tab Navigation fuer Settings -->
-      <div class="sub-tab-bar" id="settingsSubTabBar">
-        <button class="sub-tab-btn active" data-subtab="settings-member" data-i18n="subtab.member">Mitglieder</button>
-        <button class="sub-tab-btn" data-subtab="settings-event" data-i18n="subtab.event">Event</button>
+      <div class="sub-tab-bar" id="settingsSubTabBar" role="tablist">
+        <button id="subtab-settings-member-btn" class="sub-tab-btn active" role="tab" aria-selected="true" aria-controls="settings-member" data-subtab="settings-member" data-i18n="subtab.member">Mitglieder</button>
+        <button id="subtab-settings-event-btn" class="sub-tab-btn" role="tab" aria-selected="false" aria-controls="settings-event" data-subtab="settings-event" data-i18n="subtab.event">Event</button>
       </div>
 
       <!-- ═══ Sub-Tab: Mitglieder Einstellungen ═══ -->
-      <div id="settings-member" class="sub-tab-content active">
+      <div id="settings-member" class="sub-tab-content active" role="tabpanel" aria-labelledby="subtab-settings-member-btn">
 
       <!-- Region Section -->
       <section class="section" id="regionSection">
@@ -164,6 +164,22 @@
             </label>
           </div>
         </h2>
+        <!-- Engine Selector -->
+        <div class="engine-selector">
+          <label class="engine-option">
+            <input type="radio" name="ocr-engine" value="tesseract" checked>
+            <span data-i18n="engine.tesseract">Tesseract (Built-in)</span>
+            <small class="engine-hint" data-i18n="engine.tesseractHint">Empfohlen fuer die meisten Nutzer</small>
+          </label>
+          <label class="engine-option">
+            <input type="radio" name="ocr-engine" value="vision">
+            <span data-i18n="engine.vision">Vision Model (Advanced)</span>
+            <small class="engine-hint" data-i18n="engine.visionHint">Lokale KI-Modelle fuer bessere Erkennung</small>
+          </label>
+        </div>
+
+        <!-- Tesseract-specific settings -->
+        <div id="tesseract-settings">
         <div class="ocr-settings-grid">
           <div class="control-row">
             <label class="label has-tooltip" data-i18n="label.scale" data-i18n-tooltip="tooltip.scale" data-tooltip="Vergroesserungsfaktor fuer die Bildvorverarbeitung. Groessere Werte (3-4x) verbessern die OCR-Erkennung, erhoehen aber die Verarbeitungszeit.">Skalierung:</label>
@@ -219,12 +235,16 @@
             <input type="number" id="ocrMinScore" class="input input-small" value="5000" min="0" max="1000000" step="1000">
           </div>
         </div>
+        </div><!-- /tesseract-settings -->
+
+        <!-- Vision Model settings (populated by ollama-ui.js) -->
+        <div id="vision-settings" style="display: none;"></div>
       </section>
 
       </div><!-- /settings-member -->
 
       <!-- ═══ Sub-Tab: Event Einstellungen ═══ -->
-      <div id="settings-event" class="sub-tab-content">
+      <div id="settings-event" class="sub-tab-content" role="tabpanel" aria-labelledby="subtab-settings-event-btn">
 
       <!-- Event Region Section -->
       <section class="section" id="eventRegionSection">
@@ -368,16 +388,16 @@
     <!-- ═══════════════════════════════════════════════════════════════ -->
     <!-- TAB 2: AUFNAHME & ERGEBNISSE                                  -->
     <!-- ═══════════════════════════════════════════════════════════════ -->
-    <div id="tab-capture" class="tab-content">
+    <div id="tab-capture" class="tab-content" role="tabpanel" aria-labelledby="tab-capture-btn">
 
       <!-- Sub-Tab Navigation fuer Capture -->
-      <div class="sub-tab-bar" id="captureSubTabBar">
-        <button class="sub-tab-btn active" data-subtab="capture-member" data-i18n="subtab.member">Mitglieder</button>
-        <button class="sub-tab-btn" data-subtab="capture-event" data-i18n="subtab.event">Event</button>
+      <div class="sub-tab-bar" id="captureSubTabBar" role="tablist">
+        <button id="subtab-capture-member-btn" class="sub-tab-btn active" role="tab" aria-selected="true" aria-controls="capture-member" data-subtab="capture-member" data-i18n="subtab.member">Mitglieder</button>
+        <button id="subtab-capture-event-btn" class="sub-tab-btn" role="tab" aria-selected="false" aria-controls="capture-event" data-subtab="capture-event" data-i18n="subtab.event">Event</button>
       </div>
 
       <!-- ═══ Sub-Tab: Mitglieder Capture ═══ -->
-      <div id="capture-member" class="sub-tab-content active">
+      <div id="capture-member" class="sub-tab-content active" role="tabpanel" aria-labelledby="subtab-capture-member-btn">
 
       <!-- Capture Controls -->
       <section class="section">
@@ -458,7 +478,7 @@
       </div><!-- /capture-member -->
 
       <!-- ═══ Sub-Tab: Event Capture ═══ -->
-      <div id="capture-event" class="sub-tab-content">
+      <div id="capture-event" class="sub-tab-content" role="tabpanel" aria-labelledby="subtab-capture-event-btn">
 
       <!-- Event Capture Controls -->
       <section class="section">
@@ -553,12 +573,12 @@
     <!-- ═══════════════════════════════════════════════════════════════ -->
     <!-- TAB 3: VALIDIERUNG                                             -->
     <!-- ═══════════════════════════════════════════════════════════════ -->
-    <div id="tab-validation" class="tab-content">
+    <div id="tab-validation" class="tab-content" role="tabpanel" aria-labelledby="tab-validation-btn">
 
       <!-- Sub-Tab Navigation: Mitglieder / Event -->
-      <div class="sub-tab-bar" id="validationModeSubTabBar">
-        <button class="sub-tab-btn active" data-subtab="validation-mode-member" data-i18n="subtab.member">Mitglieder</button>
-        <button class="sub-tab-btn" data-subtab="validation-mode-event" data-i18n="subtab.event">Event</button>
+      <div class="sub-tab-bar" id="validationModeSubTabBar" role="tablist">
+        <button id="subtab-validation-member-btn" class="sub-tab-btn active" role="tab" aria-selected="true" aria-controls="validationContent" data-subtab="validation-mode-member" data-i18n="subtab.member">Mitglieder</button>
+        <button id="subtab-validation-event-btn" class="sub-tab-btn" role="tab" aria-selected="false" aria-controls="validationContent" data-subtab="validation-mode-event" data-i18n="subtab.event">Event</button>
       </div>
 
       <!-- Validierungsstatus -->
@@ -572,7 +592,7 @@
       </section>
 
       <!-- Side-by-Side Layout -->
-      <div id="validationContent" class="validation-side-by-side">
+      <div id="validationContent" class="validation-side-by-side" role="tabpanel" aria-labelledby="subtab-validation-member-btn">
 
         <!-- Linke Seite: OCR-Ergebnisse -->
         <section class="section validation-panel validation-left-panel">
@@ -609,18 +629,19 @@
                 <tbody id="validationOcrBody"></tbody>
               </table>
             </div>
+            <div id="validationOcrPagination" class="validation-pagination" style="display:none;"></div>
           </div>
         </section>
 
         <!-- Rechte Seite: Bekannte Spieler / Korrekturen (Sub-Tabs) -->
         <section class="section validation-panel validation-right-panel">
-          <div class="sub-tab-bar" id="validationRightSubTabBar">
-            <button class="sub-tab-btn active" data-subtab="validation-players" data-i18n="subtab.knownPlayers">Bekannte Spieler</button>
-            <button class="sub-tab-btn" data-subtab="validation-corrections" data-i18n="subtab.corrections">Korrekturen</button>
+          <div class="sub-tab-bar" id="validationRightSubTabBar" role="tablist">
+            <button id="subtab-validation-players-btn" class="sub-tab-btn active" role="tab" aria-selected="true" aria-controls="validation-players" data-subtab="validation-players" data-i18n="subtab.knownPlayers">Bekannte Spieler</button>
+            <button id="subtab-validation-corrections-btn" class="sub-tab-btn" role="tab" aria-selected="false" aria-controls="validation-corrections" data-subtab="validation-corrections" data-i18n="subtab.corrections">Korrekturen</button>
           </div>
 
           <!-- ═══ Sub-Tab: Bekannte Spieler ═══ -->
-          <div id="validation-players" class="sub-tab-content active">
+          <div id="validation-players" class="sub-tab-content active" role="tabpanel" aria-labelledby="subtab-validation-players-btn">
             <div class="validation-search-row">
               <input type="text" id="validationSearch" class="input" data-i18n-placeholder="placeholder.searchPlayer" placeholder="Spieler suchen...">
               <button id="btnAddValidationName" class="btn btn-small btn-primary" data-i18n-title="btn.addName" title="Name hinzufuegen" data-i18n="btn.addName">+ Hinzufuegen</button>
@@ -632,7 +653,7 @@
           </div>
 
           <!-- ═══ Sub-Tab: Gespeicherte Korrekturen ═══ -->
-          <div id="validation-corrections" class="sub-tab-content">
+          <div id="validation-corrections" class="sub-tab-content" role="tabpanel" aria-labelledby="subtab-validation-corrections-btn">
             <div class="correction-add-form">
               <input type="text" id="correctionFromInput" class="input input-small" data-i18n-placeholder="placeholder.correctionFrom" placeholder="OCR-Name (falsch)...">
               <span class="correction-arrow">&rarr;</span>
@@ -665,7 +686,7 @@
     <!-- ═══════════════════════════════════════════════════════════════ -->
     <!-- TAB 4: HISTORY                                                 -->
     <!-- ═══════════════════════════════════════════════════════════════ -->
-    <div id="tab-history" class="tab-content">
+    <div id="tab-history" class="tab-content" role="tabpanel" aria-labelledby="tab-history-btn">
 
       <section class="section">
         <h2 class="section-title">
@@ -738,7 +759,7 @@
   </main>
 
   <!-- Input-Dialog (Ersatz fuer prompt(), das in Electron nicht zuverlaessig funktioniert) -->
-  <div id="inputDialog" class="modal-overlay" style="display:none;">
+  <div id="inputDialog" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="inputDialogTitle" style="display:none;">
     <div class="modal-dialog">
       <h3 id="inputDialogTitle" class="modal-title"></h3>
       <input type="text" id="inputDialogInput" class="input modal-input" autocomplete="off">
@@ -749,7 +770,18 @@
     </div>
   </div>
 
+  <!-- Confirm/Alert-Dialog (Ersatz fuer confirm() und alert()) -->
+  <div id="confirmDialog" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="confirmDialogMessage" style="display:none;">
+    <div class="modal-dialog">
+      <p id="confirmDialogMessage" class="modal-message"></p>
+      <div class="modal-actions">
+        <button id="confirmDialogCancel" class="btn btn-secondary" data-i18n="btn.cancel">Abbrechen</button>
+        <button id="confirmDialogOk" class="btn btn-primary" data-i18n="btn.ok">OK</button>
+      </div>
+    </div>
+  </div>
+
   <script src="i18n.js"></script>
-  <script src="app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>

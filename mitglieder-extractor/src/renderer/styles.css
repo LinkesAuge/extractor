@@ -849,6 +849,26 @@ body {
   outline: 1px solid #e94560;
 }
 
+/* Validation Table Pagination */
+.validation-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 8px;
+  padding: 6px 0;
+}
+
+.validation-pagination-info {
+  font-size: 12px;
+  color: #6b7b8d;
+}
+
+.validation-pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Validation Status Badges */
 .v-status {
   display: inline-block;
@@ -1335,6 +1355,14 @@ body {
   gap: 8px;
 }
 
+.modal-message {
+  margin: 0 0 16px 0;
+  font-size: 14px;
+  color: #e0e0e0;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
 /* ─── Sub-Tab Navigation ──────────────────────────────────────── */
 
 .sub-tab-bar {
@@ -1398,4 +1426,228 @@ body {
 .validation-mode-badge.mode-event {
   background: #3d1f00;
   color: #f39c12;
+}
+
+/* ═══ OCR Engine Selector ════════════════════════════════════════ */
+
+.engine-selector {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.engine-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s;
+  flex: 1;
+}
+
+.engine-option:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.engine-option input[type="radio"] {
+  accent-color: #e94560;
+}
+
+.engine-hint {
+  display: block;
+  font-size: 11px;
+  color: #6b7b8d;
+  margin-top: 2px;
+}
+
+/* ═══ Step Panels ═══════════════════════════════════════════════ */
+
+.step-panel {
+  margin-bottom: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: opacity 0.2s;
+}
+
+.step-panel.disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.step-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #e94560;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.step-content {
+  padding: 12px 14px;
+}
+
+/* ═══ Status Indicator ══════════════════════════════════════════ */
+
+.status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #6b7b8d;
+  flex-shrink: 0;
+}
+
+.status-label {
+  font-size: 13px;
+  color: #c0c0c0;
+}
+
+/* ═══ Progress Bar ══════════════════════════════════════════════ */
+
+.progress-bar-container {
+  position: relative;
+  height: 22px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  overflow: hidden;
+  margin: 8px 0;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #e94560, #c23152);
+  border-radius: 6px;
+  transition: width 0.3s ease;
+  width: 0%;
+}
+
+.progress-bar-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+
+/* ═══ Model Cards ═══════════════════════════════════════════════ */
+
+.model-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.model-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+
+.model-card:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.model-radio {
+  accent-color: #e94560;
+  flex-shrink: 0;
+}
+
+.model-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.model-name {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #e0e0e0;
+}
+
+.model-meta {
+  display: block;
+  font-size: 11px;
+  color: #6b7b8d;
+  margin-top: 2px;
+}
+
+.model-desc {
+  display: block;
+  font-size: 11px;
+  color: #8a9bb0;
+  margin-top: 2px;
+}
+
+.model-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.model-progress {
+  font-size: 11px;
+  color: #e94560;
+  font-weight: 600;
+}
+
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 11px;
+}
+
+.btn-danger {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.btn-danger:hover {
+  background: rgba(239, 68, 68, 0.25);
+}
+
+/* ═══ Ollama Test Result ════════════════════════════════════════ */
+
+.ollama-test-result {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #c0c0c0;
 }
