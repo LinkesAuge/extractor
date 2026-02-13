@@ -1,4 +1,5 @@
 import { TesseractProvider } from './providers/tesseract-provider.js';
+import { VisionProvider } from './providers/vision-provider.js';
 import { DEFAULT_SETTINGS } from './constants.js';
 
 /** Supported OCR engine identifiers. */
@@ -19,8 +20,7 @@ export const OCR_ENGINES = {
 export function createOcrProvider({ engine = 'tesseract', logger, settings = {} } = {}) {
   switch (engine) {
     case OCR_ENGINES.VISION:
-      // Phase 3: VisionProvider will be added here
-      throw new Error('Vision provider not yet implemented. Use "tesseract" engine.');
+      return new VisionProvider(logger, settings);
     case OCR_ENGINES.TESSERACT:
     default:
       return new TesseractProvider(logger, { ...DEFAULT_SETTINGS, ...settings });
