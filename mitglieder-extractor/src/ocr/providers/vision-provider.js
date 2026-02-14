@@ -1,11 +1,13 @@
-import { readdir, readFile } from 'fs/promises';
-import { join, extname } from 'path';
+import { readFile } from 'fs/promises';
+import { join } from 'path';
 import sharp from 'sharp';
 import { OcrProvider } from './ocr-provider.js';
 import { generateWithImage } from '../../services/ollama/ollama-api.js';
+import { getOllamaRef } from '../../services/ollama/model-registry.js';
 import { getPromptForMode } from '../vision-prompts.js';
 import { parseMemberResponse, parseEventResponse } from '../vision-parser.js';
 import { deduplicateMembersByName, deduplicateEventsByName } from '../deduplicator.js';
+import { listPngFiles, mergeOrAddMember, mergeOrAddEvent, runEventSanityChecks } from '../shared-utils.js';
 
 /** Default maximum image dimension for vision models. */
 const DEFAULT_MAX_DIMENSION = 2048;
@@ -17,7 +19,14 @@ const DEFAULT_MAX_DIMENSION = 2048;
 export class VisionProvider extends OcrProvider {
   constructor(logger, settings = {}) {
     super(logger, settings);
-    this.model = settings.ollamaModel || 'glm-ocr';
+    const modelId = settings.ollamaModel || 'glm-ocr';
+    // Resolve registry model ID to the actual Ollama reference
+    try {
+      this.model = getOllamaRef(modelId);
+    } catch {
+      // Fallback: use as-is (could already be a direct Ollama ref)
+      this.model = modelId;
+    }
     this.maxDimension = settings.visionMaxDimension || DEFAULT_MAX_DIMENSION;
   }
 
@@ -42,6 +51,7 @@ export class VisionProvider extends OcrProvider {
     await this.initialize();
     const allMembers = new Map();
     let lastRank = 'Unbekannt';
+    let noCoordCounter = 0;
     const prompt = getPromptForMode('member');
     try {
       for (let i = 0; i < files.length; i++) {
@@ -52,7 +62,9 @@ export class VisionProvider extends OcrProvider {
         try {
           const buffer = await readFile(join(folderPath, file));
           const base64 = await prepareImage(buffer, this.maxDimension);
-          const response = await generateWithImage(this.model, prompt, [base64]);
+          // First inference may trigger model loading (cold start) — use longer timeout
+          const inferTimeout = i === 0 ? 300000 : 120000;
+          const response = await generateWithRetry(this.model, prompt, [base64], { timeout: inferTimeout }, this.logger);
           logResponsePreview(this.logger, response);
           const entries = parseMemberResponse(response);
           this.logger.info(`  ${entries.length} Mitglieder extrahiert.`);
@@ -64,7 +76,7 @@ export class VisionProvider extends OcrProvider {
             } else {
               lastRank = entry.rank;
             }
-            mergeOrAddMember(allMembers, entry, this.logger);
+            noCoordCounter = mergeOrAddMember(allMembers, entry, this.logger, noCoordCounter);
           }
         } catch (fileErr) {
           this.logger.error(`Fehler bei ${file}: ${fileErr.message}`);
@@ -104,7 +116,8 @@ export class VisionProvider extends OcrProvider {
         try {
           const buffer = await readFile(join(folderPath, file));
           const base64 = await prepareImage(buffer, this.maxDimension);
-          const response = await generateWithImage(this.model, prompt, [base64]);
+          const inferTimeout = i === 0 ? 300000 : 120000;
+          const response = await generateWithRetry(this.model, prompt, [base64], { timeout: inferTimeout }, this.logger);
           logResponsePreview(this.logger, response);
           const entries = parseEventResponse(response);
           this.logger.info(`  ${entries.length} Event-Eintraege extrahiert.`);
@@ -122,6 +135,7 @@ export class VisionProvider extends OcrProvider {
       await this.terminate();
     }
     let entries = Array.from(allEntries.values());
+    runEventSanityChecks(entries, this.logger);
     const beforeDedup = entries.length;
     entries = deduplicateEventsByName(entries, this.logger);
     if (entries.length < beforeDedup) {
@@ -136,19 +150,55 @@ export class VisionProvider extends OcrProvider {
 // ═══ Private helpers ═════════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/** Maximum number of retries for transient Ollama errors (HTTP 5xx). */
+const MAX_RETRIES = 2;
+
+/** Delay between retries in ms. */
+const RETRY_DELAY = 2000;
+
+/**
+ * Call generateWithImage with automatic retry on transient HTTP 5xx errors.
+ * @param {string} model - Ollama model ref.
+ * @param {string} prompt - Prompt text.
+ * @param {string[]} images - Base64 images.
+ * @param {{timeout: number}} options - Request options.
+ * @param {Object} logger - Logger instance.
+ * @returns {Promise<string>} Model response text.
+ */
+async function generateWithRetry(model, prompt, images, options, logger) {
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return await generateWithImage(model, prompt, images, options);
+    } catch (err) {
+      const isRetryable = /HTTP 5\d\d/.test(err.message);
+      if (isRetryable && attempt < MAX_RETRIES) {
+        logger.warn(`  Ollama HTTP-Fehler, Retry ${attempt + 1}/${MAX_RETRIES}...`);
+        await new Promise(r => setTimeout(r, RETRY_DELAY));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
 /**
  * Prepare an image for vision model consumption.
  * Optionally resizes to maxDimension, converts to base64.
  */
 async function prepareImage(buffer, maxDimension) {
   const meta = await sharp(buffer).metadata();
+  const width = meta.width || 0;
+  const height = meta.height || 0;
+  if (width === 0 || height === 0) {
+    throw new Error('Invalid image: width or height is 0');
+  }
   let pipeline = sharp(buffer);
-  const maxSide = Math.max(meta.width || 0, meta.height || 0);
+  const maxSide = Math.max(width, height);
   if (maxDimension > 0 && maxSide > maxDimension) {
     const ratio = maxDimension / maxSide;
     pipeline = pipeline.resize({
-      width: Math.round((meta.width || 0) * ratio),
-      height: Math.round((meta.height || 0) * ratio),
+      width: Math.round(width * ratio),
+      height: Math.round(height * ratio),
       fit: 'inside',
     });
   }
@@ -156,42 +206,8 @@ async function prepareImage(buffer, maxDimension) {
   return processed.toString('base64');
 }
 
-async function listPngFiles(folderPath) {
-  const files = (await readdir(folderPath))
-    .filter(f => extname(f).toLowerCase() === '.png')
-    .sort();
-  if (files.length === 0) throw new Error('Keine PNG-Screenshots im Ordner gefunden.');
-  return files;
-}
-
 function logResponsePreview(logger, response) {
   const preview = (response || '').substring(0, 200).replace(/\n/g, ' ');
   logger.info(`  Response: ${preview}`);
 }
 
-function mergeOrAddMember(allMembers, entry, logger) {
-  const key = entry.coords;
-  if (!key) {
-    logger.info(`  + ${entry.name} (keine Koordinaten) \u2014 ${entry.rank} \u2014 ${entry.score.toLocaleString('de-DE')}`);
-    allMembers.set(`_nocoord_${entry.name}`, entry);
-    return;
-  }
-  if (!allMembers.has(key)) {
-    allMembers.set(key, entry);
-    logger.info(`  + ${entry.name} (${entry.coords}) \u2014 ${entry.rank} \u2014 ${entry.score.toLocaleString('de-DE')}`);
-  } else {
-    const existing = allMembers.get(key);
-    if (entry.score > existing.score) existing.score = entry.score;
-  }
-}
-
-function mergeOrAddEvent(allEntries, entry, nameKey, logger) {
-  if (!allEntries.has(nameKey)) {
-    allEntries.set(nameKey, entry);
-    logger.info(`  + ${entry.name} \u2014 Power: ${entry.power.toLocaleString('de-DE')} \u2014 Punkte: ${entry.eventPoints.toLocaleString('de-DE')}`);
-  } else {
-    const existing = allEntries.get(nameKey);
-    if (entry.power > existing.power) existing.power = entry.power;
-    if (entry.eventPoints > existing.eventPoints) existing.eventPoints = entry.eventPoints;
-  }
-}

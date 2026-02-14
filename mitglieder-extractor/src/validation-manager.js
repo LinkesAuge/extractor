@@ -20,7 +20,17 @@ export class ValidationManager {
   constructor(dataDir) {
     this.dataFile = join(dataDir || process.cwd(), 'validation-list.json');
     this.knownNames = [];
+    /** @private O(1) lookup set kept in sync with knownNames array. */
+    this._namesSet = new Set();
+    /** @private Case-insensitive map: lowercase name → canonical name. */
+    this._lowerMap = new Map();
     this.corrections = {};
+  }
+
+  /** @private Rebuild lookup caches from knownNames array. */
+  _rebuildCaches() {
+    this._namesSet = new Set(this.knownNames);
+    this._lowerMap = new Map(this.knownNames.map(n => [n.toLowerCase(), n]));
   }
 
   // ─── Persistenz ──────────────────────────────────────────────────────────
@@ -36,6 +46,7 @@ export class ValidationManager {
       this.knownNames = [];
       this.corrections = {};
     }
+    this._rebuildCaches();
     return this.getState();
   }
 
@@ -59,24 +70,25 @@ export class ValidationManager {
   addName(name) {
     const trimmed = name.trim();
     if (!trimmed) return false;
-    if (!this.knownNames.includes(trimmed)) {
+    if (!this._namesSet.has(trimmed)) {
       this.knownNames.push(trimmed);
+      this._namesSet.add(trimmed);
+      this._lowerMap.set(trimmed.toLowerCase(), trimmed);
       return true;
     }
     return false;
   }
 
   removeName(name) {
-    const idx = this.knownNames.indexOf(name);
-    if (idx >= 0) {
-      this.knownNames.splice(idx, 1);
-      // Auch Korrekturen entfernen die auf diesen Namen zeigen
-      for (const [key, val] of Object.entries(this.corrections)) {
-        if (val === name) delete this.corrections[key];
-      }
-      return true;
+    if (!this._namesSet.has(name)) return false;
+    this.knownNames = this.knownNames.filter(n => n !== name);
+    this._namesSet.delete(name);
+    this._lowerMap.delete(name.toLowerCase());
+    // Auch Korrekturen entfernen die auf diesen Namen zeigen
+    for (const [key, val] of Object.entries(this.corrections)) {
+      if (val === name) delete this.corrections[key];
     }
-    return false;
+    return true;
   }
 
   // ─── Korrekturen ─────────────────────────────────────────────────────────
@@ -149,23 +161,17 @@ export class ValidationManager {
         status = 'corrected';
       }
 
-      // Schritt 2: Gegen knownNames pruefen
+      // Schritt 2: Gegen knownNames pruefen (O(1) via lowercase map)
+      const canonicalName = this._lowerMap.get(name.toLowerCase());
       if (status !== 'corrected') {
-        // Exakter Match (case-insensitive)
-        const exactMatch = this.knownNames.find(
-          kn => kn.toLowerCase() === name.toLowerCase()
-        );
-        if (exactMatch) {
-          name = exactMatch; // Korrekte Schreibweise uebernehmen
+        if (canonicalName) {
+          name = canonicalName; // Korrekte Schreibweise uebernehmen
           status = 'confirmed';
         }
       } else {
         // Korrektur war angewendet — pruefen ob der korrigierte Name bekannt ist
-        const exactMatch = this.knownNames.find(
-          kn => kn.toLowerCase() === name.toLowerCase()
-        );
-        if (exactMatch) {
-          name = exactMatch;
+        if (canonicalName) {
+          name = canonicalName;
         }
       }
 

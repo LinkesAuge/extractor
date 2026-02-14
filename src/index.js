@@ -1,13 +1,13 @@
-import { chromium } from 'playwright';
 import Logger from './logger.js';
 import Saver from './saver.js';
 import Interceptor from './interceptor.js';
+import { parseCliUrl, createBrowserContext, registerShutdown } from './shared.js';
 
 // ─── CLI Argumente ──────────────────────────────────────────────────────────
 
 const args = process.argv.slice(2);
 const headless = args.includes('--headless');
-const urlArg = args.find((a, i) => args[i - 1] === '--url') || 'https://totalbattle.com/de/';
+const urlArg = parseCliUrl(args);
 const outputDir = args.find((a, i) => args[i - 1] === '--output') || './assets';
 
 // ─── Hauptprogramm ─────────────────────────────────────────────────────────
@@ -24,23 +24,11 @@ async function main() {
   // Browser starten (sichtbar, damit der User einloggen und spielen kann)
   logger.info(`Starte Browser${headless ? ' (headless)' : ' (sichtbar)'}...`);
 
-  browser = await chromium.launch({
+  const { browser: b, context } = await createBrowserContext({
     headless,
-    args: [
-      '--disable-blink-features=AutomationControlled',  // Weniger Bot-Detection
-      '--no-sandbox',
-    ],
-  });
-
-  // Neuen Kontext mit realistischem User-Agent erstellen
-  const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-    viewport: { width: 1920, height: 1080 },
-    locale: 'de-DE',
-    timezoneId: 'Europe/Berlin',
-    // Permissions fuer Spiel-Audio etc.
     permissions: ['notifications'],
   });
+  browser = b;
 
   // Neue Seite erstellen
   const page = await context.newPage();
@@ -90,7 +78,6 @@ async function shutdown() {
   logger.info('');
   logger.info('Beende...');
   logger.showSummary();
-
   if (browser) {
     try {
       await browser.close();
@@ -98,18 +85,9 @@ async function shutdown() {
       // Browser war vielleicht schon geschlossen
     }
   }
-
-  process.exit(0);
 }
 
-// Signal-Handler
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
-
-// Unter Windows auch SIGBREAK abfangen
-if (process.platform === 'win32') {
-  process.on('SIGHUP', shutdown);
-}
+registerShutdown(shutdown);
 
 // ─── Start ──────────────────────────────────────────────────────────────────
 

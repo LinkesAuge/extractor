@@ -33,5 +33,10 @@ export function createStepPanel({ step, title, id }) {
     disable() {
       panel.classList.add('disabled');
     },
+    /** Update the step title text. */
+    setTitle(newTitle) {
+      const titleEl = header.querySelector('.step-title');
+      if (titleEl) titleEl.textContent = newTitle;
+    },
   };
 }

@@ -1,10 +1,16 @@
 /**
  * Parses and validates structured JSON responses from vision models.
+ * @module ocr/vision-parser
  */
 
 /**
  * Extract a JSON array from a model response string.
- * Handles common response wrapping: markdown code fences, preamble text, etc.
+ * Handles all common output formats from vision models:
+ * - Well-formed arrays: `[{a}, {b}, {c}]`
+ * - Multiple arrays: `[{a}] [{b}] [{c}]`
+ * - Mixed: `[{a}] {b} {c}` (first in array, rest bare)
+ * - Bare objects: `{a} {b} {c}` (no array wrapper at all)
+ * - Truncated arrays: `[{a}, {b` (model ran out of tokens)
  *
  * @param {string} response - Raw model response.
  * @returns {Array} Parsed JSON array.
@@ -14,24 +20,116 @@ export function extractJsonArray(response) {
   if (!response || typeof response !== 'string') {
     throw new Error('Empty or invalid model response.');
   }
-  // Try direct parse first
-  const trimmed = response.trim();
-  if (trimmed.startsWith('[')) {
-    try { return JSON.parse(trimmed); } catch { /* fall through */ }
-  }
+  // Sanitize common formatting issues from vision models
+  let text = sanitizeModelResponse(response.trim());
   // Strip markdown code fences (```json ... ``` or ``` ... ```)
-  const fenceMatch = trimmed.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
-  if (fenceMatch) {
-    try { return JSON.parse(fenceMatch[1].trim()); } catch { /* fall through */ }
+  const fenceMatch = text.match(/```(?:json)?\s*\r?\n?([\s\S]*?)\r?\n?\s*```/);
+  if (fenceMatch) text = fenceMatch[1].trim();
+  // Fast path: try direct parse of the entire text as a single well-formed array
+  if (text.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) return flattenIfNested(parsed);
+    } catch { /* fall through */ }
   }
-  // Find first [ ... last ] in the response
-  const firstBracket = trimmed.indexOf('[');
-  const lastBracket = trimmed.lastIndexOf(']');
-  if (firstBracket >= 0 && lastBracket > firstBracket) {
-    const candidate = trimmed.substring(firstBracket, lastBracket + 1);
-    try { return JSON.parse(candidate); } catch { /* fall through */ }
-  }
+  // Primary strategy: extract every individual {...} object from the response.
+  // This handles ALL model output formats uniformly — arrays, bare objects, mixed, truncated.
+  const objects = extractIndividualObjects(text);
+  if (objects.length > 0) return objects;
   throw new Error('Could not extract JSON array from model response.');
+}
+
+/** Maximum number of objects to extract via individual-object fallback. */
+const MAX_FALLBACK_OBJECTS = 10;
+
+/**
+ * Fallback: extract individual JSON objects from a broken/truncated response.
+ * Handles cases where the array bracket is never closed (model ran out of tokens).
+ * Capped at MAX_FALLBACK_OBJECTS to prevent hallucination floods.
+ *
+ * @param {string} text - Sanitized response text.
+ * @returns {Array<Object>} Extracted objects (may be empty).
+ */
+function extractIndividualObjects(text) {
+  const objects = [];
+  let searchFrom = 0;
+  while (searchFrom < text.length && objects.length < MAX_FALLBACK_OBJECTS) {
+    const start = text.indexOf('{', searchFrom);
+    if (start < 0) break;
+    let matched = false;
+    for (let depth = 0, i = start; i < text.length; i++) {
+      const ch = text[i];
+      // Skip over quoted strings to avoid counting braces inside them
+      if (ch === '"') {
+        i++;
+        while (i < text.length && text[i] !== '"') {
+          if (text[i] === '\\') i++; // skip escaped char
+          i++;
+        }
+        continue;
+      }
+      if (ch === '{') depth++;
+      else if (ch === '}') {
+        depth--;
+        if (depth === 0) {
+          const candidate = text.substring(start, i + 1);
+          try {
+            const parsed = JSON.parse(candidate);
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+              objects.push(parsed);
+            }
+          } catch { /* skip malformed object */ }
+          searchFrom = i + 1;
+          matched = true;
+          break;
+        }
+      }
+    }
+    if (!matched) searchFrom = start + 1;
+  }
+  return objects;
+}
+
+/**
+ * Pre-process raw model output to fix common JSON formatting issues.
+ * - Quotes unquoted coordinate values (`"coordinates":K:98 X:672 Y:838`)
+ * - Unwraps object-wrapped coordinates (`"coordinates":{"K:98 X:669 Y:849"}`)
+ *
+ * @param {string} raw - Raw response string.
+ * @returns {string} Sanitized string with valid JSON values.
+ */
+function sanitizeModelResponse(raw) {
+  let text = raw;
+  // Fix object-wrapped coordinates: {"K:98 X:669 Y:849"} → "K:98 X:669 Y:849"
+  text = text.replace(
+    /"coordinates"\s*:\s*\{\s*"([^"]+)"\s*\}/gi,
+    '"coordinates":"$1"',
+  );
+  // Fix unquoted coordinate values: K:98 X:672 Y:838 → "K:98 X:672 Y:838"
+  text = text.replace(
+    /"coordinates"\s*:\s*(K\s*:?\s*\d+\s+X\s*:?\s*\d+\s+Y\s*:?\s*\d+)/gi,
+    (_match, coords) => `"coordinates":"${coords.trim()}"`,
+  );
+  // Fix comma-separated numbers outside quotes: "score": 848,897,655 → "score": 848897655
+  // Targets score/power/eventPoints keys to avoid breaking other JSON structure
+  text = text.replace(
+    /("(?:score|power|eventPoints)")\s*:\s*(\d{1,3}(?:,\d{3})+)/gi,
+    (_match, key, num) => `${key}: ${num.replace(/,/g, '')}`,
+  );
+  return text;
+}
+
+/**
+ * Flatten nested arrays (e.g. [[{...}]] -> [{...}]).
+ * @param {Array} arr
+ * @returns {Array}
+ */
+function flattenIfNested(arr) {
+  if (!Array.isArray(arr)) return [];
+  if (arr.length > 0 && Array.isArray(arr[0])) {
+    return arr.flat(1);
+  }
+  return arr;
 }
 
 /**
@@ -43,9 +141,16 @@ export function validateMemberEntry(entry) {
   if (!entry || typeof entry !== 'object') return null;
   const name = normalizeString(entry.name);
   if (!name || name.length < 2) return null;
-  const coords = normalizeCoordinates(entry.coordinates || entry.coords || '');
+  const rawCoords = entry.coordinates || entry.coords || '';
+  // Handle coordinates returned as object (e.g. {"K:98 X:669 Y:849": ...})
+  const coordStr = typeof rawCoords === 'object'
+    ? Object.keys(rawCoords)[0] || ''
+    : rawCoords;
+  const coords = normalizeCoordinates(coordStr);
   const score = normalizeScore(entry.score);
-  const rank = normalizeString(entry.rank) || 'Unbekannt';
+  // Normalize rank: the model sometimes reads the level badge number instead
+  const rawRank = normalizeString(entry.rank);
+  const rank = (!rawRank || /^\d+$/.test(rawRank)) ? 'Unbekannt' : rawRank;
   return { rank, name, coords, score };
 }
 
@@ -59,7 +164,9 @@ export function validateEventEntry(entry) {
   const name = normalizeString(entry.name);
   if (!name || name.length < 2) return null;
   const power = normalizeScore(entry.power);
-  const eventPoints = normalizeScore(entry.eventPoints || entry.event_points || entry.points || 0);
+  // Use nullish coalescing (??) to preserve explicit 0 values from the model
+  const rawPoints = entry.eventPoints ?? entry.event_points ?? entry.points ?? 0;
+  const eventPoints = normalizeScore(rawPoints);
   return { name, power, eventPoints };
 }
 
@@ -90,12 +197,23 @@ function normalizeString(val) {
   return val.trim();
 }
 
+/**
+ * Normalize coordinate strings to the canonical "K:X X:Y Y:Z" format.
+ * Handles multiple input formats:
+ * - "K:98 X:707 Y:919" (our format)
+ * - "K98 X707 Y919" or "K98-X707-Y919"
+ * - "98, 707, 919"
+ */
 function normalizeCoordinates(val) {
   if (typeof val !== 'string') return '';
-  // Already in our format: "K:98 X:707 Y:919"
-  const match = val.match(/K\s*:?\s*(\d+)\s*X\s*:?\s*(\d+)\s*Y\s*:?\s*(\d+)/i);
-  if (match) return `K:${match[1]} X:${match[2]} Y:${match[3]}`;
-  return val.trim();
+  const trimmed = val.trim();
+  // Standard format: "K:98 X:707 Y:919" or "K 98 X 707 Y 919"
+  const standard = trimmed.match(/K\s*:?\s*(\d+)\s*[,\-\s]*X\s*:?\s*(\d+)\s*[,\-\s]*Y\s*:?\s*(\d+)/i);
+  if (standard) return `K:${standard[1]} X:${standard[2]} Y:${standard[3]}`;
+  // Three numbers separated by delimiters (assume K, X, Y order)
+  const threeNums = trimmed.match(/^(\d+)\s*[,\-:;\s]+\s*(\d+)\s*[,\-:;\s]+\s*(\d+)$/);
+  if (threeNums) return `K:${threeNums[1]} X:${threeNums[2]} Y:${threeNums[3]}`;
+  return trimmed;
 }
 
 function normalizeScore(val) {

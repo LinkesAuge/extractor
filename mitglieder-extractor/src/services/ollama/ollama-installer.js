@@ -24,7 +24,11 @@ export function downloadFile(url, destPath, onProgress, maxRedirects = 5) {
       get(reqUrl, (res) => {
         if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
           if (redirectsLeft <= 0) return reject(new Error('Too many redirects'));
-          return doRequest(res.headers.location, redirectsLeft - 1);
+          const nextUrl = res.headers.location;
+          if (!nextUrl.startsWith('https://')) {
+            return reject(new Error('Redirect to non-HTTPS URL rejected for security'));
+          }
+          return doRequest(nextUrl, redirectsLeft - 1);
         }
         if (res.statusCode !== 200) {
           return reject(new Error(`Download failed: HTTP ${res.statusCode}`));

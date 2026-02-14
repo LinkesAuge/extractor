@@ -6,6 +6,17 @@
 import { t } from '../utils/helpers.js';
 
 /**
+ * Escape a string for safe insertion into HTML.
+ * @param {string} str
+ * @returns {string}
+ */
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = String(str ?? '');
+  return div.innerHTML;
+}
+
+/**
  * Create a model card element.
  * @param {Object} model - Model definition from registry.
  * @param {Object} callbacks - Event callbacks.
@@ -26,13 +37,13 @@ export function createModelCard(model, callbacks) {
   radio.className = 'model-radio';
   radio.disabled = true;
   radio.addEventListener('change', () => callbacks.onSelect?.(model.id));
-  // Info section
+  // Info section — escape all model fields before inserting
   const info = document.createElement('div');
   info.className = 'model-info';
   info.innerHTML = `
-    <strong class="model-name">${model.name}</strong>
-    <span class="model-meta">${model.params} &middot; ${model.downloadSize} &middot; ${model.minRam} RAM</span>
-    <span class="model-desc">${model.description}</span>
+    <strong class="model-name">${escapeHtml(model.name)}</strong>
+    <span class="model-meta">${escapeHtml(model.params)} &middot; ${escapeHtml(model.downloadSize)} &middot; ${escapeHtml(model.minRam)} RAM</span>
+    <span class="model-desc">${escapeHtml(model.description)}</span>
   `;
   // Actions section
   const actions = document.createElement('div');

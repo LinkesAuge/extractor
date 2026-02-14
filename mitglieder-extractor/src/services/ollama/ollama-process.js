@@ -33,20 +33,25 @@ export async function startOllama(logger) {
     ollamaProcess.on('error', (err) => {
       logger?.error(`Ollama process error: ${err.message}`);
       ollamaProcess = null;
+      weStartedOllama = false;
     });
     ollamaProcess.on('exit', (code) => {
-      logger?.info(`Ollama process exited with code ${code}`);
+      logger?.info(`Ollama process exited with code ${code ?? 'unknown'}`);
       ollamaProcess = null;
+      weStartedOllama = false;
     });
     weStartedOllama = true;
     // Wait for Ollama to become reachable
     const ready = await waitForOllama(10000);
     if (!ready) {
+      // Cleanup: kill the process we started since it's not responding
+      killOllamaProcess(logger);
       return { ok: false, error: 'Ollama started but did not become reachable within 10 seconds.' };
     }
     logger?.success('Ollama is running.');
     return { ok: true, alreadyRunning: false };
   } catch (err) {
+    killOllamaProcess(logger);
     return { ok: false, error: err.message };
   }
 }
@@ -61,16 +66,8 @@ export async function stopOllama(logger) {
     logger?.info('Ollama was not started by us, skipping shutdown.');
     return { ok: true };
   }
-  try {
-    ollamaProcess.kill('SIGTERM');
-    ollamaProcess = null;
-    weStartedOllama = false;
-    logger?.info('Ollama process stopped.');
-    return { ok: true };
-  } catch (err) {
-    logger?.error(`Failed to stop Ollama: ${err.message}`);
-    return { ok: false };
-  }
+  killOllamaProcess(logger);
+  return { ok: true };
 }
 
 /**
@@ -79,6 +76,24 @@ export async function stopOllama(logger) {
  */
 export function isOllamaManagedByUs() {
   return weStartedOllama && ollamaProcess !== null;
+}
+
+/**
+ * Kill the Ollama process and reset state.
+ * @param {Object} [logger]
+ */
+function killOllamaProcess(logger) {
+  if (ollamaProcess) {
+    try {
+      // On Windows, process.kill with default signal works reliably
+      ollamaProcess.kill();
+      logger?.info('Ollama process stopped.');
+    } catch (err) {
+      logger?.error(`Failed to stop Ollama: ${err.message}`);
+    }
+  }
+  ollamaProcess = null;
+  weStartedOllama = false;
 }
 
 /**

@@ -1,6 +1,9 @@
 import Saver from './saver.js';
 import Logger from './logger.js';
 
+/** Maximum number of URLs to track for deduplication. */
+const MAX_PROCESSED_URLS = 10000;
+
 class Interceptor {
   constructor(logger, saver) {
     this.logger = logger;
@@ -64,6 +67,11 @@ class Interceptor {
     // Duplikat-Check: gleiche URL nicht nochmal herunterladen
     if (this.processedUrls.has(url)) return;
     this.processedUrls.add(url);
+    // Cap memory usage for long sessions
+    if (this.processedUrls.size > MAX_PROCESSED_URLS) {
+      const oldest = this.processedUrls.values().next().value;
+      this.processedUrls.delete(oldest);
+    }
 
     // Response-Body holen
     let buffer;
@@ -98,7 +106,7 @@ class Interceptor {
         await this.saver.saveWebSocketFrame(wsUrl, data, 'received');
         this.logger.logWebSocketFrame(wsUrl, size);
       } catch (err) {
-        // WebSocket-Frames-Fehler leise ignorieren
+        this.logger.logSkipped(wsUrl, `WS frame error: ${err.message}`);
       }
     });
 
@@ -107,7 +115,7 @@ class Interceptor {
         const data = frame.payload;
         await this.saver.saveWebSocketFrame(wsUrl, data, 'sent');
       } catch (err) {
-        // Leise ignorieren
+        this.logger.logSkipped(wsUrl, `WS send error: ${err.message}`);
       }
     });
 

@@ -8,9 +8,12 @@
  * @param {import('playwright').Page} page - Die Playwright-Seite
  * @returns {Promise<{x: number, y: number, width: number, height: number}>}
  */
+const REGION_SELECT_TIMEOUT_MS = 120000;
+
 async function selectRegion(page) {
   // Overlay und Selection-Logik in den Browser injizieren
-  const region = await page.evaluate(() => {
+  const region = await Promise.race([
+    page.evaluate(() => {
     return new Promise((resolve) => {
       // ── Overlay erstellen ──
       const overlay = document.createElement('div');
@@ -81,6 +84,7 @@ async function selectRegion(page) {
       let startX = 0;
       let startY = 0;
       let drawing = false;
+      let currentConfirmHandler = null;
 
       function updateBox(e) {
         const x = Math.min(startX, e.clientX);
@@ -137,11 +141,15 @@ async function selectRegion(page) {
         // Hilfetext aendern
         helpText.textContent = `Auswahl: ${Math.round(w)} x ${Math.round(h)} px  —  Klicke nochmal um zu bestaetigen, oder ziehe neu`;
 
+        // Remove previous confirm handler if user redraws before confirming
+        if (currentConfirmHandler) {
+          overlay.removeEventListener('click', currentConfirmHandler);
+        }
+
         // Beim naechsten Klick auf das Overlay bestaetigen
-        overlay.addEventListener('click', function confirm(ev) {
-          // Nur bestaetigen, wenn nicht gerade gezogen wird
-          // und der Klick nicht ein neuer Drag-Start ist
+        currentConfirmHandler = function confirm() {
           overlay.removeEventListener('click', confirm);
+          currentConfirmHandler = null;
 
           // Aufraumen
           overlay.remove();
@@ -155,10 +163,15 @@ async function selectRegion(page) {
             width: Math.round(w),
             height: Math.round(h),
           });
-        }, { once: true });
+        };
+        overlay.addEventListener('click', currentConfirmHandler, { once: true });
       });
     });
-  });
+  }),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Region-Auswahl: Zeitlimit ueberschritten (2 Minuten).')), REGION_SELECT_TIMEOUT_MS)
+    ),
+  ]);
 
   return region;
 }

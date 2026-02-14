@@ -1,6 +1,22 @@
 import { mkdir, writeFile, unlink } from 'fs/promises';
 import { join } from 'path';
 import sharp from 'sharp';
+import { formatSessionTimestamp } from './utils/date.js';
+
+/** Default scroll tick delta per individual wheel event. */
+const DEFAULT_TICK_DELTA = 100;
+/** Default pause between individual scroll ticks (ms). */
+const DEFAULT_TICK_PAUSE = 30;
+/** Default wait time after a full scroll before next screenshot (ms). */
+const DEFAULT_SCROLL_DELAY = 500;
+/** Default maximum screenshots per capture run. */
+const DEFAULT_MAX_SCREENSHOTS = 50;
+/** Default pixel similarity threshold for list-end detection (0-1). */
+const DEFAULT_SIMILARITY_THRESHOLD = 0.98;
+/** Default pixel tolerance per channel for comparing screenshots. */
+const DEFAULT_PIXEL_TOLERANCE = 5;
+/** Number of consecutive similar screenshots required to detect list end. */
+const CONSECUTIVE_SIMILAR_TO_STOP = 2;
 
 /**
  * Screenshot + Scroll + Pixel-Vergleich Capture-Loop.
@@ -24,12 +40,12 @@ class ScrollCapturer {
     this.page = page;
     this.logger = logger;
     this.scrollTicks = options.scrollTicks || 10;
-    this.tickDelta = options.tickDelta || 100;
-    this.tickPause = options.tickPause || 30;
-    this.scrollDelay = options.scrollDelay || 500;
-    this.maxScreenshots = options.maxScreenshots || 50;
+    this.tickDelta = options.tickDelta || DEFAULT_TICK_DELTA;
+    this.tickPause = options.tickPause || DEFAULT_TICK_PAUSE;
+    this.scrollDelay = options.scrollDelay || DEFAULT_SCROLL_DELAY;
+    this.maxScreenshots = options.maxScreenshots || DEFAULT_MAX_SCREENSHOTS;
     this.outputDir = options.outputDir || './captures';
-    this.similarityThreshold = options.similarityThreshold || 0.98;
+    this.similarityThreshold = options.similarityThreshold || DEFAULT_SIMILARITY_THRESHOLD;
   }
 
   /**
@@ -73,17 +89,7 @@ class ScrollCapturer {
    * Startet den Capture-Loop fuer eine Region.
    */
   async capture(region) {
-    const now = new Date();
-    const datePart = [
-      now.getFullYear(),
-      String(now.getMonth() + 1).padStart(2, '0'),
-      String(now.getDate()).padStart(2, '0'),
-    ].join('');
-    const timePart = [
-      String(now.getHours()).padStart(2, '0'),
-      String(now.getMinutes()).padStart(2, '0'),
-    ].join('_');
-    const sessionPrefix = `screenshot_${datePart}_${timePart}`;
+    const sessionPrefix = `screenshot_${formatSessionTimestamp()}`;
     const sessionDir = join(this.outputDir, sessionPrefix);
     await mkdir(sessionDir, { recursive: true });
 
@@ -121,7 +127,7 @@ class ScrollCapturer {
             `(${consecutiveSimilar}/2 zum Stoppen)`
           );
 
-          if (consecutiveSimilar >= 2) {
+          if (consecutiveSimilar >= CONSECUTIVE_SIMILAR_TO_STOP) {
             for (const dupFile of duplicateFiles) {
               await unlink(dupFile).catch(() => {});
               count--;
@@ -165,8 +171,10 @@ class ScrollCapturer {
    * Dekodiert die PNGs zu Rohpixeln, damit Animationen, Timer und andere
    * kleine visuelle Aenderungen die Erkennung nicht stoeren.
    * Ein Pixel gilt als "gleich" wenn die Differenz pro Kanal <= pixelTolerance ist.
+   *
+   * Also available as a static method so callers don't need an instance.
    */
-  async compareBuffers(bufA, bufB, pixelTolerance = 5) {
+  async compareBuffers(bufA, bufB, pixelTolerance = DEFAULT_PIXEL_TOLERANCE) {
     try {
       const [rawA, rawB] = await Promise.all([
         sharp(bufA).raw().toBuffer({ resolveWithObject: true }),
@@ -197,14 +205,54 @@ class ScrollCapturer {
       }
 
       return matchingPixels / totalPixels;
-    } catch {
+    } catch (err) {
       // Fallback: Bei Fehler als unterschiedlich betrachten
+      console.warn('compareBuffers failed:', err?.message ?? err);
       return 0;
     }
   }
 
   sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Static version of compareBuffers for use without an instance.
+   * @param {Buffer} bufA - First PNG buffer.
+   * @param {Buffer} bufB - Second PNG buffer.
+   * @param {number} [pixelTolerance=5] - Per-channel tolerance.
+   * @returns {Promise<number>} Similarity between 0 and 1.
+   */
+  static async compareBuffers(bufA, bufB, pixelTolerance = 5) {
+    try {
+      const [rawA, rawB] = await Promise.all([
+        sharp(bufA).raw().toBuffer({ resolveWithObject: true }),
+        sharp(bufB).raw().toBuffer({ resolveWithObject: true }),
+      ]);
+      if (rawA.info.width !== rawB.info.width || rawA.info.height !== rawB.info.height) {
+        return 0;
+      }
+      const pixelsA = rawA.data;
+      const pixelsB = rawB.data;
+      const totalPixels = rawA.info.width * rawA.info.height;
+      const channels = rawA.info.channels;
+      let matchingPixels = 0;
+      for (let i = 0; i < totalPixels; i++) {
+        const off = i * channels;
+        let pixelMatch = true;
+        for (let c = 0; c < channels; c++) {
+          if (Math.abs(pixelsA[off + c] - pixelsB[off + c]) > pixelTolerance) {
+            pixelMatch = false;
+            break;
+          }
+        }
+        if (pixelMatch) matchingPixels++;
+      }
+      return matchingPixels / totalPixels;
+    } catch (err) {
+      console.warn('compareBuffers failed:', err?.message ?? err);
+      return 0;
+    }
   }
 }
 

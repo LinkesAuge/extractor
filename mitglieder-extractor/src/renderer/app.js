@@ -21,8 +21,8 @@ import {
 import { initHistoryUI, loadHistory, refreshHistoryUI } from './modules/history-ui.js';
 import { initTabs, switchToTab } from './modules/tab-manager.js';
 import { initLogUI } from './modules/log-ui.js';
-import { initEngineSelector, setActiveEngine, getActiveEngine } from './modules/engine-selector-ui.js';
-import { initOllamaUi, getSelectedModelId } from './modules/ollama-ui.js';
+import { initEngineSelector } from './modules/engine-selector-ui.js';
+import { initOllamaUi, refreshOllamaUiText } from './modules/ollama-ui.js';
 
 // ─── Language Selector ─────────────────────────────────────────────────────
 
@@ -41,6 +41,7 @@ function refreshAllDynamicUI() {
   refreshOcrUI();
   refreshValidationUI();
   refreshHistoryUI();
+  refreshOllamaUiText();
 }
 
 // ─── Module Initialization ─────────────────────────────────────────────────

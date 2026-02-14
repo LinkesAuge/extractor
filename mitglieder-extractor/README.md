@@ -79,6 +79,9 @@ Dies fuehrt zwei Schritte aus:
 | Script | Befehl | Beschreibung |
 |--------|--------|-------------|
 | `npm start` | `electron src/main.js` | App im Entwicklungsmodus starten |
+| `npm test` | `vitest run` | Unit-Tests ausfuehren (203 Tests) |
+| `npm run test:watch` | `vitest` | Tests im Watch-Modus |
+| `npm run test:coverage` | `vitest run --coverage` | Tests mit Coverage-Bericht |
 | `npm run dist` | `prepare-browsers && build` | Kompletter Build (Browser + Installer) |
 | `npm run build` | `electron-builder --win` | Nur Installer bauen (Browser muessen bereits in `pw-browsers/` liegen) |
 | `npm run build:dir` | `electron-builder --win --dir` | Portable Version (ohne Installer, nur entpackt) |
@@ -93,6 +96,24 @@ dist/Member Extractor Setup X.X.X.exe
 ```
 
 Typische Groesse: ~220 MB (inkl. Chromium-Browser, Electron, sharp, Tesseract.js)
+
+### Tests
+
+Die Testsuite verwendet **Vitest** und umfasst 259 Unit-Tests in 22 Dateien:
+
+```bash
+npm test
+```
+
+| Testbereich | Dateien | Tests | Beschreibung |
+|-------------|---------|-------|-------------|
+| OCR-Module | 7 | 94 | Noise-Erkennung, Score-Extraktion, Name-Extraktion, Dedup, CSV-Formatierung, Bildvorverarbeitung, Konstanten |
+| OcrProcessor | 1 | 21 | Orchestrator-Logik, Member/Event-Parsing, Score-Map-Extraktion |
+| ValidationManager | 1 | 39 | Namensverwaltung, Fuzzy-Matching, Levenshtein, Korrekturen, Persistenz |
+| Backend-Services | 6 | 53 | Datum-Util, i18n-Backend, GUI-Logger, ScrollCapturer, Pfad-Konstanten, App-State |
+| IPC-Handler | 7 | 74 | Config, Dialog, History, Validation, Browser, Capture, OCR (alle mit gemockten Electron-APIs) |
+
+Alle Module — einschliesslich der Electron-abhaengigen (`paths.js`, `app-state.js`, `browser-handler.js`, `capture-handler.js`, `ocr-handler.js`) — werden mittels `vi.mock()` fuer Electron/Playwright-Abhaengigkeiten getestet.
 
 ### Build-Konfiguration
 
@@ -345,18 +366,48 @@ Einstellungen werden in `mitglieder-config.json` gespeichert:
 ```
 mitglieder-extractor/
   src/
-    main.js              # Electron Hauptprozess (IPC, Browser, OCR, Validation, i18n)
+    main.js              # Electron Hauptprozess (schlanker Einstiegspunkt, ~75 Zeilen)
     preload.cjs          # Sichere IPC-Bruecke (contextBridge)
     validation-manager.js # Validierungsliste (Fuzzy-Match, Corrections)
-    renderer/
-      index.html         # GUI-Struktur (4-Tab-Layout, data-i18n Attribute)
-      styles.css         # Styling (Dark Theme)
-      app.js             # Frontend-Logik (UI-Events, IPC, i18n-Integration)
-      i18n.js            # Internationalisierung (DE/EN, ~200 Uebersetzungsschluessel)
-      icon.png           # App-Icon (Renderer)
     scroll-capturer.js   # Screenshot-Erfassung + Duplikaterkennung
     region-selector.js   # Interaktive Region-Auswahl im Browser
     ocr-processor.js     # OCR-Engine (Tesseract.js + sharp)
+    ipc/                 # IPC-Handler-Module (je ein Handler pro Funktionsbereich)
+      browser-handler.js   # Browser starten/schliessen, Auto-Login
+      capture-handler.js   # Scroll-Capture (Mitglieder + Event, vereinheitlicht)
+      ocr-handler.js       # OCR starten/stoppen, CSV-Export (Mitglieder + Event)
+      config-handler.js    # Konfiguration laden/speichern
+      dialog-handler.js    # Datei-Dialoge, Ordner oeffnen/waehlen
+      history-handler.js   # History laden/loeschen/exportieren
+      validation-handler.js # Validierungsliste CRUD, Import/Export
+    services/            # Gemeinsame Dienste
+      app-state.js         # Zentraler Applikations-State
+      gui-logger.js        # GUI-Logger (Konsole + IPC + Log-Datei)
+      i18n-backend.js      # Backend-Uebersetzungen fuer Dialog-Titel
+    utils/               # Hilfsfunktionen
+      paths.js             # Pfad-Konstanten (Config, Results, Logs, etc.)
+      date.js              # Datumshilfen (localDate)
+    renderer/
+      index.html         # GUI-Struktur (4-Tab-Layout, data-i18n Attribute)
+      styles.css         # Styling (Dark Theme)
+      app.js             # Schlanker Einstiegspunkt (~110 Zeilen, ES Module)
+      i18n.js            # Internationalisierung (DE/EN, ~200 Uebersetzungsschluessel)
+      icon.png           # App-Icon (Renderer)
+      utils/
+        helpers.js         # DOM-Helfer ($, $$, t), escapeHtml, localDateString, getRankClass
+      modules/
+        state.js           # Zentraler Renderer-State
+        config.js          # Config laden/speichern/wiederherstellen
+        browser-ui.js      # Browser starten/schliessen, Status, Auto-Login
+        capture-ui.js      # Scroll-Capture UI (Mitglieder + Event, vereinheitlicht)
+        ocr-ui.js          # OCR UI (Mitglieder + Event, vereinheitlicht)
+        validation-ui.js   # Validierungstabelle, Namensliste, Korrekturen
+        history-ui.js      # History-Ansicht, Details, Export
+        tab-manager.js     # Tab- und Sub-Tab-Navigation
+        log-ui.js          # Log-Anzeige, Kopieren, Leeren
+      components/
+        lightbox.js        # Vollbild-Lightbox fuer Screenshots
+        input-dialog.js    # Modaler Input-Dialog (Ersatz fuer prompt)
   scripts/
     prepare-browsers.js  # Build-Helfer: Playwright Chromium lokal kopieren
   test/
@@ -391,8 +442,8 @@ Die App unterstuetzt Deutsch und Englisch. Die Architektur:
 |---------|-------|--------|
 | **Uebersetzungen** | `src/renderer/i18n.js` | ~200 Schluessel-Wert-Paare pro Sprache, `t(key, vars)` Hilfsfunktion |
 | **Statische Texte** | `src/renderer/index.html` | `data-i18n`, `data-i18n-placeholder`, `data-i18n-tooltip` Attribute |
-| **Dynamische Texte** | `src/renderer/app.js` | `t('key', { var: value })` Aufrufe mit Platzhalter-Interpolation |
-| **Dialog-Titel** | `src/main.js` | Minimales Backend-i18n (`dt()`) fuer Datei-Dialoge |
+| **Dynamische Texte** | `src/renderer/modules/*.js` | `t('key', { var: value })` Aufrufe mit Platzhalter-Interpolation |
+| **Dialog-Titel** | `src/services/i18n-backend.js` | Minimales Backend-i18n (`dt()`) fuer Datei-Dialoge |
 
 **Sprache wechseln:**
 1. Einstellungen-Tab → Sprache → Deutsch/English waehlen

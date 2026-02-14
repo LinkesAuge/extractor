@@ -1,22 +1,28 @@
 {
   "language": "de",
+  "scrollTicks": 6,
+  "scrollDelay": 500,
+  "maxScreenshots": 100,
   "region": {
     "x": 686,
     "y": 366,
     "width": 712,
     "height": 363
   },
-  "scrollTicks": 6,
-  "scrollDelay": 500,
-  "maxScreenshots": 100,
-  "outputDir": "./captures/mitglieder",
+  "eventRegion": {
+    "x": 735,
+    "y": 303,
+    "width": 572,
+    "height": 386
+  },
   "autoLogin": true,
-  "loginEmail": "",
-  "loginPassword": "",
+  "loginEmail": "schroeder@rs-pro.de",
+  "loginPassword": "Herz2015",
+  "outputDir": "./captures/mitglieder",
   "autoOcr": true,
   "autoValidation": true,
   "autoSave": true,
-  "ocrFolder": "C:\\Users\\RS-Pr\\OneDrive\\Dokumente\\ChillerExtractor\\mitglieder-extractor\\captures\\event_20260209_20_11",
+  "ocrFolder": "D:\\Projekte\\WebDev\\AssetExtractor\\mitglieder-extractor\\captures\\mitglieder\\screenshot_20260214_01_10",
   "ocrSettings": {
     "scale": 3,
     "greyscale": true,
@@ -25,13 +31,9 @@
     "threshold": 152,
     "psm": 11,
     "lang": "deu",
-    "minScore": 5000
-  },
-  "eventRegion": {
-    "x": 735,
-    "y": 303,
-    "width": 572,
-    "height": 386
+    "minScore": 5000,
+    "engine": "vision",
+    "ollamaModel": "glm-ocr"
   },
   "eventScrollTicks": 6,
   "eventScrollDelay": 500,
@@ -40,7 +42,7 @@
   "eventAutoOcr": true,
   "eventAutoValidation": true,
   "eventAutoSave": true,
-  "eventOcrFolder": "C:\\Users\\RS-Pr\\OneDrive\\Dokumente\\ChillerExtractor\\mitglieder-extractor\\captures\\event_20260209_20_11",
+  "eventOcrFolder": "captures\\events\\event_20260213_20_40",
   "eventOcrSettings": {
     "scale": 3,
     "greyscale": false,
@@ -49,6 +51,10 @@
     "threshold": 0,
     "psm": 3,
     "lang": "deu",
-    "minScore": 5000
-  }
+    "minScore": 5000,
+    "engine": "vision",
+    "ollamaModel": "glm-ocr"
+  },
+  "ocrEngine": "vision",
+  "ollamaModel": "glm-ocr"
 }

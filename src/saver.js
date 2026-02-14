@@ -1,4 +1,4 @@
-import { mkdir, writeFile, access } from 'fs/promises';
+import { mkdir, writeFile, appendFile } from 'fs/promises';
 import { join, extname, basename } from 'path';
 import { URL } from 'url';
 
@@ -93,7 +93,7 @@ class Saver {
       if (ext && ext.length <= 6 && ext.length >= 2) {
         return ext;
       }
-    } catch {
+    } catch (err) {
       // URL konnte nicht geparst werden
     }
 
@@ -167,7 +167,7 @@ class Saver {
       }
 
       return name;
-    } catch {
+    } catch (err) {
       return `asset_${Date.now()}${this.getExtension(url, contentType)}`;
     }
   }
@@ -231,7 +231,6 @@ class Saver {
     }) + '\n';
 
     const filePath = join(this.dirs.websocket, 'frames.jsonl');
-    const { appendFile } = await import('fs/promises');
     await appendFile(filePath, entry);
 
     return { category: 'websocket', filePath, size: entry.length };

@@ -1,17 +1,24 @@
-import { chromium } from 'playwright';
-import { readFile, writeFile } from 'fs/promises';
+import { mkdir, readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { createInterface } from 'readline';
 import chalk from 'chalk';
 import Logger from './logger.js';
 import selectRegion from './region-selector.js';
 import ScrollCapturer from './scroll-capturer.js';
+import { parseCliUrl, createBrowserContext, registerShutdown } from './shared.js';
+
+const CONFIG_FILE = 'capture-config.json';
+const DEFAULT_SCROLL_TICKS = 10;
+const DEFAULT_SCROLL_DELAY = 500;
+const DEFAULT_MAX_SCREENSHOTS = 100;
+const NAVIGATION_TIMEOUT_MS = 60000;
+
+const isYes = (s) => /^[jy]$/i.test((s || '').trim());
 
 // ─── CLI Argumente ──────────────────────────────────────────────────────────
 
 const args = process.argv.slice(2);
-const urlArg = args.find((a, i) => args[i - 1] === '--url') || 'https://totalbattle.com/de/';
-const configFile = 'capture-config.json';
+const urlArg = parseCliUrl(args);
 
 // ─── Readline-Hilfsfunktionen ───────────────────────────────────────────────
 
@@ -39,7 +46,7 @@ function waitForEnter(message) {
 
 async function loadConfig() {
   try {
-    const data = await readFile(configFile, 'utf-8');
+    const data = await readFile(CONFIG_FILE, 'utf-8');
     return JSON.parse(data);
   } catch {
     return null;
@@ -47,7 +54,11 @@ async function loadConfig() {
 }
 
 async function saveConfig(config) {
-  await writeFile(configFile, JSON.stringify(config, null, 2));
+  try {
+    await writeFile(CONFIG_FILE, JSON.stringify(config, null, 2));
+  } catch (err) {
+    logger.warn(`Failed to save config: ${err.message}`);
+  }
 }
 
 // ─── Hauptprogramm ─────────────────────────────────────────────────────────
@@ -71,7 +82,7 @@ async function main() {
     const { x, y, width, height } = savedConfig.region;
     console.log(chalk.dim(`  Gespeicherte Region gefunden: ${x}, ${y} | ${width} x ${height}`));
     const reuse = await ask('Gespeicherte Region wiederverwenden? (j/n)', 'j');
-    if (reuse.toLowerCase() === 'j' || reuse.toLowerCase() === 'y') {
+    if (isYes(reuse)) {
       useRegion = savedConfig.region;
     }
   }
@@ -82,9 +93,9 @@ async function main() {
   console.log(chalk.dim('  Scroll = mehrere Mausrad-Ticks (wie echtes Mausrad-Drehen)'));
   console.log('');
 
-  let scrollTicks = parseInt(await ask('Mausrad-Ticks pro Scroll-Schritt', savedConfig?.scrollTicks || 10));
-  const scrollDelay = parseInt(await ask('Wartezeit nach Scroll in ms', savedConfig?.scrollDelay || 500));
-  const maxScreenshots = parseInt(await ask('Maximale Anzahl Screenshots', savedConfig?.maxScreenshots || 100));
+  let scrollTicks = parseInt(await ask('Mausrad-Ticks pro Scroll-Schritt', savedConfig?.scrollTicks || DEFAULT_SCROLL_TICKS)) || DEFAULT_SCROLL_TICKS;
+  const scrollDelay = parseInt(await ask('Wartezeit nach Scroll in ms', savedConfig?.scrollDelay || DEFAULT_SCROLL_DELAY)) || DEFAULT_SCROLL_DELAY;
+  const maxScreenshots = parseInt(await ask('Maximale Anzahl Screenshots', savedConfig?.maxScreenshots || DEFAULT_MAX_SCREENSHOTS)) || DEFAULT_MAX_SCREENSHOTS;
   const outputDir = await ask('Ausgabeordner', savedConfig?.outputDir || './captures');
 
   console.log('');
@@ -92,20 +103,8 @@ async function main() {
   // Browser starten
   logger.info('Starte Browser (sichtbar)...');
 
-  browser = await chromium.launch({
-    headless: false,
-    args: [
-      '--disable-blink-features=AutomationControlled',
-      '--no-sandbox',
-    ],
-  });
-
-  const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-    viewport: { width: 1920, height: 1080 },
-    locale: 'de-DE',
-    timezoneId: 'Europe/Berlin',
-  });
+  const { browser: b, context } = await createBrowserContext({ headless: false });
+  browser = b;
 
   const page = await context.newPage();
 
@@ -114,7 +113,7 @@ async function main() {
   try {
     await page.goto(urlArg, {
       waitUntil: 'domcontentloaded',
-      timeout: 60000,
+      timeout: NAVIGATION_TIMEOUT_MS,
     });
     logger.success(`Seite geladen: ${await page.title()}`);
   } catch (err) {
@@ -161,7 +160,6 @@ async function main() {
 
     // Test-Screenshots speichern
     const testDir = join(outputDir, '_calibration');
-    const { mkdir } = await import('fs/promises');
     await mkdir(testDir, { recursive: true });
     await writeFile(join(testDir, 'before.png'), testResult.before);
     await writeFile(join(testDir, 'after.png'), testResult.after);
@@ -171,7 +169,7 @@ async function main() {
     console.log('');
 
     const ok = await ask('Scroll-Menge OK? Wenn nicht, neuen Wert eingeben (j = OK, oder Zahl)', 'j');
-    if (ok.toLowerCase() === 'j' || ok.toLowerCase() === 'y') {
+    if (isYes(ok)) {
       calibrated = true;
     } else {
       const newTicks = parseInt(ok);
@@ -196,7 +194,7 @@ async function main() {
     outputDir,
   };
   await saveConfig(config);
-  logger.info('Konfiguration gespeichert in capture-config.json');
+  logger.info(`Konfiguration gespeichert in ${CONFIG_FILE}`);
   console.log('');
 
   // ─── Capture starten ────────────────────────────────────────────────────
@@ -223,7 +221,7 @@ async function main() {
 
   // Fragen ob nochmal
   const again = await ask('Nochmal capturen? (j/n)', 'n');
-  if (again.toLowerCase() === 'j' || again.toLowerCase() === 'y') {
+  if (isYes(again)) {
     console.log('');
     await waitForEnter('Scrolle die Liste zurueck zum Anfang und druecke [Enter]... ');
     console.log('');
@@ -231,13 +229,13 @@ async function main() {
     // Neue Region?
     const newRegion = await ask('Neue Region auswaehlen? (j/n)', 'n');
     let captureRegion = useRegion;
-    if (newRegion.toLowerCase() === 'j' || newRegion.toLowerCase() === 'y') {
+    if (isYes(newRegion)) {
       captureRegion = await selectRegion(page);
       logger.success(`Neue Region: ${captureRegion.x}, ${captureRegion.y} | ${captureRegion.width} x ${captureRegion.height}`);
     }
 
     // Ticks anpassen?
-    const newTicks = parseInt(await ask('Mausrad-Ticks pro Schritt', scrollTicks));
+    const newTicks = parseInt(await ask('Mausrad-Ticks pro Schritt', scrollTicks)) || scrollTicks;
 
     const newCapturer = new ScrollCapturer(page, logger, {
       scrollTicks: newTicks,
@@ -271,14 +269,9 @@ async function shutdown() {
       // Ignorieren
     }
   }
-  process.exit(0);
 }
 
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
-if (process.platform === 'win32') {
-  process.on('SIGHUP', shutdown);
-}
+registerShutdown(shutdown);
 
 // ─── Start ──────────────────────────────────────────────────────────────────
 

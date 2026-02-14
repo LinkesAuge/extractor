@@ -82,6 +82,8 @@ contextBridge.exposeInMainWorld('api', {
   ollamaListModels: () => ipcRenderer.invoke('ollama-list-models'),
   ollamaPullModel: (modelId) => ipcRenderer.invoke('ollama-pull-model', modelId),
   ollamaDeleteModel: (modelId) => ipcRenderer.invoke('ollama-delete-model', modelId),
+  ollamaTest: (modelId) => ipcRenderer.invoke('ollama-test', modelId),
+  ollamaOpenModelsFolder: () => ipcRenderer.invoke('ollama-open-models-folder'),
 
   // Events vom Main Process empfangen
   onBrowserStatus: (callback) => {

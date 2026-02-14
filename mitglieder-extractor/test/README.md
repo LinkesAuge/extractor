@@ -6,15 +6,19 @@ Systematisches Test- und Optimierungssystem fuer die OCR-Erkennung des Mitgliede
 
 ```
 test/
-  ocr-benchmark.js          # Benchmark-Script (Hauptprogramm)
+  ocr-benchmark.js                  # Tesseract Benchmark-Script
+  vision-benchmark.js               # Vision-OCR Benchmark-Script (Ollama)
   fixtures/
-    ground-truth.json        # Manuell verifizierte Mitgliederdaten
-    baseline_20260208_22_56/ # 25 Baseline-Screenshots (PNG)
-  results/                   # Benchmark-Ergebnisse (JSON, gitignored)
-  debug/                     # Debug-Bilder (gitignored)
+    ground-truth.json                # Ground-Truth Tesseract (66 Mitglieder)
+    vision-ground-truth.json         # Ground-Truth Vision-OCR (99 Mitglieder)
+    baseline_20260208_22_56/         # 25 Baseline-Screenshots (Tesseract)
+  results/                           # Benchmark-Ergebnisse (JSON, gitignored)
+  debug/                             # Debug-Bilder (gitignored)
 ```
 
-## Ground-Truth
+## Ground-Truth Dateien
+
+### Tesseract Ground-Truth
 
 Die Datei `fixtures/ground-truth.json` enthaelt manuell verifizierte Daten fuer 66 Clan-Mitglieder:
 
@@ -43,6 +47,34 @@ Die Datei `fixtures/ground-truth.json` enthaelt manuell verifizierte Daten fuer 
 | `name` | Spielername (exakt wie im Spiel) | "Captain Future xXx" |
 | `coords` | Koordinaten im Format K:X:Y | "K:98 X:707 Y:919" |
 | `score` | Score als ganzzahliger Wert | 105666082 |
+
+### Vision-OCR Ground-Truth
+
+Die Datei `fixtures/vision-ground-truth.json` enthaelt manuell verifizierte Daten fuer 99 Clan-Mitglieder aus 38 Screenshots:
+
+```json
+{
+  "description": "Ground-Truth fuer Vision-OCR Benchmark — manuell aus 38 Screenshots verifiziert",
+  "captureFolder": "../../captures/mitglieder/screenshot_20260214_01_10",
+  "verifiedDate": "2026-02-14",
+  "totalMembers": 99,
+  "screenshotCount": 38,
+  "rankGroups": {
+    "Anführer": 1,
+    "Vorgesetzter": 5,
+    "Offizier": 85,
+    "Veteran": 8
+  },
+  "members": [
+    {
+      "rank": "Anführer",
+      "name": "Schmerztherapeut",
+      "coords": "K:98 X:666 Y:852",
+      "score": 1205074866
+    }
+  ]
+}
+```
 
 ### Ground-Truth aktualisieren
 
@@ -264,6 +296,115 @@ const PRESETS = {
 - **Namen genau notieren**: Leerzeichen, Gross-/Kleinschreibung und Sonderzeichen (xXx, ÄÖÜ) beachten
 - **Rang-Grenzen beachten**: Raenge werden als Header-Zeilen zwischen den Mitgliedern angezeigt
 - **Ueberlappende Screenshots**: Mitglieder die auf zwei Screenshots erscheinen werden automatisch dedupliziert
+
+---
+
+## Vision-OCR Benchmark
+
+### Voraussetzungen
+
+- Ollama muss laufen (`ollama serve`)
+- Mindestens ein Vision-Modell muss installiert sein (z.B. GLM-OCR)
+- Screenshots muessen im Capture-Ordner vorhanden sein
+
+### GLM-OCR testen (Standard)
+
+```bash
+cd mitglieder-extractor
+node test/vision-benchmark.js
+```
+
+### Bestimmtes Modell testen
+
+```bash
+node test/vision-benchmark.js --model qwen3-vl-2b
+```
+
+### Alle installierten Modelle vergleichen
+
+```bash
+node test/vision-benchmark.js --model all
+```
+
+### Eigenen Capture-Ordner verwenden
+
+```bash
+node test/vision-benchmark.js --folder ./captures/mitglieder/screenshot_20260215_14_30
+```
+
+### Verbose-Modus (alle Ollama-Logs anzeigen)
+
+```bash
+node test/vision-benchmark.js --verbose
+```
+
+### Eigene Ground-Truth verwenden
+
+```bash
+node test/vision-benchmark.js --gt ./test/fixtures/my-ground-truth.json
+```
+
+### Verfuegbare Modelle
+
+| Modell-ID | Name | Groesse | OCR-spezifisch |
+|-----------|------|---------|----------------|
+| `glm-ocr` | GLM-OCR | 0.9B | Ja |
+
+### Getestete und verworfene Modelle (Benchmark 2026-02-14)
+
+| Modell | Quality | Grund |
+|--------|---------|-------|
+| Granite 3.2 Vision (2B) | -57 | Liest Level-Badges statt Scores (55 falsche Scores) |
+| Gemma 3 4B (4.3B) | -496 | Halluziniert Namen und Scores, 6+ Min Laufzeit |
+| Moondream 2 (1.8B) | -492 | Gibt Bounding-Box-Koordinaten statt Spielkoordinaten |
+| Phi-4 Mini (5.6B) | -517 | 0 Mitglieder erkannt, nur Muell-Output |
+| Qwen3-VL 2B | n/a | Leere Antworten und Timeouts |
+| Qwen3-VL 8B | n/a | Extrem langsam, unvollstaendiges JSON |
+| DeepSeek-OCR (3B) | n/a | Wiederholt Prompt-Anweisungen statt Daten zu extrahieren |
+| OlmOCR-2 (7B) | n/a | Dokument-OCR, versteht keine Spiel-UIs |
+
+### Benchmark-Ausgabe (Beispiel)
+
+```
+════════════════════════════════════════════════════════════════════════════════
+  Model: GLM-OCR  (18.2s)
+════════════════════════════════════════════════════════════════════════════════
+  Gefunden:      92/99 Mitglieder
+  Fehlend:       7 (...)
+  Extra:         3 (nicht in Ground-Truth)
+  Namen korrekt: 89/92 (96.7%)
+  Rang korrekt:  78/92 (84.8%)
+  Score exakt:   85/99 (85.9%)
+  Score nah:     4 (innerhalb 5%)
+  Score fehlend: 2
+  Score falsch:  8
+
+  Quality Score: 812
+```
+
+### Quality-Score (Vision)
+
+```
+Quality = (Gefunden × 2) + (Namen korrekt × 3) + (Score exakt × 5)
+          + (Score nah × 3) + (Rang korrekt × 1)
+          - (Score falsch × 3) - (Fehlend × 5) - (Extra × 2)
+```
+
+Hoeher ist besser. Rang wird mit niedrigerem Gewicht bewertet, da Vision-Modelle
+Raenge oft nicht zuverlaessig aus dem Spieler-Level-Badge unterscheiden koennen.
+
+### Bekannte Vision-OCR Limitationen
+
+| Problem | Ursache | Status |
+|---------|---------|--------|
+| Numerische Raenge (z.B. "361") | Modell liest Level-Badge statt Rang-Header | Normalisiert zu "Unbekannt" |
+| Score-Trunkierung | Modell-Token-Limit erreicht, letzte Ziffern fehlen | Teilweise durch Sanitization gefixt |
+| DragonSlayer-Halluzination | Modell kopierte Beispieldaten aus dem Prompt | Behoben: Beispiele aus Prompt entfernt |
+| Comma-separated Scores | Modell formatiert Zahlen mit Kommas im JSON | Behoben: sanitizeModelResponse |
+| Objekt-wrapped Koordinaten | `{"K:98 X:669 Y:849"}` statt String | Behoben: sanitizeModelResponse |
+| Unquoted Koordinaten | `K:98 X:672 Y:838` ohne Anfuehrungszeichen | Behoben: sanitizeModelResponse |
+
+---
 
 ## Bekannte OCR-Limitationen
 

@@ -1,6 +1,6 @@
 import { createWorker } from 'tesseract.js';
-import { readdir, readFile } from 'fs/promises';
-import { join, extname } from 'path';
+import { readFile } from 'fs/promises';
+import { join } from 'path';
 import { preprocessImage } from '../image-preprocessor.js';
 import { extractMemberName, extractEventName } from '../name-extractor.js';
 import { extractScore, findNextBoundary, resolveScoreConflict } from '../score-utils.js';
@@ -11,6 +11,7 @@ import {
   DEFAULT_SETTINGS,
 } from '../constants.js';
 import { OcrProvider } from './ocr-provider.js';
+import { listPngFiles, mergeOrAddMember, mergeOrAddEvent, runEventSanityChecks, logTextPreview } from '../shared-utils.js';
 
 // ─── TesseractProvider ──────────────────────────────────────────────────────
 
@@ -405,93 +406,11 @@ function assignEventScores(allScores, punkteIndex, firstLineEnd) {
 
 async function createVerifyWorker(settings) {
   const lang = settings.lang || 'deu';
+  const psm = settings.psm || 6;
   const worker = await createWorker(lang);
+  await worker.setParameters({ tessedit_pageseg_mode: String(psm) });
   return worker;
 }
 
-async function listPngFiles(folderPath) {
-  const files = (await readdir(folderPath))
-    .filter(f => extname(f).toLowerCase() === '.png')
-    .sort();
-  if (files.length === 0) throw new Error('Keine PNG-Screenshots im Ordner gefunden.');
-  return files;
-}
-
-function logTextPreview(logger, text) {
-  const preview = text.substring(0, 200).replace(/\n/g, ' | ');
-  logger.info(`  Text: ${preview}`);
-}
-
-function mergeOrAddMember(allMembers, entry, logger) {
-  const key = entry.coords;
-  if (!allMembers.has(key)) {
-    allMembers.set(key, entry);
-    logger.info(`  + ${entry.name} (${entry.coords}) \u2014 ${entry.rank} \u2014 ${entry.score.toLocaleString('de-DE')}`);
-  } else {
-    const existing = allMembers.get(key);
-    const newSource = entry._sourceFiles?.[0];
-    if (newSource && existing._sourceFiles && !existing._sourceFiles.includes(newSource)) {
-      existing._sourceFiles.push(newSource);
-    }
-    if (entry.score > existing.score) {
-      logger.info(`  ~ Score aktualisiert: ${existing.name} ${existing.score.toLocaleString('de-DE')} \u2192 ${entry.score.toLocaleString('de-DE')}`);
-      existing.score = entry.score;
-    }
-    if (entry.name.length < existing.name.length && entry.name.length >= 2) {
-      const existLower = existing.name.toLowerCase();
-      const entryLower = entry.name.toLowerCase();
-      if (existLower.endsWith(entryLower) || existLower.includes(entryLower)) {
-        logger.info(`  ~ Name aktualisiert: "${existing.name}" \u2192 "${entry.name}" (sauberer)`);
-        existing.name = entry.name;
-      }
-    }
-  }
-}
-
-function mergeOrAddEvent(allEntries, entry, nameKey, logger) {
-  if (!allEntries.has(nameKey)) {
-    allEntries.set(nameKey, entry);
-    logger.info(`  + ${entry.name} \u2014 Power: ${entry.power.toLocaleString('de-DE')} \u2014 Punkte: ${entry.eventPoints.toLocaleString('de-DE')}`);
-  } else {
-    const existing = allEntries.get(nameKey);
-    const newSource = entry._sourceFiles?.[0];
-    if (newSource && existing._sourceFiles && !existing._sourceFiles.includes(newSource)) {
-      existing._sourceFiles.push(newSource);
-    }
-    if (entry.power > existing.power) {
-      logger.info(`  ~ Power aktualisiert: ${existing.name} ${existing.power.toLocaleString('de-DE')} \u2192 ${entry.power.toLocaleString('de-DE')}`);
-      existing.power = entry.power;
-    }
-    if (entry.eventPoints > existing.eventPoints) {
-      logger.info(`  ~ Punkte aktualisiert: ${existing.name} ${existing.eventPoints.toLocaleString('de-DE')} \u2192 ${entry.eventPoints.toLocaleString('de-DE')}`);
-      existing.eventPoints = entry.eventPoints;
-    }
-    if (entry.name.length < existing.name.length && entry.name.length >= 2) {
-      const existLower = existing.name.toLowerCase();
-      const entryLower = entry.name.toLowerCase();
-      if (existLower.endsWith(entryLower) || existLower.includes(entryLower)) {
-        logger.info(`  ~ Name aktualisiert: "${existing.name}" \u2192 "${entry.name}" (sauberer)`);
-        existing.name = entry.name;
-      }
-    }
-  }
-}
-
-function runEventSanityChecks(entries, logger) {
-  let warningCount = 0;
-  for (const entry of entries) {
-    if (entry.power > 0 && entry.power === entry.eventPoints) {
-      logger.warn(`\u26A0 Verdaechtig: "${entry.name}" hat Macht = Event-Punkte (${entry.power.toLocaleString('de-DE')}). Wahrscheinlich wurde nur ein Wert erkannt.`);
-      entry._warning = 'power_equals_eventpoints';
-      warningCount++;
-    }
-    if (entry.power === 0 && entry.eventPoints > 0) {
-      logger.warn(`\u26A0 Verdaechtig: "${entry.name}" hat Macht = 0 aber Event-Punkte = ${entry.eventPoints.toLocaleString('de-DE')}. Power-Erkennung fehlgeschlagen?`);
-      entry._warning = 'power_missing';
-      warningCount++;
-    }
-  }
-  if (warningCount > 0) {
-    logger.warn(`${warningCount} verdaechtige Eintraege gefunden \u2014 bitte manuell pruefen.`);
-  }
-}
+// listPngFiles, mergeOrAddMember, mergeOrAddEvent, runEventSanityChecks, logTextPreview
+// are now imported from ../shared-utils.js

@@ -76,6 +76,8 @@ app.on('window-all-closed', async () => {
   try {
     const { stopOllama } = await import('./services/ollama/ollama-process.js');
     await stopOllama(guiLogger);
-  } catch { /* ignore */ }
+  } catch (err) {
+    console.error('Failed to stop Ollama on quit:', err?.message || err);
+  }
   app.quit();
 });

@@ -2,7 +2,7 @@
 
 **Date:** 2026-02-13
 **Branch:** `feature/multi-ocr-model-selection`
-**Status:** Design validated
+**Status:** Implementation complete, reviewed & fixed
 
 ## Goal
 
@@ -61,17 +61,28 @@ A set of services handles the full Ollama lifecycle so the user never touches a 
 
 ## Supported Models
 
-| Model | Params | Download | Source | OCR-specific |
-|-------|--------|----------|--------|------------|
-| **GLM-OCR** | 0.9B | ~2.2GB | Ollama library | Yes, #1 OmniDocBench |
-| **DeepSeek-OCR** | 3B | ~6.7GB | Ollama library | Yes, 96-97% benchmark |
-| **Qwen3-VL** (2B) | 2B | ~1.9GB | Ollama library | General vision |
-| **Qwen3-VL** (8B) | 8B | ~6.1GB | Ollama library | General vision |
-| **OlmOCR-2** | 7B | ~8.9GB | HuggingFace GGUF | Yes, document OCR |
+| Model | Params | Download | Source | OCR-specific | Quality |
+|-------|--------|----------|--------|------------|---------|
+| **GLM-OCR** | 0.9B | ~2.2GB | Ollama library | Yes, #1 OmniDocBench | **871** |
 
-The model list is defined as a config-driven array in `model-registry.js` so new models can be added without code changes. DeepSeek-OCR 2 (Jan 2026) can be added once it arrives on Ollama.
+The model list is defined as a config-driven array in `model-registry.js` so new models can be added without code changes.
 
-OlmOCR-2 uses GGUF files from HuggingFace (`richardyoung/olmOCR-2-7B-1025-GGUF`), importable via Ollama's `hf.co/` syntax or via programmatic Modelfile creation.
+### Benchmarked and rejected models (2026-02-14)
+
+All models below were tested against 99 manually verified members from 38 game screenshots:
+
+| Model | Params | Quality | Failure mode |
+|-------|--------|---------|-------------|
+| Granite 3.2 Vision | 2B | -57 | Reads level badges instead of scores |
+| Gemma 3 4B | 4.3B | -496 | Hallucinates names, wrong coordinates |
+| Moondream 2 | 1.8B | -492 | Outputs bounding boxes, scores of 1 |
+| Phi-4 Mini | 5.6B | -517 | 0 members found, garbage output |
+| Qwen3-VL 2B | 2B | n/a | Empty responses, timeouts |
+| Qwen3-VL 8B | 8B | n/a | Extremely slow, incomplete JSON |
+| DeepSeek-OCR | 3B | n/a | Parrots prompt instructions |
+| OlmOCR-2 | 7B | n/a | Document-only OCR, cannot parse game UIs |
+
+GLM-OCR is the only model that reliably extracts structured data from TotalBattle game screenshots.
 
 ## Settings UI -- Advanced OCR Setup Wizard
 
@@ -168,9 +179,9 @@ Separate prompt templates exist for member extraction and event extraction.
 src/
   services/
     ollama/
-      ollama-detector.js       # Detect if Ollama is installed/running
-      ollama-installer.js      # Download & install Ollama binary
-      ollama-process.js        # Start/stop Ollama as background process
+      ollama-detector.js       # Detect if Ollama is installed/running (PATH + known paths)
+      ollama-installer.js      # Download & install Ollama binary (HTTPS-only redirects)
+      ollama-process.js        # Start/stop Ollama as background process (cleanup on fail)
       ollama-api.js            # HTTP client wrapper (pull, list, delete, generate)
       model-registry.js        # Model definitions (name, size, source, RAM)
   ocr/
@@ -180,32 +191,40 @@ src/
       vision-provider.js       # Ollama vision (base64, API call, parse)
     provider-factory.js        # Creates provider from config
     vision-prompts.js          # Prompt templates (member, event)
-    vision-parser.js           # JSON extraction + shape validation
+    vision-parser.js           # JSON extraction + shape validation (nested array support)
+    shared-utils.js            # Shared: listPngFiles, merge helpers, sanity checks
   ipc/
-    ollama-handler.js          # IPC: install, status, pull, delete, list models
+    ollama-handler.js          # IPC: install, status, pull, delete, test, list models, open-models-folder
   renderer/
     components/
       progress-bar.js          # Reusable progress bar (install + download)
-      model-card.js            # Single model row (name, size, actions)
+      model-card.js            # Single model row (name, size, actions, HTML-escaped)
       status-indicator.js      # Colored dot + label
-      step-panel.js            # Collapsible step container
+      step-panel.js            # Collapsible step container (with setTitle)
     modules/
-      ollama-ui.js             # Setup wizard (composes components)
+      ollama-ui.js             # Setup wizard (composes components, idempotent init)
       engine-selector-ui.js    # Tesseract/Vision radio toggle
+test/
+  fixtures/
+    vision-ground-truth.json   # 99 members, manually verified from 38 screenshots
+  vision-benchmark.js          # Vision-OCR benchmark runner (Ollama models vs ground truth)
 ```
 
 ### Modified Files
 
 | File | Change |
 |------|--------|
-| `ocr-processor.js` | Extract Tesseract logic into `tesseract-provider.js`, thin orchestrator |
-| `ocr-handler.js` | Route to correct provider based on config |
-| `config-handler.js` | New fields: `ocrEngine`, `ollamaModel`, `ollamaEnabled` |
-| `main.js` | Register `ollama-handler` IPC, manage Ollama lifecycle |
-| `index.html` | Advanced OCR section markup in Settings tab |
-| `styles.css` | Wizard styles, model cards, progress bars |
-| `i18n.js` | ~30-40 new translation keys (DE/EN) |
-| `app.js` | Import and initialize `ollama-ui.js` |
+| `ocr-processor.js` | Thin wrapper extending `TesseractProvider`, keeps static CSV methods |
+| `ocr-handler.js` | Uses `createOcrProvider()` factory, passes `engine` from settings |
+| `config-schema.js` | New optional fields: `ocrEngine`, `ollamaEnabled`, `ollamaModel`, `visionMaxDimension` |
+| `main.js` | Register `ollama-handler` IPC, manage Ollama lifecycle on quit (with error logging) |
+| `preload.cjs` | 10 new IPC channels (including `ollamaTest`, `ollamaOpenModelsFolder`) + 2 progress event listeners |
+| `index.html` | Engine selector radios, `tesseract-settings` wrapper, `vision-settings` container |
+| `styles.css` | Wizard styles, model cards, progress bars, engine selector |
+| `i18n.js` | ~29 new translation keys (DE/EN) including test result keys and open-models-folder |
+| `app.js` | Import engine-selector + ollama-ui, refresh on language change |
+| `config.js` | Save/load `ocrEngine` and `ollamaModel`; restore engine on app init |
+| `ocr-ui.js` | `getOcrSettings()` includes `engine` and `ollamaModel` fields |
 
 ### Unchanged
 
@@ -232,6 +251,32 @@ New fields in `mitglieder-config.json`:
 }
 ```
 
+## Benchmarking
+
+A dedicated benchmark system measures Vision-OCR accuracy against a manually verified ground truth dataset.
+
+### Ground Truth
+
+- **File:** `test/fixtures/vision-ground-truth.json`
+- **Source:** 38 screenshots manually inspected on 2026-02-14
+- **Members:** 99 unique clan members across 4 rank groups (1 Anfuehrer, 5 Vorgesetzte, 85 Offiziere, 8 Veterane)
+- **Screenshots:** `captures/mitglieder/screenshot_20260214_01_10/` (38 PNGs)
+
+### Benchmark Script
+
+- **File:** `test/vision-benchmark.js`
+- **Usage:** `node test/vision-benchmark.js [--model glm-ocr|all] [--folder ...] [--verbose]`
+- **Comparison:** 4-pass matching (exact name, suffix name, exact coords, fuzzy coords), 1:1 matching
+- **Metrics:** Found, Missing, Extra, Name accuracy, Rank accuracy, Score accuracy (exact/close/wrong/missing), Quality score
+- **Output:** Console report + JSON results in `test/results/vision_benchmark_*.json`
+
+### Quality Score Formula
+
+```
+Quality = (Found × 2) + (Name OK × 3) + (Score OK × 5) + (Score~ × 3) + (Rank OK × 1)
+          - (Score Wrong × 3) - (Missing × 5) - (Extra × 2)
+```
+
 ## Implementation Order
 
 1. **OCR Provider interface + Tesseract refactor** -- Extract existing logic into provider pattern. All tests must still pass.
@@ -242,3 +287,4 @@ New fields in `mitglieder-config.json`:
 6. **Settings wizard** -- engine selector + setup wizard composing components
 7. **Integration testing** -- end-to-end with real models
 8. **i18n** -- all new translation keys
+9. **Benchmark** -- Ground truth + vision-benchmark.js for regression testing
