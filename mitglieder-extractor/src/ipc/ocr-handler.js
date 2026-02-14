@@ -1,11 +1,11 @@
 import { ipcMain, dialog } from 'electron';
 import { writeFile, mkdir } from 'fs/promises';
 import { join, resolve } from 'path';
-import OcrProcessor from '../ocr-processor.js';
+import { toMemberCSV, toEventCSV } from '../ocr/csv-formatter.js';
 import { createOcrProvider } from '../ocr/provider-factory.js';
 import { startLogSession } from '../services/gui-logger.js';
 import { MEMBER_RESULTS_DIR, EVENT_RESULTS_DIR } from '../utils/paths.js';
-import { localDate } from '../utils/date.js';
+import { localDateTime } from '../utils/date.js';
 import { dt } from '../services/i18n-backend.js';
 import appState from '../services/app-state.js';
 
@@ -55,14 +55,14 @@ export function registerOcrHandlers(logger) {
   registerExportCsvHandler('export-csv', {
     resultsDir: MEMBER_RESULTS_DIR,
     defaultFileName: 'mitglieder.csv',
-    toCsv: OcrProcessor.toCSV,
+    toCsv: toMemberCSV,
     logger,
   });
 
   registerExportCsvHandler('export-event-csv', {
     resultsDir: EVENT_RESULTS_DIR,
     defaultFileName: 'event.csv',
-    toCsv: OcrProcessor.toEventCSV,
+    toCsv: toEventCSV,
     logger,
   });
 
@@ -70,14 +70,14 @@ export function registerOcrHandlers(logger) {
   registerAutoSaveHandler('auto-save-csv', {
     resultsDir: MEMBER_RESULTS_DIR,
     filePrefix: 'mitglieder',
-    toCsv: OcrProcessor.toCSV,
+    toCsv: toMemberCSV,
     logger,
   });
 
   registerAutoSaveHandler('auto-save-event-csv', {
     resultsDir: EVENT_RESULTS_DIR,
     filePrefix: 'event',
-    toCsv: OcrProcessor.toEventCSV,
+    toCsv: toEventCSV,
     logger,
   });
 }
@@ -101,7 +101,17 @@ function registerStartOcrHandler(channel, config) {
       logger.info(`Starte ${mode === 'event' ? 'Event-' : ''}OCR-Auswertung: ${absPath}`);
 
       const engine = ocrSettings?.engine || 'tesseract';
-      const processor = createOcrProvider({ engine, logger, settings: ocrSettings || {} });
+      // Load validation context (corrections + known names) for runtime name correction.
+      // Graceful fallback: if validationManager hasn't been loaded, skip corrections.
+      let validationContext = null;
+      try {
+        const vm = appState.validationManager;
+        if (vm && vm.knownNames?.length > 0) {
+          validationContext = vm.getState();
+          logger.info(`Runtime-Korrektur aktiv: ${validationContext.knownNames.length} bekannte Namen, ${Object.keys(validationContext.corrections).length} Korrekturen.`);
+        }
+      } catch { /* validation context is optional */ }
+      const processor = createOcrProvider({ engine, logger, settings: ocrSettings || {}, validationContext });
       appState[processorKey] = processor;
 
       const onProgress = (progress) => {
@@ -164,8 +174,8 @@ function registerAutoSaveHandler(channel, config) {
   ipcMain.handle(channel, async (_e, data) => {
     try {
       await mkdir(resultsDir, { recursive: true });
-      const today = localDate();
-      const fileName = `${filePrefix}_${today}.csv`;
+      const timestamp = localDateTime();
+      const fileName = `${filePrefix}_${timestamp}.csv`;
       const filePath = join(resultsDir, fileName);
       const csv = toCsv(data);
       await writeFile(filePath, csv, 'utf-8');

@@ -12,6 +12,7 @@
  *   node test/vision-benchmark.js --model all             # Alle installierten Modelle
  *   node test/vision-benchmark.js --folder path/to/caps   # Anderer Capture-Ordner
  *   node test/vision-benchmark.js --gt path/to/gt.json    # Andere Ground-Truth
+ *   node test/vision-benchmark.js --hybrid                # Hybrid: Vision+Tesseract
  */
 
 import { readFile, writeFile, mkdir } from 'fs/promises';
@@ -19,6 +20,7 @@ import { join, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
 import { VisionProvider } from '../src/ocr/providers/vision-provider.js';
+import { HybridProvider } from '../src/ocr/providers/hybrid-provider.js';
 import { MODEL_REGISTRY } from '../src/services/ollama/model-registry.js';
 import { listModels } from '../src/services/ollama/ollama-api.js';
 
@@ -67,8 +69,6 @@ function compareResults(ocrMembers, gtMembers) {
     scoreMissing: [],
     scoreClose: 0,
     extraEntries: 0,
-    rankCorrect: 0,
-    rankWrong: [],
     details: [],
   };
 
@@ -145,9 +145,9 @@ function compareResults(ocrMembers, gtMembers) {
     if (!ocrMatches.has(oi)) {
       results.extraEntries++;
       results.details.push({
-        ocrName: ocr.name, ocrCoords: ocr.coords, ocrScore: ocr.score, ocrRank: ocr.rank,
-        gtName: null, gtScore: null, gtRank: null,
-        nameMatch: false, scoreMatch: false, rankMatch: false, status: 'EXTRA',
+        ocrName: ocr.name, ocrCoords: ocr.coords, ocrScore: ocr.score,
+        gtName: null, gtScore: null,
+        nameMatch: false, scoreMatch: false, status: 'EXTRA',
       });
       continue;
     }
@@ -157,10 +157,6 @@ function compareResults(ocrMembers, gtMembers) {
     const nameMatch = ocr.name.toLowerCase() === gt.name.toLowerCase();
     if (nameMatch) results.nameCorrect++;
     else results.nameWrong.push({ expected: gt.name, got: ocr.name });
-    // Rank pruefen
-    const rankMatch = ocr.rank?.toLowerCase() === gt.rank?.toLowerCase();
-    if (rankMatch) results.rankCorrect++;
-    else results.rankWrong.push({ name: gt.name, expected: gt.rank, got: ocr.rank });
     // Score pruefen
     let scoreStatus = 'WRONG';
     if (gt.score === 0) {
@@ -187,10 +183,10 @@ function compareResults(ocrMembers, gtMembers) {
       }
     }
     results.details.push({
-      ocrName: ocr.name, ocrCoords: ocr.coords, ocrScore: ocr.score, ocrRank: ocr.rank,
-      gtName: gt.name, gtScore: gt.score, gtRank: gt.rank,
+      ocrName: ocr.name, ocrCoords: ocr.coords, ocrScore: ocr.score,
+      gtName: gt.name, gtScore: gt.score,
       nameMatch, scoreMatch: scoreStatus === 'EXACT' || scoreStatus === 'GT_ZERO',
-      rankMatch, status: scoreStatus,
+      status: scoreStatus,
     });
   }
 
@@ -209,7 +205,6 @@ function printResults(modelName, comparison, elapsed) {
   const totalScores = c.totalExpected;
   const scorePct = ((c.scoreCorrect / totalScores) * 100).toFixed(1);
   const namePct = c.found > 0 ? ((c.nameCorrect / c.found) * 100).toFixed(1) : '0.0';
-  const rankPct = c.found > 0 ? ((c.rankCorrect / c.found) * 100).toFixed(1) : '0.0';
 
   console.log(`\n${'═'.repeat(80)}`);
   console.log(`  Model: ${modelName}  (${elapsed}s)`);
@@ -218,7 +213,6 @@ function printResults(modelName, comparison, elapsed) {
   console.log(`  Fehlend:       ${c.missing.length} (${c.missing.join(', ') || '-'})`);
   console.log(`  Extra:         ${c.extraEntries} (nicht in Ground-Truth)`);
   console.log(`  Namen korrekt: ${c.nameCorrect}/${c.found} (${namePct}%)`);
-  console.log(`  Rang korrekt:  ${c.rankCorrect}/${c.found} (${rankPct}%)`);
   console.log(`  Score exakt:   ${c.scoreCorrect}/${totalScores} (${scorePct}%)`);
   console.log(`  Score nah:     ${c.scoreClose} (innerhalb 5%)`);
   console.log(`  Score fehlend: ${c.scoreMissing.length}`);
@@ -228,12 +222,6 @@ function printResults(modelName, comparison, elapsed) {
     console.log(`\n  ─── Falsche Namen ───`);
     for (const n of c.nameWrong) {
       console.log(`    ✗ "${n.expected}" → "${n.got}"`);
-    }
-  }
-  if (c.rankWrong.length > 0 && c.rankWrong.length <= 20) {
-    console.log(`\n  ─── Falsche Raenge (max 20) ───`);
-    for (const r of c.rankWrong) {
-      console.log(`    ✗ ${r.name}: erwartet "${r.expected}", bekommen "${r.got}"`);
     }
   }
   if (c.scoreMissing.length > 0) {
@@ -249,12 +237,11 @@ function printResults(modelName, comparison, elapsed) {
     }
   }
 
-  // Quality score (same formula as Tesseract benchmark + rank component)
+  // Quality score
   const quality = (c.found * 2)
     + (c.nameCorrect * 3)
     + (c.scoreCorrect * 5)
     + (c.scoreClose * 3)
-    + (c.rankCorrect * 1)
     - (c.scoreWrong.length * 3)
     - (c.missing.length * 5)
     - (c.extraEntries * 2);
@@ -268,7 +255,6 @@ function printResults(modelName, comparison, elapsed) {
     missingNames: c.missing,
     extra: c.extraEntries,
     nameCorrect: c.nameCorrect,
-    rankCorrect: c.rankCorrect,
     scoreExact: c.scoreCorrect,
     scoreClose: c.scoreClose,
     scoreMissing: c.scoreMissing.length,
@@ -293,7 +279,6 @@ function printSummaryTable(allResults) {
     + 'Gefunden'.padStart(10)
     + 'Fehlend'.padStart(10)
     + 'Name OK'.padStart(10)
-    + 'Rang OK'.padStart(10)
     + 'Score OK'.padStart(10)
     + 'Score~'.padStart(10)
     + 'Score 0'.padStart(10)
@@ -303,14 +288,13 @@ function printSummaryTable(allResults) {
     + 'Time'.padStart(8);
 
   console.log(`  ${header}`);
-  console.log(`  ${'─'.repeat(108)}`);
+  console.log(`  ${'─'.repeat(98)}`);
 
   for (const r of allResults) {
     const row = r.model.padEnd(20)
       + `${r.found}`.padStart(10)
       + `${r.missing}`.padStart(10)
       + `${r.nameCorrect}`.padStart(10)
-      + `${r.rankCorrect}`.padStart(10)
       + `${r.scoreExact}`.padStart(10)
       + `${r.scoreClose}`.padStart(10)
       + `${r.scoreMissing}`.padStart(10)
@@ -388,18 +372,22 @@ async function main() {
   let customFolder = null;
   let customGt = null;
   let verbose = false;
+  let useCropMode = false;
+  let useHybridMode = false;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--model' && args[i + 1]) requestedModel = args[++i];
     if (args[i] === '--folder' && args[i + 1]) customFolder = args[++i];
     if (args[i] === '--gt' && args[i + 1]) customGt = args[++i];
     if (args[i] === '--verbose' || args[i] === '-v') verbose = true;
+    if (args[i] === '--crop') useCropMode = true;
+    if (args[i] === '--hybrid') useHybridMode = true;
   }
 
   // Ground-Truth laden
   const gtPath = customGt
     ? resolve(customGt)
-    : join(__dirname, 'fixtures', 'vision-ground-truth.json');
+    : join(__dirname, 'fixtures', 'ground-truth.json');
   const gt = await loadGroundTruth(gtPath);
 
   // Capture-Ordner bestimmen
@@ -417,6 +405,8 @@ async function main() {
   console.log(`║  Capture-Ordner: ${folder.substring(0, 57)}`.padEnd(79) + '║');
   console.log(`║  Ground-Truth:   ${gt.members.length} Mitglieder`.padEnd(79) + '║');
   console.log(`║  Modelle:        ${models.map(m => m.id).join(', ')}`.padEnd(79) + '║');
+  const modeLabel = useHybridMode ? 'Hybrid (Vision+Tesseract)' : useCropMode ? 'Crop (per-row)' : 'Full-Image';
+  console.log(`║  Modus:          ${modeLabel}`.padEnd(79) + '║');
   console.log(`╚${'═'.repeat(78)}╝`);
 
   const allResults = [];
@@ -426,14 +416,16 @@ async function main() {
     console.log(`\n[${mi + 1}/${models.length}] ${model.name} (${model.ref})...`);
 
     const logger = createLogger(verbose);
-    const provider = new VisionProvider(logger, {
+    const ProviderClass = useHybridMode ? HybridProvider : VisionProvider;
+    const provider = new ProviderClass(logger, {
       ollamaModel: model.id,
     });
 
     const startTime = Date.now();
 
     try {
-      const members = await provider.processFolder(folder, (progress) => {
+      const processMethod = (useCropMode && !useHybridMode) ? 'processFolderCropped' : 'processFolder';
+      const members = await provider[processMethod](folder, (progress) => {
         if (!verbose) {
           process.stdout.write(`\r  → ${progress.current}/${progress.total} ${progress.file}...  `);
         }

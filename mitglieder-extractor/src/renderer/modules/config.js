@@ -19,7 +19,7 @@ export async function saveCurrentConfig() {
   await window.api.saveConfig({
     language: window.i18n.getLanguage(),
     region: state.currentRegion,
-    scrollTicks: parseInt($('#scrollTicks').value),
+    scrollDistance: parseInt($('#scrollDistance').value),
     scrollDelay: parseInt($('#scrollDelay').value),
     maxScreenshots: parseInt($('#maxScreenshots').value),
     outputDir: $('#outputDir').value,
@@ -36,7 +36,7 @@ export async function saveCurrentConfig() {
     ollamaModel: engine === 'vision' ? getSelectedModelId() : undefined,
     // Event settings
     eventRegion: state.eventRegion,
-    eventScrollTicks: parseInt($('#eventScrollTicks').value),
+    eventScrollDistance: parseInt($('#eventScrollDistance').value),
     eventScrollDelay: parseInt($('#eventScrollDelay').value),
     eventMaxScreenshots: parseInt($('#eventMaxScreenshots').value),
     eventOutputDir: $('#eventOutputDir').value,
@@ -65,7 +65,7 @@ export async function loadAndRestoreConfig() {
 
   // Member capture
   restoreRegion(c.region, '#regionInfo', 'currentRegion');
-  restoreSlider(c.scrollTicks, '#scrollTicks', '#scrollTicksValue');
+  restoreSlider(c.scrollDistance, '#scrollDistance', '#scrollDistanceValue');
   restoreSlider(c.scrollDelay, '#scrollDelay', '#scrollDelayValue');
   if (c.maxScreenshots) $('#maxScreenshots').value = c.maxScreenshots;
   if (c.outputDir) $('#outputDir').value = c.outputDir;
@@ -90,7 +90,7 @@ export async function loadAndRestoreConfig() {
 
   // Event capture
   restoreRegion(c.eventRegion, '#eventRegionInfo', 'eventRegion');
-  restoreSlider(c.eventScrollTicks, '#eventScrollTicks', '#eventScrollTicksValue');
+  restoreSlider(c.eventScrollDistance, '#eventScrollDistance', '#eventScrollDistanceValue');
   restoreSlider(c.eventScrollDelay, '#eventScrollDelay', '#eventScrollDelayValue');
   if (c.eventMaxScreenshots) $('#eventMaxScreenshots').value = c.eventMaxScreenshots;
   if (c.eventOutputDir) $('#eventOutputDir').value = c.eventOutputDir;

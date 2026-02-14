@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const handlers = new Map();
 
 const mockProcessFolder = vi.fn().mockResolvedValue([
-  { rank: 'Mitglied', name: 'Player1', coords: 'K:1 X:1 Y:1', score: 5000000 },
+  { name: 'Player1', coords: 'K:1 X:1 Y:1', score: 5000000 },
 ]);
 const mockProcessEventFolder = vi.fn().mockResolvedValue([
   { name: 'Player1', power: 3000000, eventPoints: 15000 },
@@ -34,6 +34,7 @@ vi.mock('../../../src/utils/paths.js', () => ({
 
 vi.mock('../../../src/utils/date.js', () => ({
   localDate: vi.fn(() => '2026-02-13'),
+  localDateTime: vi.fn(() => '2026-02-13_14-30-00'),
 }));
 
 vi.mock('../../../src/services/i18n-backend.js', () => ({
@@ -65,8 +66,8 @@ vi.mock('../../../src/ocr-processor.js', () => ({
       return mockProcessEventFolder(path, onProgress);
     }
     static toCSV(members) {
-      return '\uFEFFRang,Name,Koordinaten,Score\r\n' +
-        members.map(m => `${m.rank},"${m.name}","${m.coords}",${m.score}`).join('\r\n');
+      return '\uFEFFName,Koordinaten,Score\r\n' +
+        members.map(m => `"${m.name}","${m.coords}",${m.score}`).join('\r\n');
     }
     static toEventCSV(entries) {
       return '\uFEFFName,Macht,Event-Punkte\r\n' +
@@ -188,7 +189,7 @@ describe('ocr-handler', () => {
 
   describe('export-csv', () => {
     it('shows save dialog and writes CSV', async () => {
-      const data = [{ rank: 'Mitglied', name: 'Test', coords: 'K:1', score: 100 }];
+      const data = [{ name: 'Test', coords: 'K:1', score: 100 }];
       const result = await handlers.get('export-csv')({}, data, 'test.csv');
       expect(result.ok).toBe(true);
       expect(result.path).toBe('/mock/export.csv');
@@ -208,10 +209,10 @@ describe('ocr-handler', () => {
 
   describe('auto-save-csv', () => {
     it('saves CSV with date-stamped filename', async () => {
-      const data = [{ rank: 'Mitglied', name: 'Test', coords: 'K:1', score: 100 }];
+      const data = [{ name: 'Test', coords: 'K:1', score: 100 }];
       const result = await handlers.get('auto-save-csv')({}, data);
       expect(result.ok).toBe(true);
-      expect(result.fileName).toBe('mitglieder_2026-02-13.csv');
+      expect(result.fileName).toBe('mitglieder_2026-02-13_14-30-00.csv');
       expect(writeFile).toHaveBeenCalled();
     });
   });
@@ -221,7 +222,7 @@ describe('ocr-handler', () => {
       const data = [{ name: 'Test', power: 100, eventPoints: 50 }];
       const result = await handlers.get('auto-save-event-csv')({}, data);
       expect(result.ok).toBe(true);
-      expect(result.fileName).toBe('event_2026-02-13.csv');
+      expect(result.fileName).toBe('event_2026-02-13_14-30-00.csv');
     });
   });
 });

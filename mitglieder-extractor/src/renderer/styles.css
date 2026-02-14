@@ -619,6 +619,12 @@ body {
   margin-bottom: 0;
 }
 
+.ocr-settings-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .input-select {
   flex: 1;
   padding: 6px 10px;
@@ -712,24 +718,6 @@ body {
   font-size: 11px;
 }
 
-.ocr-rank-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 3px;
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
-.rank-anfuehrer { background: #7d3c98; color: #fff; }
-.rank-vorgesetzter { background: #2e86c1; color: #fff; }
-.rank-offizier { background: #28b463; color: #fff; }
-.rank-mitglied { background: #d4ac0d; color: #1a1a2e; }
-.rank-rekrut { background: #6b7b8d; color: #fff; }
-.rank-veteran { background: #cb4335; color: #fff; }
-.rank-default { background: #2c3e50; color: #e0e0e0; }
-
 /* ─── OCR Validation Banner (Aufnahme-Tab) ───────────────────── */
 
 .ocr-validation-banner {
@@ -774,7 +762,7 @@ body {
 
 .validation-side-by-side {
   display: grid;
-  grid-template-columns: 3fr 1fr;
+  grid-template-columns: 1fr 260px;
   gap: 8px;
 }
 
@@ -830,7 +818,7 @@ body {
 .validation-table-container {
   flex: 1;
   max-height: 350px;
-  overflow-y: auto;
+  overflow: auto;
   border: 1px solid #0f3460;
   border-radius: 6px;
   background: #1a1a2e;
@@ -975,6 +963,30 @@ body {
 .th-checkbox input[type="checkbox"] {
   cursor: pointer;
   accent-color: #e94560;
+}
+
+/* Row number column */
+.th-rownum,
+.td-rownum {
+  width: 32px;
+  text-align: center;
+  color: #6b7b8d;
+  font-size: 10px;
+  padding: 4px 2px !important;
+  user-select: none;
+}
+
+/* Sortable headers */
+.th-sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s;
+}
+.th-sortable:hover {
+  color: #e94560;
+}
+.th-sorted {
+  color: #e94560;
 }
 
 /* Actions column */
@@ -1681,4 +1693,12 @@ body {
   margin-top: 8px;
   font-size: 12px;
   color: #c0c0c0;
+}
+
+.ollama-test-result.success {
+  color: #2ecc71;
+}
+
+.ollama-test-result.error {
+  color: #e94560;
 }

@@ -21,10 +21,10 @@ const appState = {
   /** Whether an event capture is being aborted. */
   eventCaptureAborted: false,
 
-  /** @type {import('../ocr-processor.js').OcrProcessor | null} */
+  /** @type {import('../ocr/providers/ocr-provider.js').OcrProvider | null} */
   ocrProcessor: null,
 
-  /** @type {import('../ocr-processor.js').OcrProcessor | null} */
+  /** @type {import('../ocr/providers/ocr-provider.js').OcrProvider | null} */
   eventOcrProcessor: null,
 
   /** Validation manager instance. */

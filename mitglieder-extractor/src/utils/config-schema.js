@@ -34,7 +34,7 @@ export const configSchema = z
   .object({
     language: z.enum(['de', 'en']).optional(),
     gameUrl: z.string().optional(),
-    scrollTicks: z.number().optional(),
+    scrollDistance: z.number().min(1).max(2000).optional(),
     scrollDelay: z.number().optional(),
     maxScreenshots: z.number().optional(),
     region: regionSchema,
@@ -50,7 +50,7 @@ export const configSchema = z
     autoSave: z.boolean().optional(),
     ocrFolder: z.string().optional(),
     ocrSettings: ocrSettingsSchema,
-    eventScrollTicks: z.number().optional(),
+    eventScrollDistance: z.number().min(1).max(2000).optional(),
     eventScrollDelay: z.number().optional(),
     eventMaxScreenshots: z.number().optional(),
     eventOutputDir: z.string().optional(),
@@ -68,7 +68,30 @@ export const configSchema = z
   .passthrough();
 
 /**
+ * Migrates legacy `scrollTicks` fields to the new `scrollDistance` (pixels).
+ * Each tick was equivalent to 100px, so `scrollTicks * 100` produces the
+ * pixel distance the user had previously configured.
+ *
+ * @param {Object} raw - Raw config object.
+ * @returns {Object} Config with legacy fields migrated.
+ */
+function migrateScrollFields(raw) {
+  if (!raw || typeof raw !== 'object') return raw;
+  const migrated = { ...raw };
+  if (migrated.scrollTicks != null && migrated.scrollDistance == null) {
+    migrated.scrollDistance = migrated.scrollTicks * 100;
+  }
+  if (migrated.eventScrollTicks != null && migrated.eventScrollDistance == null) {
+    migrated.eventScrollDistance = migrated.eventScrollTicks * 100;
+  }
+  delete migrated.scrollTicks;
+  delete migrated.eventScrollTicks;
+  return migrated;
+}
+
+/**
  * Parses raw config through the schema and returns the validated object.
+ * Applies backwards-compatible migration for legacy fields before validation.
  * Unknown keys are preserved via passthrough.
  *
  * @param {unknown} raw - Raw config (object or parsed JSON)
@@ -76,5 +99,5 @@ export const configSchema = z
  * @throws {z.ZodError} When validation fails
  */
 export function parseConfig(raw) {
-  return configSchema.parse(raw);
+  return configSchema.parse(migrateScrollFields(raw));
 }

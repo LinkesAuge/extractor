@@ -3,7 +3,7 @@
  * @module modules/validation-ui
  */
 
-import { $, $$, t, escapeHtml, localDateString, switchToSubTab } from '../utils/helpers.js';
+import { $, $$, t, escapeHtml, localDateTimeString, switchToSubTab } from '../utils/helpers.js';
 import state from './state.js';
 import { showInputDialog } from '../components/input-dialog.js';
 import { showConfirmDialog, showAlertDialog } from '../components/confirm-dialog.js';
@@ -102,16 +102,35 @@ export function renderValidationOcrTable() {
   const isEvent = state.validationMode === 'event';
   const activeEntries = isEvent ? state.eventOcrEntries : state.ocrMembers;
 
-  // Build table header
+  // Build table header with sortable columns
   validationOcrHead.innerHTML = '';
   const headerTr = document.createElement('tr');
   const checkboxTh = `<th class="th-checkbox"><input type="checkbox" id="validationSelectAll" title="${t('tooltip.selectAll')}"></th>`;
+  const sortIcon = (col) => {
+    if (state.validationSortColumn !== col) return '';
+    return state.validationSortDirection === 'asc' ? ' &#9650;' : ' &#9660;';
+  };
+  const sortTh = (col, label) =>
+    `<th class="th-sortable${state.validationSortColumn === col ? ' th-sorted' : ''}" data-sort="${col}">${label}${sortIcon(col)}</th>`;
   if (isEvent) {
-    headerTr.innerHTML = `${checkboxTh}<th>${t('th.status')}</th><th>${t('th.ocrName')}</th><th>${t('th.correctionSuggestion')}</th><th>${t('th.power')}</th><th>${t('th.eventPoints')}</th><th></th>`;
+    headerTr.innerHTML = `${checkboxTh}<th class="th-rownum">#</th>${sortTh('status', t('th.status'))}${sortTh('name', t('th.ocrName'))}${sortTh('suggestion', t('th.correctionSuggestion'))}${sortTh('power', t('th.power'))}${sortTh('eventPoints', t('th.eventPoints'))}<th></th>`;
   } else {
-    headerTr.innerHTML = `${checkboxTh}<th>${t('th.status')}</th><th>${t('th.ocrName')}</th><th>${t('th.correctionSuggestion')}</th><th>${t('th.coords')}</th><th>${t('th.score')}</th><th></th>`;
+    headerTr.innerHTML = `${checkboxTh}<th class="th-rownum">#</th>${sortTh('status', t('th.status'))}${sortTh('name', t('th.ocrName'))}${sortTh('suggestion', t('th.correctionSuggestion'))}${sortTh('coords', t('th.coords'))}${sortTh('score', t('th.score'))}<th></th>`;
   }
   validationOcrHead.appendChild(headerTr);
+  // Bind sort click handlers
+  headerTr.querySelectorAll('.th-sortable').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.sort;
+      if (state.validationSortColumn === col) {
+        state.validationSortDirection = state.validationSortDirection === 'asc' ? 'desc' : 'asc';
+      } else {
+        state.validationSortColumn = col;
+        state.validationSortDirection = 'asc';
+      }
+      renderValidationOcrTable();
+    });
+  });
   const newSelectAll = validationOcrHead.querySelector('#validationSelectAll');
 
   // Track active corrections
@@ -134,6 +153,11 @@ export function renderValidationOcrTable() {
     if (state.validationFilter !== 'all' && m.validationStatus !== state.validationFilter) return;
     visibleIndices.push(idx);
   });
+
+  // Sort visible indices if a sort column is active
+  if (state.validationSortColumn) {
+    sortVisibleIndices(visibleIndices, state.validationSortColumn, state.validationSortDirection, isEvent, activeEntries);
+  }
 
   const usePagination = visibleIndices.length > VISIBLE_ROWS;
   let indicesToRender = visibleIndices;
@@ -160,6 +184,7 @@ export function renderValidationOcrTable() {
 
     tr.innerHTML = `
       <td class="td-checkbox"><input type="checkbox" class="v-row-checkbox" data-idx="${idx}" ${isChecked}></td>
+      <td class="td-rownum">${idx + 1}</td>
       <td><span class="v-status v-status-${m.validationStatus}"></span> ${statusLabel}</td>
       <td>${escapeHtml(m.validationStatus === 'corrected' ? m.originalName : m.name)}</td>
       <td>${correctionHtml}</td>
@@ -199,6 +224,58 @@ export function renderValidationOcrTable() {
       validationOcrPagination.innerHTML = '';
     }
   }
+}
+
+/**
+ * Sort visible indices in-place by the given column and direction.
+ * @param {number[]} indices - Array of member indices to sort.
+ * @param {string} col - Sort column key.
+ * @param {string} dir - 'asc' or 'desc'.
+ * @param {boolean} isEvent - Whether we are in event mode.
+ * @param {Array} entries - The active OCR entries array.
+ */
+function sortVisibleIndices(indices, col, dir, isEvent, entries) {
+  const members = state.validatedMembers;
+  const multiplier = dir === 'asc' ? 1 : -1;
+  indices.sort((a, b) => {
+    const ma = members[a];
+    const mb = members[b];
+    const ea = entries && entries[a];
+    const eb = entries && entries[b];
+    let va, vb;
+    switch (col) {
+      case 'status':
+        va = ma.validationStatus || '';
+        vb = mb.validationStatus || '';
+        return multiplier * va.localeCompare(vb, 'de');
+      case 'name':
+        va = (ma.validationStatus === 'corrected' ? ma.originalName : ma.name) || '';
+        vb = (mb.validationStatus === 'corrected' ? mb.originalName : mb.name) || '';
+        return multiplier * va.localeCompare(vb, 'de');
+      case 'suggestion':
+        va = ma.suggestion || ma.name || '';
+        vb = mb.suggestion || mb.name || '';
+        return multiplier * va.localeCompare(vb, 'de');
+      case 'coords':
+        va = ea ? (ea.coords || '') : '';
+        vb = eb ? (eb.coords || '') : '';
+        return multiplier * va.localeCompare(vb, 'de');
+      case 'score':
+        va = ea ? (ea.score ?? 0) : 0;
+        vb = eb ? (eb.score ?? 0) : 0;
+        return multiplier * (va - vb);
+      case 'power':
+        va = ea ? (ea.power ?? 0) : 0;
+        vb = eb ? (eb.power ?? 0) : 0;
+        return multiplier * (va - vb);
+      case 'eventPoints':
+        va = ea ? (ea.eventPoints ?? 0) : 0;
+        vb = eb ? (eb.eventPoints ?? 0) : 0;
+        return multiplier * (va - vb);
+      default:
+        return 0;
+    }
+  });
 }
 
 /** Build correction/suggestion HTML for a validation row. */
@@ -605,13 +682,13 @@ export function initValidationUI({ saveConfig }) {
   btnValidationExportCsv.addEventListener('click', async () => {
     if (state.validationMode === 'event') {
       if (!state.eventOcrEntries || state.eventOcrEntries.length === 0) return;
-      const defaultName = `event_${localDateString()}.csv`;
+      const defaultName = `event_${localDateTimeString()}.csv`;
       const result = await window.api.exportEventCsv(state.eventOcrEntries, defaultName);
       if (result.ok) validationSummary.textContent = t('status.eventCsvSaved', { path: result.path });
     } else {
       const membersToExport = state.validatedMembers || state.ocrMembers;
       if (!membersToExport || membersToExport.length === 0) return;
-      const defaultName = `mitglieder_${localDateString()}.csv`;
+      const defaultName = `mitglieder_${localDateTimeString()}.csv`;
       const result = await window.api.exportCsv(membersToExport, defaultName);
       if (result.ok) validationSummary.textContent = t('status.csvSaved', { path: result.path });
     }

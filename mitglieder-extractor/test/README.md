@@ -9,32 +9,31 @@ test/
   ocr-benchmark.js                  # Tesseract Benchmark-Script
   vision-benchmark.js               # Vision-OCR Benchmark-Script (Ollama)
   fixtures/
-    ground-truth.json                # Ground-Truth Tesseract (66 Mitglieder)
-    vision-ground-truth.json         # Ground-Truth Vision-OCR (99 Mitglieder)
-    baseline_20260208_22_56/         # 25 Baseline-Screenshots (Tesseract)
+    ground-truth.json                # Einzige Ground-Truth (99 Mitglieder, pixel-verifiziert)
   results/                           # Benchmark-Ergebnisse (JSON, gitignored)
   debug/                             # Debug-Bilder (gitignored)
 ```
 
-## Ground-Truth Dateien
+## Ground-Truth
 
-### Tesseract Ground-Truth
-
-Die Datei `fixtures/ground-truth.json` enthaelt manuell verifizierte Daten fuer 66 Clan-Mitglieder:
+Die einzige Ground-Truth-Datei `fixtures/ground-truth.json` enthaelt pixel-verifizierte Daten fuer 99 Clan-Mitglieder aus 86 Screenshots. Alle Scores wurden manuell gegen die Screenshots abgeglichen (Feb 2026).
 
 ```json
 {
-  "description": "Ground-Truth fuer OCR-Benchmark",
-  "captureFolder": "./baseline_20260208_22_56",
-  "verifiedDate": "2026-02-08",
-  "totalMembers": 66,
+  "description": "Ground truth for OCR benchmark — pixel-verified from 86 screenshots against CSV",
+  "captureFolder": "../../captures/mitglieder/screenshot_20260214_21_02",
+  "verifiedDate": "2026-02-14",
+  "totalMembers": 99,
+  "screenshotCount": 86,
+  "manualCorrections": [
+    "Feldjäger: score corrected from 828672381 to 828672281",
+    "nobs: added manually — visible in screenshots but missing from CSV",
+    "Hatsch: coords corrected from Y:840 to Y:846",
+    "OsmanlıTorunu: Turkish ı preserved",
+    "Foo Fighter duplicate removed"
+  ],
   "members": [
-    {
-      "rank": "Anführer",
-      "name": "Koriander",
-      "coords": "K:98 X:707 Y:919",
-      "score": 105666082
-    }
+    { "name": "Schmerztherapeut", "coords": "K:98 X:666 Y:852", "score": 1205074866 }
   ]
 }
 ```
@@ -43,38 +42,11 @@ Die Datei `fixtures/ground-truth.json` enthaelt manuell verifizierte Daten fuer 
 
 | Feld | Beschreibung | Beispiel |
 |------|-------------|---------|
-| `rank` | Clan-Rang | "Anführer", "Vorgesetzter", "Offizier", "Veteran" |
-| `name` | Spielername (exakt wie im Spiel) | "Captain Future xXx" |
-| `coords` | Koordinaten im Format K:X:Y | "K:98 X:707 Y:919" |
-| `score` | Score als ganzzahliger Wert | 105666082 |
+| `name` | Spielername (exakt wie im Spiel) | "Court Jester Herzi" |
+| `coords` | Koordinaten im Format K:X:Y | "K:98 X:666 Y:852" |
+| `score` | Score als ganzzahliger Wert | 1205074866 |
 
-### Vision-OCR Ground-Truth
-
-Die Datei `fixtures/vision-ground-truth.json` enthaelt manuell verifizierte Daten fuer 99 Clan-Mitglieder aus 38 Screenshots:
-
-```json
-{
-  "description": "Ground-Truth fuer Vision-OCR Benchmark — manuell aus 38 Screenshots verifiziert",
-  "captureFolder": "../../captures/mitglieder/screenshot_20260214_01_10",
-  "verifiedDate": "2026-02-14",
-  "totalMembers": 99,
-  "screenshotCount": 38,
-  "rankGroups": {
-    "Anführer": 1,
-    "Vorgesetzter": 5,
-    "Offizier": 85,
-    "Veteran": 8
-  },
-  "members": [
-    {
-      "rank": "Anführer",
-      "name": "Schmerztherapeut",
-      "coords": "K:98 X:666 Y:852",
-      "score": 1205074866
-    }
-  ]
-}
-```
+> **Hinweis**: Raenge (Rang) werden seit 2026-02-14 nicht mehr extrahiert.
 
 ### Ground-Truth aktualisieren
 
@@ -83,106 +55,60 @@ Um die Ground-Truth mit neuen Capture-Daten zu aktualisieren:
 1. Neues Capture in der App durchfuehren
 2. Screenshots manuell pruefen und Daten in `ground-truth.json` eintragen
 3. `captureFolder` auf den neuen Ordner zeigen lassen
-4. Screenshots in `fixtures/` kopieren fuer reproduzierbare Tests
+4. Manuelle Korrekturen im `manualCorrections`-Array dokumentieren
 
 ## Benchmark ausfuehren
 
-### Alle Presets testen
+Der Benchmark verwendet die echte OCR-Pipeline (Sub-Region-Cropping, spezialisierte Tesseract-Worker) und vergleicht die Ergebnisse gegen die Ground-Truth.
+
+### Standard-Benchmark (Tesseract)
 
 ```bash
 cd mitglieder-extractor
 node test/ocr-benchmark.js
 ```
 
-Laeuft alle 21 vordefinierten OCR-Konfigurationen durch und gibt eine Vergleichstabelle aus. Dauert ca. 8-10 Minuten.
+Laeuft die Tesseract-Pipeline (mit Row-Cropping und Sub-Region-Extraktion) auf allen Screenshots durch. Dauert ca. 30 Sekunden.
 
-### Einzelnes Preset testen
+### Bestimmte Engine testen
 
 ```bash
-node test/ocr-benchmark.js --preset psm11_grey
+node test/ocr-benchmark.js --engine tesseract   # Tesseract (Standard)
+node test/ocr-benchmark.js --engine vision       # Vision-OCR (erfordert Ollama)
+node test/ocr-benchmark.js --engine hybrid       # Hybrid (Vision + Tesseract)
+node test/ocr-benchmark.js --engine all          # Alle Engines vergleichen
 ```
-
-Verfuegbare Presets:
-
-| Preset | Beschreibung |
-|--------|-------------|
-| `current` | Aktuelle Standard-Einstellungen (PSM 3) |
-| `grey` | Mit Graustufen (PSM 3) |
-| `noThresh` | Ohne Binarisierung |
-| `lowThresh` | Niedriger Threshold (128) |
-| `highThresh` | Hoher Threshold (180) |
-| `highContrast` | Hoher Kontrast (2.0) |
-| `noContrast` | Ohne Kontrast-Anpassung |
-| `scale2` | Skalierung 2x |
-| `scale4` | Skalierung 4x |
-| `sharp0` | Ohne Schaerfung |
-| `sharp1` | Hohe Schaerfung (1.0) |
-| `psm6` | PSM 6 (Einheitlicher Block) |
-| `psm11` | PSM 11 (Sparse Text) |
-| `deuEng` | Deutsch + Englisch |
-| `greyNoThresh` | Graustufen ohne Threshold |
-| `optimal1` | Optimierungs-Versuch 1 |
-| `optimal2` | Optimierungs-Versuch 2 |
-| `psm11_current` | PSM 11 + Standard-Settings |
-| `psm11_noThresh` | PSM 11 ohne Threshold |
-| `psm11_grey` | **PSM 11 + Graustufen (BESTES)** |
-| `psm11_highContrast` | PSM 11 + Hoher Kontrast |
 
 ### Eigenen Capture-Ordner verwenden
 
 ```bash
-node test/ocr-benchmark.js --folder ./captures/screenshot_20260209_14_30
+node test/ocr-benchmark.js --folder ./captures/mitglieder/screenshot_20260215_14_30
 ```
 
-Nuetzt die Ground-Truth zum Vergleich, aber liest Screenshots aus dem angegebenen Ordner.
-
-### Einzelnen Screenshot debuggen
+### Eigene Ground-Truth verwenden
 
 ```bash
-node test/ocr-benchmark.js --raw 0004
+node test/ocr-benchmark.js --gt ./test/fixtures/my-ground-truth.json
 ```
-
-Zeigt den rohen OCR-Text und die geparsten Eintraege fuer einen bestimmten Screenshot. Nuetzlich zum Debuggen einzelner Erkennungsprobleme.
-
-Das vorverarbeitete Bild wird unter `test/debug/` gespeichert fuer visuelle Inspektion.
-
-### Nur einen Screenshot verarbeiten
-
-```bash
-node test/ocr-benchmark.js --preset psm11_grey --single 0011
-```
-
-Verarbeitet nur den Screenshot mit "0011" im Dateinamen.
 
 ## Benchmark-Ausgabe
 
-### Einzelergebnis
+### Benchmark-Ausgabe (Tesseract, 2026-02-14)
 
 ```
 ════════════════════════════════════════════════════════════════════════════════
-  psm11_grey: PSM11 + Graustufen
+  Engine: TESSERACT  (27.5s)
 ════════════════════════════════════════════════════════════════════════════════
-  Gefunden:     66/66 Mitglieder
-  Fehlend:      0 (-)
-  Extra:        0 (nicht in Ground-Truth)
-  Namen korrekt: 65/66 (98.5%)
-  Score exakt:   65/66 (98.5%)
-  Score nah:     1 (innerhalb 5%)
+  Gefunden:      93/99 Mitglieder
+  Fehlend:       6 (Jolanim, Alarich, Alisea, Tortenheber, Ayana, Gh)
+  Extra:         0 (nicht in Ground-Truth)
+  Namen korrekt: 84/93 (90.3%)
+  Score exakt:   93/99 (93.9%)
+  Score nah:     0 (innerhalb 5%)
   Score fehlend: 0
   Score falsch:  0
 
-  ─── Falsche Namen ───
-    ✗ "T H C" → "THC"
-```
-
-### Vergleichstabelle
-
-```
-Preset               Gefunden   Fehlend   Name OK  Score OK  Score~  Score 0  Score ✗   Extra  Quality
-──────────────────────────────────────────────────────────────────────────────────────────
-psm11_grey                66         0       65       65        1        0        0       0      648
-scale4                    66         0       58       65        0        0        1       0      628
-...
+  Quality Score: 873
 ```
 
 ### Quality-Score
@@ -191,7 +117,7 @@ Der Quality-Score ist eine gewichtete Metrik zum einfachen Vergleich:
 
 ```
 Quality = (Gefunden × 2) + (Namen korrekt × 3) + (Score exakt × 5)
-          + (Score nah × 3) - (Score falsch × 3) - (Fehlend × 5)
+          + (Score nah × 3) - (Score falsch × 3) - (Fehlend × 5) - (Extra × 2)
 ```
 
 Hoeher ist besser. Der Score beruecksichtigt, dass exakte Scores wichtiger sind als Namen.
@@ -212,46 +138,10 @@ Jeder Ground-Truth-Eintrag wird nur EINMAL gematcht (1:1 Zuordnung).
 Benchmark-Ergebnisse werden automatisch als JSON in `test/results/` gespeichert:
 
 ```
-test/results/benchmark_2026-02-08T22-43-49-359Z.json
+test/results/benchmark_2026-02-14T22-56-40-155Z.json
 ```
 
-Die Ergebnisse enthalten alle Metriken pro Preset und koennen fuer historische Vergleiche genutzt werden.
-
-## Neue Presets hinzufuegen
-
-In `test/ocr-benchmark.js` die `PRESETS`-Konstante erweitern:
-
-```javascript
-const PRESETS = {
-  // ... bestehende Presets ...
-  meinPreset: {
-    label: 'Mein neues Preset (Beschreibung)',
-    settings: {
-      scale: 3,
-      greyscale: true,
-      sharpen: 0.5,
-      contrast: 1.8,
-      threshold: 140,
-      psm: 11,
-      lang: 'deu',
-      minScore: 5000
-    },
-  },
-};
-```
-
-### Settings-Parameter
-
-| Parameter | Typ | Bereich | Beschreibung |
-|-----------|-----|---------|-------------|
-| `scale` | float | 1-4 | Bildvergroesserung (Lanczos3) |
-| `greyscale` | bool | - | Graustufen-Konvertierung |
-| `sharpen` | float | 0-3 | Schaerfe-Sigma (0 = aus) |
-| `contrast` | float | 1-3 | Kontrast-Multiplikator |
-| `threshold` | int | 0-230 | Binarisierung (0 = aus) |
-| `psm` | int | 3,4,6,11,12 | Tesseract Page Segmentation Mode |
-| `lang` | string | deu, eng, deu+eng | OCR-Sprache |
-| `minScore` | int | 0+ | Minimaler Score-Wert |
+Die Ergebnisse enthalten alle Metriken pro Engine und koennen fuer historische Vergleiche genutzt werden.
 
 ## Neue Ground-Truth erstellen
 
@@ -260,7 +150,6 @@ const PRESETS = {
 1. **Capture durchfuehren**: Screenshots in der App aufnehmen
 
 2. **Screenshots manuell pruefen**: Jeden Screenshot oeffnen und die Mitgliederdaten notieren:
-   - Rang (steht als Header-Zeile: "ANFÜHRER", "VORGESETZTER", "OFFIZIER", "VETERAN")
    - Name (exakt wie im Spiel, inklusive Leerzeichen und Sonderzeichen)
    - Koordinaten (z.B. "K:98 X:707 Y:919")
    - Score (die grosse Zahl rechts neben dem Shield-Symbol)
@@ -273,28 +162,22 @@ const PRESETS = {
      "verifiedDate": "2026-02-08",
      "totalMembers": 66,
      "members": [
-       { "rank": "Anführer", "name": "Spielername", "coords": "K:98 X:707 Y:919", "score": 105666082 }
+       { "name": "Spielername", "coords": "K:98 X:707 Y:919", "score": 105666082 }
      ]
    }
    ```
 
-4. **Screenshots kopieren**:
-   ```bash
-   # In test/fixtures/ einen neuen Ordner erstellen
-   mkdir test/fixtures/baseline_YYYYMMDD_HH_MM
-   cp captures/screenshot_YYYYMMDD_HH_MM/*.png test/fixtures/baseline_YYYYMMDD_HH_MM/
-   ```
+4. **`captureFolder` setzen**: Auf den Capture-Ordner in `captures/` zeigen lassen (relative Pfade wie `../../captures/mitglieder/screenshot_YYYYMMDD_HH_MM` funktionieren).
 
 5. **Benchmark ausfuehren und verifizieren**:
    ```bash
-   node test/ocr-benchmark.js --preset psm11_grey
+   node test/ocr-benchmark.js
    ```
 
 ### Tipps
 
 - **Scores genau pruefen**: Achte auf Tausender-Trennzeichen (Punkte vs. Kommas)
 - **Namen genau notieren**: Leerzeichen, Gross-/Kleinschreibung und Sonderzeichen (xXx, ÄÖÜ) beachten
-- **Rang-Grenzen beachten**: Raenge werden als Header-Zeilen zwischen den Mitgliedern angezeigt
 - **Ueberlappende Screenshots**: Mitglieder die auf zwei Screenshots erscheinen werden automatisch dedupliziert
 
 ---
@@ -363,64 +246,134 @@ node test/vision-benchmark.js --gt ./test/fixtures/my-ground-truth.json
 | DeepSeek-OCR (3B) | n/a | Wiederholt Prompt-Anweisungen statt Daten zu extrahieren |
 | OlmOCR-2 (7B) | n/a | Dokument-OCR, versteht keine Spiel-UIs |
 
-### Benchmark-Ausgabe (Beispiel)
+### Benchmark-Ausgabe (aktuell, 2026-02-14)
 
 ```
 ════════════════════════════════════════════════════════════════════════════════
-  Model: GLM-OCR  (18.2s)
+  Model: GLM-OCR  (31.5s)
 ════════════════════════════════════════════════════════════════════════════════
-  Gefunden:      92/99 Mitglieder
-  Fehlend:       7 (...)
-  Extra:         3 (nicht in Ground-Truth)
-  Namen korrekt: 89/92 (96.7%)
-  Rang korrekt:  78/92 (84.8%)
-  Score exakt:   85/99 (85.9%)
+  Gefunden:      98/99 Mitglieder
+  Fehlend:       1 (Ijebu Man)
+  Extra:         0 (nicht in Ground-Truth)
+  Namen korrekt: 97/98 (99.0%)
+  Score exakt:   93/99 (93.9%)
   Score nah:     4 (innerhalb 5%)
-  Score fehlend: 2
-  Score falsch:  8
+  Score fehlend: 0
+  Score falsch:  1
 
-  Quality Score: 812
+  Quality Score: 955
 ```
+
+> **Hinweis**: Raenge (Rang) werden seit v3 nicht mehr extrahiert oder bewertet.
+
+### Optimierungsverlauf (Vision-OCR)
+
+| Version | Gefunden | Name % | Score % | Quality | Aenderung |
+|---------|----------|--------|---------|---------|-----------|
+| v1 (Initial) | 92/99 | 97.8% | 84.8% | 871 | Erste Vision-Pipeline |
+| v2 | 98/99 | 99.0% | 93.9% | 994 | Score-Bleeding-Erkennung, Dedup-Fix, Prompt-Verbesserungen |
+| v3 (Aktuell) | — | — | — | — | Rang-Extraktion entfernt (nicht mehr benoetigt) |
+
+#### Aenderungen v2 → v3
+- **Rang-Extraktion entfernt**: Raenge werden nicht mehr extrahiert, angezeigt oder in CSVs gespeichert. Spart ~4 Modell-Aufrufe pro Capture (Rang-Header-Inferenz entfaellt).
+- **CSV-Format vereinfacht**: Header jetzt `Name,Koordinaten,Score` statt `Rang,Name,Koordinaten,Score`. Aeltere CSVs werden beim Laden weiterhin korrekt erkannt.
+
+#### Aenderungen v1 → v2
+- **Score-Bleeding-Erkennung**: Wenn zwei Mitglieder aus demselben Screenshot den gleichen Score haben, wird der Score des zweiten auf 0 gesetzt (der korrekte Score wird vom naechsten Screenshot uebernommen)
+- **Score-Dedup entfernt**: Vision-OCR ueberspringt jetzt die score-basierte Deduplizierung, da diese faelschlich verschiedene Mitglieder mit gleichem Score (durch Score-Bleeding) als Duplikate entfernte
+- **Prompt-Verbesserungen**: Explizite Hinweise auf 9-10-stellige Scores, exakte Namen mit Sonderzeichen/Zahlen
+- **Score-Merge verbessert**: Akzeptiert niedrigere Scores wenn der bestehende 0 ist (ausgenullt durch Bleeding-Erkennung)
 
 ### Quality-Score (Vision)
 
 ```
 Quality = (Gefunden × 2) + (Namen korrekt × 3) + (Score exakt × 5)
-          + (Score nah × 3) + (Rang korrekt × 1)
-          - (Score falsch × 3) - (Fehlend × 5) - (Extra × 2)
+          + (Score nah × 3) - (Score falsch × 3) - (Fehlend × 5) - (Extra × 2)
 ```
 
-Hoeher ist besser. Rang wird mit niedrigerem Gewicht bewertet, da Vision-Modelle
-Raenge oft nicht zuverlaessig aus dem Spieler-Level-Badge unterscheiden koennen.
+Hoeher ist besser.
 
 ### Bekannte Vision-OCR Limitationen
 
 | Problem | Ursache | Status |
 |---------|---------|--------|
-| Numerische Raenge (z.B. "361") | Modell liest Level-Badge statt Rang-Header | Normalisiert zu "Unbekannt" |
-| Score-Trunkierung | Modell-Token-Limit erreicht, letzte Ziffern fehlen | Teilweise durch Sanitization gefixt |
-| DragonSlayer-Halluzination | Modell kopierte Beispieldaten aus dem Prompt | Behoben: Beispiele aus Prompt entfernt |
-| Comma-separated Scores | Modell formatiert Zahlen mit Kommas im JSON | Behoben: sanitizeModelResponse |
-| Objekt-wrapped Koordinaten | `{"K:98 X:669 Y:849"}` statt String | Behoben: sanitizeModelResponse |
-| Unquoted Koordinaten | `K:98 X:672 Y:838` ohne Anfuehrungszeichen | Behoben: sanitizeModelResponse |
+| Score-Bleeding (intra-Screenshot) | Modell gibt letztem Mitglied den Score des vorherigen | **Behoben**: zeroOutDuplicateScores |
+| Score-Bleeding (cross-Screenshot) | Erstes Mitglied bekommt Score des letzten vom vorigen Screenshot | Offen (1 Fall: Nerin, innerhalb 5% Toleranz) |
+| Score-Trunkierung | Modell liest nicht alle Ziffern | **Behoben**: Prompt-Verbesserung (9-10 Ziffern Hinweis) |
+| Tuerkische Sonderzeichen | "ı" → "i" (OsmanliTorunu) | Modell-Limitation |
+| Modell-Nicht-Determinismus | Gleicher Input, verschiedene Ergebnisse | Inherent (temperature=0 hilft nicht vollstaendig) |
+| DragonSlayer-Halluzination | Modell kopierte Beispieldaten aus dem Prompt | **Behoben**: Beispiele aus Prompt entfernt |
+| Comma-separated Scores | Modell formatiert Zahlen mit Kommas im JSON | **Behoben**: sanitizeModelResponse |
+| Objekt-wrapped Koordinaten | `{"K:98 X:669 Y:849"}` statt String | **Behoben**: sanitizeModelResponse |
+| Unquoted Koordinaten | `K:98 X:672 Y:838` ohne Anfuehrungszeichen | **Behoben**: sanitizeModelResponse |
 
 ---
 
-## Bekannte OCR-Limitationen
+## Hybrid-OCR (Vision Namen + Tesseract Scores)
+
+Die Hybrid-Engine kombiniert die Staerken beider Engines:
+- **Vision-Modell**: Liest Namen und Koordinaten pro Member-Row (findet alle 99 Mitglieder, 98% Name-Accuracy)
+- **Tesseract**: Liest Scores aus Score-Sub-Crops (100% Score-Accuracy, 0 falsche Scores)
+
+### Benchmark-Ausgabe (Hybrid, 2026-02-14)
+
+```
+════════════════════════════════════════════════════════════════════════════════
+  Engine: HYBRID  (91.8s)
+════════════════════════════════════════════════════════════════════════════════
+  Gefunden:      99/99 Mitglieder
+  Fehlend:       0 (-)
+  Extra:         1 (nicht in Ground-Truth)
+  Namen korrekt: 97/99 (98.0%)
+  Score exakt:   99/99 (100.0%)
+  Score nah:     0 (innerhalb 5%)
+  Score fehlend: 0
+  Score falsch:  0
+
+  Quality Score: 982
+```
+
+### Engine-Vergleich (2026-02-14)
+
+| Engine | Gefunden | Namen % | Scores % | Quality | Zeit |
+|--------|----------|---------|----------|---------|------|
+| **Hybrid (neu)** | **99/99** | **97/99 (98.0%)** | **99/99 (100%)** | **982** | 92s |
+| Vision | 99/99 | 96/99 (97.0%) | 96/99 (97.0%) | 969 | 78s |
+| Tesseract | 93/99 | 84/93 (90.3%) | 93/99 (93.9%) | 873 | 29s |
+
+### Bekannte Hybrid-OCR Limitationen
 
 | Problem | Ursache | Status |
 |---------|---------|--------|
-| "T H C" → "THC" | Tesseract gruppiert nahe Einzelbuchstaben | Nicht loesbar |
-| Fuehrende Score-Ziffern | Kleine Scores (< 10M) verlieren manchmal erste Ziffer | Dual-Pass + Max-Score Heuristik |
-| Noise-Prefixe | Portrait-Bilder erzeugen zufaellige Zeichen vor Namen | Noise-Token-Filterung |
-| Roemische Zahlen | "I" wird als "\|" oder "l" gelesen | Pipe→I + Trailing-l→I Korrektur |
-| Umlaute in Namen | "Gärtnerei" manchmal "Gärtnereı" | Tesseract deu-Modell |
+| 1 Extra-Eintrag | Vision-Modell extrahiert gelegentlich ein Mitglied doppelt | Offen (niedrige Prioritaet) |
+| "Metalla 137" → "Metalla" | JSON-Trunkierung trotz Name-Only-Verification | Offen (Modell-Limitation) |
+| Tuerkisches ı → i | Modell-Limitation (identisch mit Vision-only) | Modell-Limitation |
 
-## Optimierungshistorie
+---
 
-| Datum | Aenderung | Namen % | Scores % |
-|-------|-----------|---------|----------|
-| Initial | PSM 3, keine Graustufen | ~85% | ~90% |
-| v2 | PSM 11, Noise-Filterung | 92.4% | 95.5% |
-| v3 | + Graustufen als Default | 95.5% | 95.5% |
-| v4 | + oEy-Noise, Roman-Fix, Pipe→I, Score-Heuristik | **98.5%** | **98.5%** |
+## Bekannte Tesseract-OCR-Limitationen
+
+| Problem | Ursache | Status |
+|---------|---------|--------|
+| Noise-Prefixe/Suffixe | Level-Badge und Portrait-Bilder erzeugen Zeichen vor/nach Namen | Name-Region Cropping trennt Avatar ab |
+| Doppelte Score-Separatoren | OCR liest "311.,635,611" statt "311,635,611" | **Behoben**: Separator-Cleanup in parseScoreRegionText |
+| Name-Prefix "La" verworfen | 2-Zeichen Mixed-Case Token als Noise klassifiziert | **Behoben**: PRESERVED_SHORT_TOKENS Set |
+| Tuerkisches ı entfernt | Dotless-I nicht in Zeichenklasse | **Behoben**: ıİ zu allen Regex-Klassen hinzugefuegt |
+| Komplett unlesbarer Name | 6 von 99 Mitgliedern: Name-Crop ergibt Muell (1-2 Zeichen) | Offen (Hybrid-Modus empfohlen) |
+| Erster Vorname verloren | "Andreas Houlding" → "Houlding", "Julius Cäsar" → "Cäsar" | OCR-Qualitaet (Vorname wird zu Noise) |
+| Umlaute in Namen | "FUBAR" → "FÜBAR" | Tesseract-Limitation (Deutsch-Modell) |
+| I/l Verwechslung | "Ijebu" → "ljebu" | Tesseract-Limitation (sans-serif) |
+| Komplett falscher Name | "Mumand" → "Foo", "0815" → "pi" | OCR-Qualitaet (Name-Crop unleserlich) |
+
+## Optimierungshistorie (Tesseract)
+
+| Version | Aenderung | Gefunden | Namen % | Scores % | Quality |
+|---------|-----------|----------|---------|----------|---------|
+| v1 | PSM 3, Full-Screenshot | - | ~85% | ~90% | - |
+| v2 | PSM 11, Noise-Filterung | - | 92.4% | 95.5% | - |
+| v3 | + Graustufen als Default | - | 95.5% | 95.5% | - |
+| v4 | + oEy-Noise, Roman-Fix, Pipe→I, Score-Heuristik | - | **98.5%** | **98.5%** | - |
+| v5 | Sub-Region Cropping (Name+Score), PSM 6 Workers | 93/99 | 88.2% | 92.9% | 859 |
+| v6 (Aktuell) | Score-Separator-Fix, Noise-Prefix-Whitelist, Tuerkisch-Support | 93/99 | **90.3%** | **93.9%** | **873** |
+
+> **Hinweis v5→v6**: Die Name-Erkennungsrate stieg von 88.2% auf 90.3% (+2 Namen: "La Nagual Magico", "OsmanlıTorunu"). Score-Erkennung stieg von 92.9% auf 93.9% (+1 Score: Karodor "311.,635,611" jetzt korrekt geparst). Die verbleibenden 6 fehlenden Mitglieder und 9 falschen Namen sind OCR-Qualitaets-Limitationen, die den Hybrid-Modus (Vision + Tesseract) erfordern.

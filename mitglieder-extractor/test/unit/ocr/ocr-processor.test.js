@@ -1,13 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { OcrProcessor } from '../../../src/ocr-processor.js';
+import { TesseractProvider } from '../../../src/ocr/providers/tesseract-provider.js';
+import { toMemberCSV, toEventCSV } from '../../../src/ocr/csv-formatter.js';
 
 const mockLogger = { info: vi.fn(), success: vi.fn(), warn: vi.fn(), error: vi.fn() };
 
-describe('OcrProcessor', () => {
+describe('TesseractProvider', () => {
   let processor;
 
   beforeEach(() => {
-    processor = new OcrProcessor(mockLogger, { minScore: 5000 });
+    processor = new TesseractProvider(mockLogger, { minScore: 5000 });
     vi.clearAllMocks();
   });
 
@@ -20,7 +21,7 @@ describe('OcrProcessor', () => {
     });
 
     it('creates a default logger when none provided', () => {
-      const p = new OcrProcessor(null);
+      const p = new TesseractProvider(null);
       expect(p.logger).toBeDefined();
       expect(typeof p.logger.info).toBe('function');
     });
@@ -46,11 +47,11 @@ describe('OcrProcessor', () => {
       expect(result.entries).toHaveLength(1);
       expect(result.entries[0].name).toBe('DragonSlayer');
       expect(result.entries[0].coords).toBe('K:98 X:707 Y:919');
-      expect(result.entries[0].rank).toBe('Anführer');
       expect(result.entries[0].score).toBe(1234567);
+      expect(result.entries[0]).not.toHaveProperty('rank');
     });
 
-    it('parses multiple members under same rank', () => {
+    it('parses multiple members under same rank section', () => {
       const text = [
         'Anführer',
         'Player1 K:1 X:100 Y:200 5,000,000',
@@ -58,11 +59,11 @@ describe('OcrProcessor', () => {
       ].join('\n');
       const result = processor.parseOcrText(text);
       expect(result.entries).toHaveLength(2);
-      expect(result.entries[0].rank).toBe('Anführer');
-      expect(result.entries[1].rank).toBe('Anführer');
+      expect(result.entries[0].name).toBe('Player1');
+      expect(result.entries[1].name).toBe('Player2');
     });
 
-    it('tracks rank changes across entries', () => {
+    it('parses entries across rank sections', () => {
       const text = [
         'Anführer',
         'Leader K:1 X:100 Y:200 10,000,000',
@@ -70,14 +71,16 @@ describe('OcrProcessor', () => {
         'Officer1 K:2 X:300 Y:400 5,000,000',
       ].join('\n');
       const result = processor.parseOcrText(text);
-      expect(result.entries[0].rank).toBe('Anführer');
-      expect(result.entries[1].rank).toBe('Offizier');
+      expect(result.entries).toHaveLength(2);
+      expect(result.entries[0].name).toBe('Leader');
+      expect(result.entries[1].name).toBe('Officer1');
     });
 
-    it('returns lastRank from the text', () => {
+    it('returns entries without rank or lastRank', () => {
       const text = 'Mitglied\nPlayer K:1 X:1 Y:1 100,000';
       const result = processor.parseOcrText(text);
-      expect(result.lastRank).toBe('Mitglied');
+      expect(result.entries).toHaveLength(1);
+      expect(result).not.toHaveProperty('lastRank');
     });
 
     it('returns empty entries for text without coordinates', () => {
@@ -168,17 +171,17 @@ describe('OcrProcessor', () => {
     });
   });
 
-  // ─── Static CSV Compatibility ─────────────────────────────────────────
+  // ─── CSV Formatting ───────────────────────────────────────────────────
 
-  describe('static CSV methods', () => {
-    it('toCSV delegates to toMemberCSV', () => {
-      const csv = OcrProcessor.toCSV([{ rank: 'Mitglied', name: 'Test', coords: 'K:1', score: 100 }]);
-      expect(csv).toContain('Rang,Name,Koordinaten,Score');
+  describe('csv-formatter', () => {
+    it('toMemberCSV formats member data', () => {
+      const csv = toMemberCSV([{ name: 'Test', coords: 'K:1', score: 100 }]);
+      expect(csv).toContain('Name,Koordinaten,Score');
       expect(csv).toContain('Test');
     });
 
-    it('toEventCSV delegates to toEventCSV', () => {
-      const csv = OcrProcessor.toEventCSV([{ name: 'Test', power: 100, eventPoints: 50 }]);
+    it('toEventCSV formats event data', () => {
+      const csv = toEventCSV([{ name: 'Test', power: 100, eventPoints: 50 }]);
       expect(csv).toContain('Name,Macht,Event-Punkte');
       expect(csv).toContain('Test');
     });

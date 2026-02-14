@@ -12,7 +12,7 @@ export function extractMemberName(text, coordIndex) {
   const lineStart = text.lastIndexOf('\n', coordIndex) + 1;
   let raw = text.substring(lineStart, coordIndex);
   raw = raw.replace(/\|/g, 'I');
-  raw = raw.replace(/[^a-zA-ZäöüÄÖÜß0-9\s\-_.]/g, ' ');
+  raw = raw.replace(/[^a-zA-ZäöüÄÖÜßıİ0-9\s\-_.]/g, ' ');
   raw = raw.replace(/\s+/g, ' ').trim();
   const saved = raw;
   let bestCandidate = raw;
@@ -26,7 +26,7 @@ export function extractMemberName(text, coordIndex) {
       break;
     }
   }
-  raw = raw.replace(/\s+[a-km-zäöü]$/, '').trim();
+  raw = raw.replace(/\s+[a-km-zäöüı]$/, '').trim();
   raw = applyRomanNumeralFixes(raw);
   if (raw.length < 2) raw = bestCandidate;
   if (raw.length < 2) raw = saved;
@@ -44,7 +44,7 @@ export function extractEventName(segment) {
   const firstLine = segment.split('\n')[0] || '';
   let raw = firstLine;
   raw = raw.replace(/\|/g, 'I');
-  raw = raw.replace(/[^a-zA-ZäöüÄÖÜß0-9\s\-_.]/g, ' ');
+  raw = raw.replace(/[^a-zA-ZäöüÄÖÜßıİ0-9\s\-_.]/g, ' ');
   raw = raw.replace(/\s+/g, ' ').trim();
   const saved = raw;
   let bestCandidate = raw;

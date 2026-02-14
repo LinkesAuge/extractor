@@ -28,7 +28,7 @@ class ScrollCapturer {
    * @param {import('playwright').Page} page
    * @param {Object} logger
    * @param {Object} options
-   * @param {number} options.scrollTicks - Anzahl Mausrad-Ticks pro Scroll-Schritt
+   * @param {number} options.scrollDistance - Scroll-Distanz in Pixeln pro Scroll-Schritt
    * @param {number} options.tickDelta - Delta pro einzelnem Wheel-Event (default: 100)
    * @param {number} options.tickPause - Pause zwischen einzelnen Ticks in ms (default: 30)
    * @param {number} options.scrollDelay - Wartezeit nach komplettem Scroll in ms
@@ -39,7 +39,7 @@ class ScrollCapturer {
   constructor(page, logger, options = {}) {
     this.page = page;
     this.logger = logger;
-    this.scrollTicks = options.scrollTicks || 10;
+    this.scrollDistance = options.scrollDistance || 500;
     this.tickDelta = options.tickDelta || DEFAULT_TICK_DELTA;
     this.tickPause = options.tickPause || DEFAULT_TICK_PAUSE;
     this.scrollDelay = options.scrollDelay || DEFAULT_SCROLL_DELAY;
@@ -49,15 +49,23 @@ class ScrollCapturer {
   }
 
   /**
-   * Fuehrt einen Scroll durch: sendet mehrere einzelne Wheel-Events.
+   * Fuehrt einen Scroll durch: sendet Wheel-Events fuer die konfigurierte Pixel-Distanz.
+   * Zerlegt die Gesamtdistanz in volle Ticks (je tickDelta px) plus einen Rest-Tick.
    */
   async performScroll(centerX, centerY) {
-    for (let t = 0; t < this.scrollTicks; t++) {
+    const fullTicks = Math.floor(this.scrollDistance / this.tickDelta);
+    const remainder = this.scrollDistance % this.tickDelta;
+    const totalEvents = fullTicks + (remainder > 0 ? 1 : 0);
+    for (let t = 0; t < fullTicks; t++) {
       await this.page.mouse.move(centerX, centerY);
       await this.page.mouse.wheel(0, this.tickDelta);
-      if (t < this.scrollTicks - 1) {
+      if (t < totalEvents - 1) {
         await this.sleep(this.tickPause);
       }
+    }
+    if (remainder > 0) {
+      await this.page.mouse.move(centerX, centerY);
+      await this.page.mouse.wheel(0, remainder);
     }
   }
 
@@ -95,7 +103,7 @@ class ScrollCapturer {
 
     this.logger.info(`Ausgabeordner: ${sessionDir}`);
     this.logger.info(`Region: ${region.x}, ${region.y} | ${region.width} x ${region.height}`);
-    this.logger.info(`Scroll: ${this.scrollTicks} Ticks x ${this.tickDelta} Delta | Delay: ${this.scrollDelay}ms | Max: ${this.maxScreenshots}`);
+    this.logger.info(`Scroll: ${this.scrollDistance}px | Delay: ${this.scrollDelay}ms | Max: ${this.maxScreenshots}`);
     this.logger.info('');
 
     const centerX = region.x + region.width / 2;

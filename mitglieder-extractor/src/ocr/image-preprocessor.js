@@ -3,6 +3,34 @@ import sharp from 'sharp';
 /** White border padding to improve Tesseract segmentation. */
 const BORDER = 20;
 
+// ─── Sub-Region Preprocessing Presets ─────────────────────────────────────────
+
+/**
+ * Preprocessing preset optimized for score digit recognition.
+ * Aggressive upscale + high contrast + threshold for clean digit shapes.
+ * Used with Tesseract PSM 6 (uniform block) and digit-only whitelist.
+ */
+export const SCORE_PRESET = {
+  scale: 4,
+  greyscale: true,
+  contrast: 2.0,
+  sharpen: 0.5,
+  threshold: 150,
+};
+
+/**
+ * Preprocessing preset optimized for name + coordinate text recognition.
+ * Moderate settings that preserve special characters (umlauts, spaces, numbers).
+ * Used with Tesseract PSM 6 (uniform block) for multi-line name+coords text.
+ */
+export const NAME_PRESET = {
+  scale: 3,
+  greyscale: true,
+  contrast: 1.5,
+  sharpen: 0.3,
+  threshold: 140,
+};
+
 /**
  * Preprocesses an image buffer for OCR using configurable parameters.
  *

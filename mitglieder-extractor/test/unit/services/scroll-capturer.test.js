@@ -64,18 +64,18 @@ describe('ScrollCapturer.compareBuffers (static)', () => {
 describe('ScrollCapturer constructor defaults', () => {
   it('sets default options', () => {
     const capturer = new ScrollCapturer(null, { info: () => {} });
-    expect(capturer.scrollTicks).toBe(10);
+    expect(capturer.scrollDistance).toBe(500);
     expect(capturer.maxScreenshots).toBe(50);
     expect(capturer.similarityThreshold).toBe(0.98);
   });
 
   it('accepts custom options', () => {
     const capturer = new ScrollCapturer(null, { info: () => {} }, {
-      scrollTicks: 5,
+      scrollDistance: 350,
       maxScreenshots: 100,
       similarityThreshold: 0.95,
     });
-    expect(capturer.scrollTicks).toBe(5);
+    expect(capturer.scrollDistance).toBe(350);
     expect(capturer.maxScreenshots).toBe(100);
     expect(capturer.similarityThreshold).toBe(0.95);
   });

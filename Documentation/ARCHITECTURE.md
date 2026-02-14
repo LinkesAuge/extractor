@@ -65,7 +65,6 @@ d:\Projekte\WebDev\AssetExtractor\
 │   ├── src/
 │   │   ├── main.js                 # Electron entry (~75 lines): window, IPC registration
 │   │   ├── preload.cjs             # Secure IPC bridge (contextBridge)
-│   │   ├── ocr-processor.js        # OCR orchestrator (~350 lines, delegates to ocr/, generic mergeOrAdd)
 │   │   ├── validation-manager.js   # Name validation: fuzzy match, Levenshtein, corrections
 │   │   ├── scroll-capturer.js      # Scroll capture with sharp pixel comparison
 │   │   ├── region-selector.js      # Interactive region selection overlay
@@ -80,13 +79,25 @@ d:\Projekte\WebDev\AssetExtractor\
 │   │   │   └── validation-handler.js # Validation list CRUD (~117 lines)
 │   │   │
 │   │   ├── ocr/                    # OCR pipeline modules
-│   │   │   ├── constants.js        # Regex patterns, rank definitions, default settings
-│   │   │   ├── image-preprocessor.js # sharp pipeline: scale, greyscale, contrast, threshold
+│   │   │   ├── constants.js        # Regex patterns, default settings
+│   │   │   ├── image-preprocessor.js # sharp pipeline + SCORE_PRESET, NAME_PRESET
+│   │   │   ├── row-cropper.js      # Row detection, sub-region cropping (name, score)
 │   │   │   ├── name-extractor.js   # Member + event name extraction with noise removal
 │   │   │   ├── noise-detector.js   # OCR artifact token detection
 │   │   │   ├── score-utils.js      # Score extraction, boundary finding, conflict resolution
-│   │   │   ├── deduplicator.js     # Unified member/event deduplication (3-pass)
-│   │   │   └── csv-formatter.js    # CSV output formatting (member + event)
+│   │   │   ├── name-corrector.js   # Runtime name correction (before merge/dedup)
+│   │   │   ├── deduplicator.js     # Unified member/event deduplication (4-pass)
+│   │   │   ├── csv-formatter.js    # CSV output formatting (member + event)
+│   │   │   ├── shared-utils.js     # mergeOrAdd, pickBetterScore, namesAreSimilar
+│   │   │   ├── overlap-detector.js # Screenshot overlap gap detection
+│   │   │   ├── vision-parser.js    # Vision model response parsing
+│   │   │   ├── vision-prompts.js   # Ollama prompt templates
+│   │   │   ├── provider-factory.js # Routes engine selection to provider class
+│   │   │   └── providers/          # OCR engine implementations
+│   │   │       ├── ocr-provider.js       # Abstract base class
+│   │   │       ├── tesseract-provider.js # Sub-region cropping + specialized workers
+│   │   │       ├── vision-provider.js    # GLM-OCR via Ollama
+│   │   │       └── hybrid-provider.js    # Vision names + Tesseract score sub-crop
 │   │   │
 │   │   ├── services/               # Shared backend services
 │   │   │   ├── app-state.js        # Centralized mutable state (34 lines)
@@ -135,9 +146,12 @@ d:\Projekte\WebDev\AssetExtractor\
 │   │   │   ├── ocr/                # 8 test files (constants, noise, scores, names, etc.)
 │   │   │   ├── ipc/                # 7 test files (all IPC handlers)
 │   │   │   └── services/           # 6 test files (date, i18n, logger, paths, etc.)
-│   │   ├── ocr-benchmark.js        # Member OCR benchmark against ground truth
+│   │   ├── ocr-benchmark.js        # Tesseract benchmark against ground truth
+│   │   ├── vision-benchmark.js     # Vision/Hybrid benchmark against ground truth
 │   │   ├── event-ocr-benchmark.js  # Event OCR benchmark
-│   │   └── fixtures/               # Ground truth data + baseline screenshots
+│   │   ├── debug/                  # Debug scripts and verification logs
+│   │   └── fixtures/
+│   │       └── ground-truth.json   # Pixel-verified ground truth (99 members)
 │   │
 │   ├── results/                    # CSV outputs (gitignored)
 │   │   ├── mitglieder/             # Member results (mitglieder_YYYY-MM-DD.csv)
@@ -152,7 +166,8 @@ d:\Projekte\WebDev\AssetExtractor\
     ├── handoff_summary.md          # Current status for new chats
     ├── solution_overview.md        # Decisions and technical design
     └── plans/
-        └── 2026-02-13-code-review-plan.md  # Refactoring plan + results
+        ├── 2026-02-13-code-review-plan.md  # Refactoring plan + results
+        └── 2026-02-13-multi-ocr-model-selection-design.md  # Multi-engine OCR design
 ```
 
 ## 4. Feature Modules
@@ -231,19 +246,27 @@ Unified OCR for member and event data with CSV export.
 
 ### 4.6 Member Extractor — OCR Pipeline (`src/ocr/`)
 
-Multi-stage pipeline: image preprocessing → text recognition → parsing → deduplication → formatting.
+Provider-based pipeline with sub-region cropping. Three interchangeable engines (Tesseract, Vision, Hybrid) share common post-processing.
 
 | Module                  | Purpose                                                  |
 | ----------------------- | -------------------------------------------------------- |
-| `constants.js`          | Regex patterns (rank, coord, score, clan tag), defaults  |
-| `image-preprocessor.js` | sharp pipeline: scale, greyscale, contrast, threshold, padding |
+| `provider-factory.js`   | Routes engine selection (`tesseract`/`vision`/`hybrid`) to provider |
+| `providers/*.js`        | Engine implementations (all extend `ocr-provider.js`)    |
+| `row-cropper.js`        | Row detection via golden dividers, sub-region cropping   |
+| `image-preprocessor.js` | sharp pipeline + region-specific presets (SCORE, NAME)   |
+| `name-corrector.js`     | Runtime name correction from validation list before merge |
+| `shared-utils.js`       | `mergeOrAdd`, `pickBetterScore`, `namesAreSimilar`       |
+| `deduplicator.js`       | 4-pass dedup: exact names, fuzzy names, suffix, scores   |
+| `overlap-detector.js`   | Screenshot-to-screenshot gap detection, scroll recommendations |
+| `vision-parser.js`      | Vision model JSON response parsing and sanitization      |
+| `vision-prompts.js`     | Ollama prompt templates for member/event extraction      |
+| `constants.js`          | Regex patterns (coord, score, clan tag), defaults        |
 | `noise-detector.js`     | Token-level OCR artifact detection (portraits, badges)   |
 | `name-extractor.js`     | Member + event name extraction with noise stripping      |
-| `score-utils.js`        | Score parsing, boundary detection, dual-pass conflict resolution |
-| `deduplicator.js`       | 3-pass dedup: coordinates, names (exact+suffix), scores  |
+| `score-utils.js`        | Score parsing, boundary detection, conflict resolution   |
 | `csv-formatter.js`      | CSV output with BOM, headers, double-quote escaping      |
 
-**Data flow**: `preprocessImage` → Tesseract (2 passes) → `parseOcrText`/`parseEventText` → `deduplicateByCoords` → `deduplicateByName` → `toCSV`
+**Data flow (Hybrid)**: `cropMemberRows` → Vision (full row → name + coords) + `cropScoreRegion` → Tesseract (PSM 6 → score) → name correction → dedup (4-pass) → overlap analysis → CSV
 
 ### 4.7 Member Extractor — Validation (`src/validation-manager.js`)
 
@@ -358,14 +381,15 @@ Fuzzy name matching against a known player database with OCR correction mappings
 
 ## 7. Test Suite Index
 
-**259 tests** across **22 files** in `mitglieder-extractor/test/unit/`. All passing.
+**320 tests** across **24 files** in `mitglieder-extractor/test/unit/`. All passing.
 
 | Area              | Files | Tests | Modules Covered                                        |
 | ----------------- | ----- | ----- | ------------------------------------------------------ |
-| OCR modules       | 7     | 94    | constants, noise-detector, score-utils, name-extractor, deduplicator, csv-formatter, image-preprocessor |
-| OcrProcessor      | 1     | 21    | Orchestrator parsing, score maps, event parsing        |
+| OCR modules       | 8     | 94    | constants, noise-detector, score-utils, name-extractor, deduplicator, csv-formatter, image-preprocessor, ocr-processor |
+| Name corrector    | 1     | 20    | Runtime corrections, fuzzy matching, caching           |
+| Overlap detector  | 1     | 27    | Gap detection, scroll recommendations, row height analysis |
 | ValidationManager | 1     | 39    | Name CRUD, fuzzy matching, Levenshtein, corrections, persistence |
 | Backend services  | 6     | 53    | date, i18n-backend, gui-logger, scroll-capturer, paths, app-state |
 | IPC handlers      | 7     | 74    | config, dialog, history, validation, browser, capture, OCR |
 
-Additionally, `test/ocr-benchmark.js` and `test/event-ocr-benchmark.js` provide integration-level OCR accuracy benchmarks against ground truth data.
+Additionally, `test/ocr-benchmark.js`, `test/vision-benchmark.js`, and `test/event-ocr-benchmark.js` provide integration-level OCR accuracy benchmarks against the unified ground truth (99 pixel-verified members).

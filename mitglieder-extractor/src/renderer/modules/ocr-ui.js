@@ -4,7 +4,7 @@
  * @module modules/ocr-ui
  */
 
-import { $, t, escapeHtml, localDateString, getRankClass, switchToSubTab, updateToggleText } from '../utils/helpers.js';
+import { $, t, escapeHtml, localDateTimeString, switchToSubTab, updateToggleText } from '../utils/helpers.js';
 import state from './state.js';
 import { switchToTab } from './tab-manager.js';
 import { getActiveEngine } from './engine-selector-ui.js';
@@ -228,10 +228,8 @@ export function renderOcrResults(mode, data) {
         <td>${entry.eventPoints.toLocaleString('de-DE')}</td>
       `;
     } else {
-      const rankClass = getRankClass(entry.rank);
       tr.innerHTML = `
         <td>${idx + 1}</td>
-        <td><span class="ocr-rank-badge ${rankClass}">${escapeHtml(entry.rank)}</span></td>
         <td>${escapeHtml(entry.name)}</td>
         <td>${escapeHtml(entry.coords)}</td>
         <td>${entry.score.toLocaleString('de-DE')}</td>
@@ -299,7 +297,7 @@ export async function autoSaveCsv(mode) {
   } else {
     if (!state.ocrMembers || state.ocrMembers.length === 0) return;
     const membersToSave = state.validatedMembers
-      ? state.validatedMembers.map(m => ({ rank: m.rank, name: m.name, coords: m.coords, score: m.score }))
+      ? state.validatedMembers.map(m => ({ name: m.name, coords: m.coords, score: m.score }))
       : state.ocrMembers;
     const result = await api.autoSave(membersToSave);
     if (result.ok) {
@@ -399,7 +397,7 @@ function initOcrMode(mode, { saveConfig, onOcrDone }) {
     const data = getResults(mode);
     if (!data || data.length === 0) return;
     const prefix = mode === 'event' ? 'event' : 'mitglieder';
-    const defaultName = `${prefix}_${localDateString()}.csv`;
+    const defaultName = `${prefix}_${localDateTimeString()}.csv`;
     const result = await api.exportCsv(data, defaultName);
     if (result.ok) {
       const key = mode === 'event' ? 'status.eventCsvSaved' : 'status.csvSaved';

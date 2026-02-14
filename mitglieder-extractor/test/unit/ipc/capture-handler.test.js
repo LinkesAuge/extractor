@@ -134,7 +134,7 @@ describe('capture-handler', () => {
 
   describe('test-scroll', () => {
     it('performs scroll test and returns similarity', async () => {
-      const options = { region: { x: 0, y: 0, width: 100, height: 100 }, scrollTicks: 5 };
+      const options = { region: { x: 0, y: 0, width: 100, height: 100 }, scrollDistance: 500 };
       const result = await handlers.get('test-scroll')({}, options);
       expect(result.ok).toBe(true);
       expect(typeof result.similarity).toBe('number');
@@ -183,7 +183,7 @@ describe('capture-handler', () => {
       const options = {
         region: { x: 0, y: 0, width: 100, height: 100 },
         maxScreenshots: 2,
-        scrollTicks: 1,
+        scrollDistance: 100,
         scrollDelay: 10,
       };
       const result = await handlers.get('start-capture')({}, options);
@@ -203,7 +203,7 @@ describe('capture-handler', () => {
       const options = {
         region: { x: 0, y: 0, width: 100, height: 100 },
         maxScreenshots: 10,
-        scrollTicks: 1,
+        scrollDistance: 100,
         scrollDelay: 1,
       };
       const result = await handlers.get('start-capture')({}, options);

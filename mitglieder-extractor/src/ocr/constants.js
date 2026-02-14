@@ -43,14 +43,21 @@ export const SCORE_FALLBACK_REGEX = /(?<!\d)(\d{4,7}[,.\u00A0]\d{3})(?!\d)/g;
 
 // ─── Default OCR Settings ────────────────────────────────────────────────────
 
-/** Default settings optimized for Total Battle member lists. */
+/**
+ * Default settings optimized for Total Battle member lists.
+ *
+ * For member processing, the sub-region workers (score + name) use their own
+ * hardcoded presets (SCORE_PRESET / NAME_PRESET) and PSM 6.
+ * These defaults apply to the general-purpose worker used for event
+ * processing and full-screenshot fallback.
+ */
 export const DEFAULT_SETTINGS = {
   scale: 3,
   greyscale: true,
   sharpen: 0.3,
   contrast: 1.5,
   threshold: 152,
-  psm: 11,
+  psm: 6,
   lang: 'deu',
   minScore: 5000,
 };

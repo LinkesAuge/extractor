@@ -16,7 +16,7 @@
  * @returns {Array} Parsed JSON array.
  * @throws {Error} If no valid JSON array can be extracted.
  */
-export function extractJsonArray(response) {
+function extractJsonArray(response) {
   if (!response || typeof response !== 'string') {
     throw new Error('Empty or invalid model response.');
   }
@@ -135,9 +135,9 @@ function flattenIfNested(arr) {
 /**
  * Validate and normalize a member entry from vision model output.
  * @param {Object} entry - Raw entry from model.
- * @returns {{rank: string, name: string, coords: string, score: number} | null}
+ * @returns {{name: string, coords: string, score: number} | null}
  */
-export function validateMemberEntry(entry) {
+function validateMemberEntry(entry) {
   if (!entry || typeof entry !== 'object') return null;
   const name = normalizeString(entry.name);
   if (!name || name.length < 2) return null;
@@ -148,10 +148,7 @@ export function validateMemberEntry(entry) {
     : rawCoords;
   const coords = normalizeCoordinates(coordStr);
   const score = normalizeScore(entry.score);
-  // Normalize rank: the model sometimes reads the level badge number instead
-  const rawRank = normalizeString(entry.rank);
-  const rank = (!rawRank || /^\d+$/.test(rawRank)) ? 'Unbekannt' : rawRank;
-  return { rank, name, coords, score };
+  return { name, coords, score };
 }
 
 /**
@@ -159,7 +156,7 @@ export function validateMemberEntry(entry) {
  * @param {Object} entry - Raw entry from model.
  * @returns {{name: string, power: number, eventPoints: number} | null}
  */
-export function validateEventEntry(entry) {
+function validateEventEntry(entry) {
   if (!entry || typeof entry !== 'object') return null;
   const name = normalizeString(entry.name);
   if (!name || name.length < 2) return null;
@@ -173,11 +170,74 @@ export function validateEventEntry(entry) {
 /**
  * Parse a full member extraction response.
  * @param {string} response - Raw model response.
- * @returns {Array<{rank: string, name: string, coords: string, score: number}>}
+ * @returns {Array<{name: string, coords: string, score: number}>}
  */
 export function parseMemberResponse(response) {
   const raw = extractJsonArray(response);
   return raw.map(validateMemberEntry).filter(Boolean);
+}
+
+/**
+ * Parse a single-member extraction response (from a cropped row image).
+ * Expects a single JSON object (not an array).
+ * @param {string} response - Raw model response.
+ * @returns {{ name: string, coords: string, score: number } | null}
+ */
+export function parseSingleMemberResponse(response) {
+  if (!response || typeof response !== 'string') return null;
+  let text = sanitizeModelResponse(response.trim());
+  // Strip markdown code fences
+  const fenceMatch = text.match(/```(?:json)?\s*\r?\n?([\s\S]*?)\r?\n?\s*```/);
+  if (fenceMatch) text = fenceMatch[1].trim();
+  // Try direct parse as single object
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return validateSingleMember(parsed);
+    }
+  } catch { /* fall through */ }
+  // Try to extract the first {...} object
+  const objects = extractIndividualObjects(text);
+  if (objects.length > 0) return validateSingleMember(objects[0]);
+  return null;
+}
+
+/**
+ * Validate a single member entry (no rank field expected).
+ * Rejects garbage from partial crops: template coords, level-badge-as-name, etc.
+ * @param {Object} entry - Parsed JSON object.
+ * @returns {{ name: string, coords: string, score: number } | null}
+ */
+function validateSingleMember(entry) {
+  if (!entry || typeof entry !== 'object') return null;
+  let name = normalizeString(entry.name);
+  if (!name || name.length < 2) return null;
+  // Reject if name is a comma-separated number (score misread as name)
+  if (/^\d[\d,.\s]+$/.test(name) && name.length > 4) return null;
+  const rawCoords = entry.coordinates || entry.coords || '';
+  const coordStr = typeof rawCoords === 'object'
+    ? Object.keys(rawCoords)[0] || ''
+    : String(rawCoords);
+  // If name looks like a level badge (1-3 digit number), the model may have
+  // swapped the badge and the real name.  Check if the coordinates field
+  // starts with the real player name followed by actual coordinates.
+  // Example: name="334", coordinates="0815 (K:98 X:665 Y:851)"
+  if (/^\d{1,3}$/.test(name)) {
+    const nameInCoords = coordStr.match(/^(.+?)\s*\(?K\s*:?\s*\d+/i);
+    const realName = nameInCoords ? nameInCoords[1].trim() : '';
+    if (realName && realName.length >= 1 && !/^\d{1,3}$/.test(realName)) {
+      name = realName;
+    } else {
+      return null;
+    }
+  }
+  // Reject placeholder/template names from the prompt
+  if (name === '...' || name === 'King') return null;
+  const coords = normalizeCoordinates(coordStr);
+  // Reject if coords match the prompt template (model couldn't extract real coords)
+  if (coords === 'K:NN X:NNN Y:NNN' || !coords) return null;
+  const score = normalizeScore(entry.score);
+  return { name, coords, score };
 }
 
 /**

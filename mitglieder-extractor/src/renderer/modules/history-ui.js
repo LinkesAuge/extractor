@@ -3,7 +3,7 @@
  * @module modules/history-ui
  */
 
-import { $, t, escapeHtml, localDateString, getRankClass } from '../utils/helpers.js';
+import { $, t, escapeHtml, localDateTimeString } from '../utils/helpers.js';
 import state from './state.js';
 import { showConfirmDialog } from '../components/confirm-dialog.js';
 
@@ -47,12 +47,13 @@ export function renderHistoryList() {
     const dateFormatted = new Date(entry.date + 'T00:00:00').toLocaleDateString(locale, {
       weekday: 'short', year: 'numeric', month: '2-digit', day: '2-digit',
     });
+    const timeStr = entry.time ? ` ${entry.time}` : '';
     const typeLabel = entry.type === 'event' ? t('history.typeEvent') : t('history.typeMember');
     const countLabel = entry.type === 'event'
       ? t('format.eventPlayerCount', { count: entry.memberCount })
       : t('format.memberCount', { count: entry.memberCount });
     tr.innerHTML = `
-      <td><span class="history-date">${dateFormatted}</span></td>
+      <td><span class="history-date">${dateFormatted}${timeStr}</span></td>
       <td><span class="validation-mode-badge mode-${entry.type || 'member'}">${typeLabel}</span></td>
       <td>${countLabel}</td>
       <td class="info-text">${escapeHtml(entry.fileName)}</td>
@@ -99,19 +100,14 @@ function renderHistoryMemberDetail(members, fileName) {
   historyMemberTable.style.display = '';
   historyEventTable.style.display = 'none';
   const locale = window.i18n.getLanguage() === 'en' ? 'en-US' : 'de-DE';
-  const dateMatch = fileName.match(/(\d{4}-\d{2}-\d{2})/);
-  const dateStr = dateMatch
-    ? new Date(dateMatch[1] + 'T00:00:00').toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' })
-    : fileName;
+  const dateStr = formatHistoryDetailDate(fileName, locale);
   historyDetailTitle.textContent = t('history.resultTitle', { date: dateStr });
   historyDetailCount.textContent = t('format.memberCount', { count: members.length });
   historyDetailBody.innerHTML = '';
   members.forEach((m, idx) => {
     const tr = document.createElement('tr');
-    const rankClass = getRankClass(m.rank);
     tr.innerHTML = `
       <td>${idx + 1}</td>
-      <td><span class="ocr-rank-badge ${rankClass}">${escapeHtml(m.rank)}</span></td>
       <td>${escapeHtml(m.name)}</td>
       <td>${escapeHtml(m.coords)}</td>
       <td>${m.score.toLocaleString('de-DE')}</td>
@@ -127,10 +123,7 @@ function renderHistoryEventDetail(entries, fileName) {
   historyMemberTable.style.display = 'none';
   historyEventTable.style.display = '';
   const locale = window.i18n.getLanguage() === 'en' ? 'en-US' : 'de-DE';
-  const dateMatch = fileName.match(/(\d{4}-\d{2}-\d{2})/);
-  const dateStr = dateMatch
-    ? new Date(dateMatch[1] + 'T00:00:00').toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' })
-    : fileName;
+  const dateStr = formatHistoryDetailDate(fileName, locale);
   historyDetailTitle.textContent = t('history.resultTitle', { date: dateStr });
   historyDetailCount.textContent = t('format.eventPlayerCount', { count: entries.length });
   historyEventDetailBody.innerHTML = '';
@@ -158,12 +151,12 @@ export function initHistoryUI() {
     if (isEvent) {
       const result = await window.api.loadHistoryEntry(state.selectedHistoryFile);
       if (result.ok && result.entries) {
-        const defaultName = state.selectedHistoryFile || `event_${localDateString()}.csv`;
+        const defaultName = state.selectedHistoryFile || `event_${localDateTimeString()}.csv`;
         await window.api.exportEventCsv(result.entries, defaultName);
       }
     } else {
       if (!state.historyMembers || state.historyMembers.length === 0) return;
-      const defaultName = state.selectedHistoryFile || `mitglieder_${localDateString()}.csv`;
+      const defaultName = state.selectedHistoryFile || `mitglieder_${localDateTimeString()}.csv`;
       await window.api.exportCsv(state.historyMembers, defaultName);
     }
   });
@@ -175,4 +168,30 @@ export function refreshHistoryUI() {
   if (state.historyMembers && state.selectedHistoryFile) {
     renderHistoryMemberDetail(state.historyMembers, state.selectedHistoryFile);
   }
+}
+
+/**
+ * Format a history detail title from a filename.
+ * Extracts date and optional time, returns a locale-formatted string.
+ * Supports both `mitglieder_2026-02-14.csv` and `mitglieder_2026-02-14_17-30-45.csv`.
+ *
+ * @param {string} fileName - CSV filename.
+ * @param {string} locale - Locale string (e.g. 'de-DE', 'en-US').
+ * @returns {string} Formatted date/time string.
+ */
+function formatHistoryDetailDate(fileName, locale) {
+  const fullMatch = fileName.match(/(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})-(\d{2})/);
+  if (fullMatch) {
+    const datePart = new Date(fullMatch[1] + 'T00:00:00').toLocaleDateString(locale, {
+      year: 'numeric', month: 'long', day: 'numeric',
+    });
+    return `${datePart} ${fullMatch[2]}:${fullMatch[3]}:${fullMatch[4]}`;
+  }
+  const dateMatch = fileName.match(/(\d{4}-\d{2}-\d{2})/);
+  if (dateMatch) {
+    return new Date(dateMatch[1] + 'T00:00:00').toLocaleDateString(locale, {
+      year: 'numeric', month: 'long', day: 'numeric',
+    });
+  }
+  return fileName;
 }

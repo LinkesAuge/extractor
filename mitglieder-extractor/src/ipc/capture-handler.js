@@ -119,7 +119,7 @@ function registerScrollTestHandler(channel, logger) {
     }
     try {
       const capturer = new ScrollCapturer(appState.page, logger, {
-        scrollTicks: options.scrollTicks || 10,
+        scrollDistance: options.scrollDistance || 500,
         scrollDelay: options.scrollDelay || 500,
       });
       const result = await capturer.testScroll(options.region);
@@ -170,13 +170,13 @@ function registerStartCaptureHandler(channel, config) {
           typeof region.width !== 'number' || typeof region.height !== 'number') {
         return { ok: false, error: 'Ungueltige Region: x, y, width und height muessen Zahlen sein.' };
       }
-      const scrollTicks = options.scrollTicks || 10;
+      const scrollDistance = options.scrollDistance || 500;
       const scrollDelay = options.scrollDelay || 500;
       const maxScreenshots = options.maxScreenshots || 50;
 
       logger.info(`Capture gestartet: ${sessionDir}`);
       logger.info(`Region: ${region.x}, ${region.y} | ${region.width} x ${region.height}`);
-      logger.info(`Scroll: ${scrollTicks} Ticks | Delay: ${scrollDelay}ms | Max: ${maxScreenshots}`);
+      logger.info(`Scroll: ${scrollDistance}px | Delay: ${scrollDelay}ms | Max: ${maxScreenshots}`);
 
       const centerX = region.x + region.width / 2;
       const centerY = region.y + region.height / 2;
@@ -245,13 +245,20 @@ function registerStartCaptureHandler(channel, config) {
 
         prevBuffer = buffer;
 
-        // Scroll
-        for (let t = 0; t < scrollTicks; t++) {
+        // Scroll — derive wheel events from pixel distance
+        const fullTicks = Math.floor(scrollDistance / TICK_DELTA);
+        const remainder = scrollDistance % TICK_DELTA;
+        const totalEvents = fullTicks + (remainder > 0 ? 1 : 0);
+        for (let t = 0; t < fullTicks; t++) {
           await appState.page.mouse.move(centerX, centerY);
           await appState.page.mouse.wheel(0, TICK_DELTA);
-          if (t < scrollTicks - 1) {
+          if (t < totalEvents - 1) {
             await new Promise((r) => setTimeout(r, TICK_PAUSE));
           }
+        }
+        if (remainder > 0) {
+          await appState.page.mouse.move(centerX, centerY);
+          await appState.page.mouse.wheel(0, remainder);
         }
         await new Promise((r) => setTimeout(r, scrollDelay));
       }

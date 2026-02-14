@@ -8,13 +8,14 @@ This document captures architecture decisions, the technical design, data models
 - **Plain JavaScript over TypeScript**: Despite TypeScript rules in `.cursor/rules/`, the project uses JavaScript with ESM (`"type": "module"`). TypeScript migration is deferred.
 - **No frontend framework**: Renderer uses vanilla JavaScript ES modules. No React, Vue, or Svelte. DOM manipulation via `$`/`$$` helpers and `data-i18n` attributes.
 - **Electron + Playwright combination**: Electron provides the desktop shell; Playwright drives a separate Chromium instance for game interaction. The two browsers are independent — Electron's renderer does not browse the game.
-- **Tesseract.js over cloud OCR**: Local OCR via Tesseract.js (v7) keeps data offline and avoids API costs. Trade-off: lower accuracy on game fonts (mitigated by preprocessing and dual-pass recognition).
+- **Local OCR over cloud**: Tesseract.js (v7) for offline digit recognition; GLM-OCR via Ollama for vision-based name extraction. No cloud API dependencies. Trade-off: requires local GPU for Vision model.
+- **Hybrid OCR engine**: Combines Vision model (excellent for names/coords) with Tesseract (zero wrong scores). Vision extracts name + coordinates from each member row; Tesseract extracts scores from sub-cropped score regions. Clean separation — Vision's score output is ignored entirely.
 - **sharp for image preprocessing**: Chosen for its speed and Node.js native bindings. Requires `asarUnpack` in Electron builds.
 - **Unified member/event handlers**: Rather than separate code paths, member and event operations share parameterized handlers that accept a mode flag. Separate IPC channels are maintained for backward compatibility.
 - **Mutable state objects**: `app-state.js` (main process) and `state.js` (renderer) are plain objects. No immutability enforcement — simplicity over safety for a single-user desktop app.
 - **German-first UI**: Default language is German with English as secondary. Translation keys are German phrases. The README is in German.
 - **Validation list as local JSON**: Known player names stored in `validation-list.json`. No database — the file is loaded into memory on startup and saved on every change.
-- **One CSV per day**: Results overwrite previous same-day files (`mitglieder_YYYY-MM-DD.csv`). Designed for daily runs where only the latest result matters.
+- **One CSV per run**: Results saved with timestamps (`mitglieder_YYYY-MM-DD_HH-MM-SS.csv`). Multiple runs per day are preserved.
 
 ## Architecture
 
@@ -93,37 +94,44 @@ This document captures architecture decisions, the technical design, data models
 
 ## OCR Pipeline Design
 
-### Processing Stages
+### Processing Stages (Tesseract — Sub-Region Cropping)
 
 ```
 Screenshot (PNG)
     │
     ▼
-Image Preprocessing (sharp)
-    ├── Scale (1-4×, default 3× Lanczos3)
-    ├── Greyscale conversion
-    ├── Contrast adjustment (linear multiply)
-    ├── Sharpening (Gaussian sigma)
-    ├── Binarization (threshold)
-    └── Border padding (20px white)
+Row Detection (row-cropper.js)
+    ├── detectDividers() — find golden separator lines
+    ├── classifyRegions() — member rows vs rank headers vs partials
+    └── cropMemberRows() — extract individual member rows
+    │
+    ▼ (per member row)
+Sub-Region Cropping
+    ├── cropNameRegion()  — 13-68% of row width (name + coords)
+    └── cropScoreRegion() — 72-93% of row width (score digits)
     │
     ▼
-Text Recognition (Tesseract.js)
-    ├── Pass 1: Main recognition (configured settings)
-    └── Pass 2: Greyscale verification (score correction)
+Region-Specific Preprocessing (sharp)
+    ├── Name region (NAME_PRESET):
+    │   Scale 3×, Greyscale, Contrast 1.5, Sharpen 0.3, Threshold 140
+    └── Score region (SCORE_PRESET):
+        Scale 4×, Greyscale, Contrast 2.0, Sharpen 0.5, Threshold 150
     │
     ▼
-3-Phase Parsing
-    ├── Phase 1: Find coordinates as anchors (regex)
-    ├── Phase 2: Extract names backward (noise filtering)
-    └── Phase 3: Extract scores forward (thousands format)
+Text Recognition (Tesseract.js — two specialized workers)
+    ├── Name worker:  PSM 6 (uniform block), full alphabet
+    └── Score worker: PSM 6 (uniform block), digit-only whitelist
+    │
+    ▼
+Parsing
+    ├── Name region: Find coordinates (regex), extract name backward
+    └── Score region: Parse digit string (SCORE_REGEX / fallback / raw)
     │
     ▼
 Post-Processing
-    ├── Rank assignment (section headers)
-    ├── Score verification (dual-pass comparison)
+    ├── Runtime name correction (applyKnownCorrections)
     ├── Coordinate deduplication (overlap detection)
-    ├── Name deduplication (exact + suffix matching)
+    ├── Name deduplication (exact + suffix + fuzzy matching)
     └── Score deduplication (consecutive entries)
     │
     ▼
@@ -139,34 +147,70 @@ Output
     └── Results table in UI (with color-coded statuses)
 ```
 
+### Processing Stages (Hybrid — Vision Names + Tesseract Scores)
+
+```
+Screenshot (PNG)
+    │
+    ▼
+Row Detection & Cropping (row-cropper.js)
+    ├── Only 'member' rows processed (headers/partials skipped)
+    │
+    ▼ (per member row)
+    ├── Vision model (full row) → name + coordinates (score ignored)
+    │   ├── Retry with trimmed profile area if first pass fails
+    │   └── Name-only verification pass (fixes JSON truncation)
+    ├── cropScoreRegion() → SCORE_PRESET → Tesseract PSM 6 → score
+    └── Combined entry: Vision name/coords + Tesseract score
+    │
+    ▼
+Post-Processing (same as Tesseract)
+```
+
 ### Noise Detection Strategy
 
 OCR on game screenshots produces artifacts from portrait images, level badges, and UI elements that appear as tokens in the text. The noise detector classifies tokens by length:
 
 | Token Length | Noise Criteria                                          |
 | ------------ | ------------------------------------------------------- |
-| 1-2 chars    | Always noise (too short to be a name part)              |
+| 1-2 chars    | Noise unless in PRESERVED_SHORT_TOKENS (la, le, de, gh, ch, etc.) |
 | 3-4 chars    | Noise if mixed case + contains digits or special chars  |
 | 5+ chars     | Noise if > 50% non-letter characters                    |
 
 ### Score Conflict Resolution
 
-When dual-pass OCR returns different scores for the same entry, the resolver applies pattern matching:
+When multiple OCR sources return different scores for the same entry (e.g., Vision vs Tesseract in Hybrid mode), the resolver applies pattern matching:
 
 1. **Leading-digit loss**: `123,456` vs `23,456` — shorter score lost a leading digit → keep longer.
 2. **First-digit misread**: `1,234,567` vs `2,234,567` — same length, same tail → keep larger.
 3. **Ratio check**: If scores differ by > 15× ratio → discard the outlier.
 4. **Default**: Keep scoreA (primary pass) when no pattern matches.
 
-### Deduplication (3-Pass)
+### Score Merge Strategy: "Keep Longest"
 
-1. **Coordinates**: Same coords from overlapping screenshots → keep higher score.
-2. **Names**: Exact match (case-insensitive) → keep higher score. Suffix match ("FACH Iceman" vs "Iceman") → keep the name without noise prefix.
-3. **Scores**: Consecutive entries with identical scores → remove the shorter/noisier name.
+When multiple screenshots produce different score readings for the same member, the `pickBetterScore()` function selects the most accurate value:
+1. If one score is 0, keep the non-zero one.
+2. Keep the score with more digits (longer number = less likely truncated by OCR).
+3. Same digit count → keep the first-seen value (avoids OCR noise overwrites).
+
+### Deduplication (4-Pass)
+
+1. **Exact names**: Case-insensitive name match → keep longest score.
+2. **Fuzzy names**: Same-length names with minor char differences (adaptive threshold: 1 diff for < 10 chars, 2 diffs for 10+ chars) → keep first entry + longest score.
+3. **Suffix/prefix**: "FACH Iceman" vs "Iceman" → keep the name without noise prefix + longest score.
+4. **Scores**: Consecutive entries with identical scores → remove the shorter/noisier name.
 
 ## Validation Engine
 
-### Matching Hierarchy
+### Runtime Correction (Pipeline Stage)
+
+Before merge and dedup, each extracted name passes through `applyKnownCorrections()` from `src/ocr/name-corrector.js`. This applies the same corrections and fuzzy matching as the UI validation step, but earlier in the pipeline — so corrected names feed into coordinate merging and name deduplication. The validation context (`{ corrections, knownNames }`) is read from `appState.validationManager` at OCR start and passed to the provider. If no validation data is loaded, this step is skipped gracefully.
+
+### UI Validation (Post-Pipeline)
+
+After OCR completes, `ValidationManager.validateMembers()` runs in the renderer process as a safety net.
+
+### Matching Hierarchy (both stages)
 
 1. **Known corrections**: If `corrections[ocrName]` exists, apply it and mark `corrected`.
 2. **Exact match**: Case-insensitive lookup in `knownNames`. Mark `confirmed`.
@@ -273,7 +317,7 @@ npm run dist
 
 ### Unit Tests (Vitest)
 
-- **259 tests** across 22 files. All modules covered.
+- **320 tests** across 24 files. All modules covered.
 - Electron APIs mocked via `vi.mock()` using centralized mock factories.
 - IPC handlers tested by capturing registered handler functions and invoking them directly.
 - Image processing tested with real sharp operations on generated test buffers.
@@ -282,24 +326,19 @@ npm run dist
 
 ### OCR Benchmarks
 
-- `test/ocr-benchmark.js`: compares OCR output against 66 manually verified members.
-- `test/event-ocr-benchmark.js`: similar for event data.
-- Ground truth in `test/fixtures/ground-truth.json`.
-- Baseline screenshots in `test/fixtures/baseline_*/`.
+- `test/ocr-benchmark.js`: Tesseract benchmark against ground truth.
+- `test/vision-benchmark.js`: Vision and Hybrid benchmark against ground truth.
+- `test/event-ocr-benchmark.js`: Event OCR benchmark.
+- Ground truth: `test/fixtures/ground-truth.json` (99 pixel-verified members from 86 screenshots).
 - Not part of the automated test suite — run manually for OCR parameter tuning.
 
-### Current Benchmark Results
+### Benchmark Results (2026-02-14, all engines)
 
-| Metric              | Value              |
-| ------------------- | ------------------ |
-| Members found       | 66/66 (100%)       |
-| Names correct       | 65/66 (98.5%)      |
-| Scores exact        | 65/66 (98.5%)      |
-| Scores wrong        | 0                  |
-| Scores near (5%)    | 1                  |
-| Extra entries       | 0                  |
-
-**Known limitation**: Player names with single characters and spaces (e.g., "T H C") are merged by Tesseract into one word ("THC"). The validation list auto-corrects this.
+| Engine | Found | Names | Scores | Quality | Time |
+| --- | --- | --- | --- | --- | --- |
+| **Hybrid** | **99/99** | **97/99 (98.0%)** | **99/99 (100%)** | **982** | 92s |
+| Vision | 99/99 | 96/99 (97.0%) | 96/99 (97.0%) | 969 | 78s |
+| Tesseract | 93/99 | 84/93 (90.3%) | 93/99 (93.9%) | 873 | 29s |
 
 ## Configuration
 
@@ -309,7 +348,7 @@ npm run dist
 {
   "language": "de",
   "region": { "x": 677, "y": 364, "width": 729, "height": 367 },
-  "scrollTicks": 6,
+  "scrollDistance": 500,
   "scrollDelay": 500,
   "maxScreenshots": 50,
   "outputDir": "./captures",
@@ -325,7 +364,7 @@ npm run dist
     "sharpen": 0.3,
     "contrast": 1.5,
     "threshold": 152,
-    "psm": 11,
+    "psm": 6,
     "lang": "deu",
     "minScore": 5000
   }
@@ -343,8 +382,8 @@ npm run dist
 | `sharpen`   | 0.3     | 0-5    | Gaussian sharpening sigma                  |
 | `contrast`  | 1.5     | 0.5-3  | Linear contrast multiplier                 |
 | `threshold` | 152     | 0-255  | Binarization threshold                     |
-| `psm`       | 11      | 0-13   | Tesseract Page Segmentation Mode           |
+| `psm`       | 6       | 0-13   | Tesseract Page Segmentation Mode           |
 | `lang`      | "deu"   | string | OCR language (Tesseract language code)      |
 | `minScore`  | 5000    | number | Minimum score value to include in results  |
 
-PSM 11 (Sparse Text) works best for the game's member list layout where text is scattered across the screen with varying spacing.
+PSM 6 (Uniform Block) is optimal for the sub-region cropping pipeline where each crop contains a single focused text block (name or score).

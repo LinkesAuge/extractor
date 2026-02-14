@@ -1,23 +1,30 @@
 import { isNoiseToken } from './noise-detector.js';
+import { namesAreSimilar, pickBetterScore } from './shared-utils.js';
 
 /**
  * Name-based deduplication for member entries.
- * Handles exact duplicates, noise-prefix duplicates, and score-based duplicates.
+ * Handles exact duplicates, fuzzy-name duplicates, noise-prefix duplicates,
+ * and optionally score-based duplicates.
  *
  * @param {Array} members - Array of member objects.
  * @param {Object} logger - Logger instance.
+ * @param {{ skipScoreDedup?: boolean }} [options] - Options.
+ *   Set skipScoreDedup=true for Vision OCR where score-based dedup causes false removals.
  * @returns {Array} Deduplicated members.
  */
-export function deduplicateMembersByName(members, logger) {
+export function deduplicateMembersByName(members, logger, options = {}) {
   const result = deduplicateExact(members, logger, {
     scoreField: 'score',
     logPrefix: '',
   });
-  const afterSuffix = deduplicateSuffix(result, logger, {
+  const afterFuzzy = deduplicateFuzzyName(result, logger);
+  const afterSuffix = deduplicateSuffix(afterFuzzy, logger, {
     mergeScores: (keep, remove) => {
-      if (remove.score > keep.score) keep.score = remove.score;
+      const better = pickBetterScore(keep.score, remove.score);
+      if (better !== keep.score) keep.score = better;
     },
   });
+  if (options.skipScoreDedup) return afterSuffix;
   return deduplicateMembersByScore(afterSuffix, logger);
 }
 
@@ -34,13 +41,16 @@ export function deduplicateEventsByName(entries, logger) {
     scoreField: 'power',
     logPrefix: 'Event-',
     mergeExtras: (existing, entry) => {
-      if (entry.eventPoints > existing.eventPoints) existing.eventPoints = entry.eventPoints;
+      const betterPoints = pickBetterScore(existing.eventPoints, entry.eventPoints);
+      if (betterPoints !== existing.eventPoints) existing.eventPoints = betterPoints;
     },
   });
   const afterSuffix = deduplicateSuffix(result, logger, {
     mergeScores: (keep, remove) => {
-      if (remove.power > keep.power) keep.power = remove.power;
-      if (remove.eventPoints > keep.eventPoints) keep.eventPoints = remove.eventPoints;
+      const betterPower = pickBetterScore(keep.power, remove.power);
+      if (betterPower !== keep.power) keep.power = betterPower;
+      const betterPoints = pickBetterScore(keep.eventPoints, remove.eventPoints);
+      if (betterPoints !== keep.eventPoints) keep.eventPoints = betterPoints;
     },
   });
   return deduplicateEventsByScore(afterSuffix, logger);
@@ -57,8 +67,10 @@ function deduplicateExact(entries, logger, options) {
     if (nameMap.has(key)) {
       const idx = nameMap.get(key);
       const existing = result[idx];
-      if (entry[scoreField] > existing[scoreField]) {
-        existing[scoreField] = entry[scoreField];
+      // Keep the score with more digits (less likely truncated).
+      const better = pickBetterScore(existing[scoreField], entry[scoreField]);
+      if (better !== existing[scoreField]) {
+        existing[scoreField] = better;
         if (entry.coords) existing.coords = entry.coords;
       }
       mergeExtras?.(existing, entry);
@@ -72,6 +84,50 @@ function deduplicateExact(entries, logger, options) {
     }
   }
   return result;
+}
+
+// ─── Pass 1b: Fuzzy name duplicates (OCR near-misses) ────────────────────────
+// Catches cases like "Foo Fighter" vs "Poo Fighter" (1-2 char OCR error)
+// where the names are similar but not identical.
+
+function deduplicateFuzzyName(entries, logger) {
+  const toRemove = new Set();
+  for (let i = 0; i < entries.length; i++) {
+    if (toRemove.has(i)) continue;
+    for (let j = i + 1; j < entries.length; j++) {
+      if (toRemove.has(j)) continue;
+      const a = entries[i];
+      const b = entries[j];
+      const la = a.name.toLowerCase().trim();
+      const lb = b.name.toLowerCase().trim();
+      // Skip if names are identical (already handled by exact dedup)
+      if (la === lb) continue;
+      // Skip substring matches — those are handled by the suffix dedup pass
+      if (la.includes(lb) || lb.includes(la)) continue;
+      // Only catch same-length names with minor char differences (OCR noise)
+      // e.g. "Foo Fighter" vs "Poo Fighter" (1 char difference)
+      if (la.length !== lb.length) continue;
+      let diffs = 0;
+      for (let c = 0; c < la.length; c++) {
+        if (la[c] !== lb[c]) diffs++;
+      }
+      // Adaptive threshold based on name length:
+      //   < 6 chars: only 1 diff allowed (prevents "Mork"/"Dorr", "Totaur"/"Metaur")
+      //   6-9 chars: max 1 diff
+      //   10+ chars: max 2 diffs (catches "Foo Fighter"/"Poo Fighter")
+      const maxDiffs = la.length >= 10 ? 2 : 1;
+      if (diffs > maxDiffs) continue;
+      // Same-length names with acceptable char diffs: keep the first entry
+      const keep = entries[i];
+      const remove = entries[j];
+      const better = pickBetterScore(keep.score, remove.score);
+      if (better !== keep.score) keep.score = better;
+      keep._sourceFiles = [...new Set([...(keep._sourceFiles || []), ...(remove._sourceFiles || [])])];
+      toRemove.add(j);
+      logger.info(`  \u2715 Fuzzy-Duplikat: "${remove.name}" ≈ "${keep.name}" — behalte "${keep.name}"`);
+    }
+  }
+  return entries.filter((_, idx) => !toRemove.has(idx));
 }
 
 // ─── Pass 2: Suffix matching (noise-prefix cleanup) ─────────────────────────

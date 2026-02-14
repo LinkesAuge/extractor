@@ -1,7 +1,7 @@
 import { createWorker } from 'tesseract.js';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
-import { preprocessImage } from '../image-preprocessor.js';
+import { preprocessImage, SCORE_PRESET, NAME_PRESET } from '../image-preprocessor.js';
 import { extractMemberName, extractEventName } from '../name-extractor.js';
 import { extractScore, findNextBoundary, resolveScoreConflict } from '../score-utils.js';
 import { deduplicateMembersByName, deduplicateEventsByName } from '../deduplicator.js';
@@ -12,6 +12,8 @@ import {
 } from '../constants.js';
 import { OcrProvider } from './ocr-provider.js';
 import { listPngFiles, mergeOrAddMember, mergeOrAddEvent, runEventSanityChecks, logTextPreview } from '../shared-utils.js';
+import { applyKnownCorrections } from '../name-corrector.js';
+import { cropMemberRows, cropScoreRegion, cropNameRegion } from '../row-cropper.js';
 
 // ─── TesseractProvider ──────────────────────────────────────────────────────
 
@@ -20,9 +22,16 @@ import { listPngFiles, mergeOrAddMember, mergeOrAddEvent, runEventSanityChecks, 
  * Uses dual-pass recognition with sharp image preprocessing.
  */
 export class TesseractProvider extends OcrProvider {
-  constructor(logger, settings = {}) {
+  constructor(logger, settings = {}, validationContext = null) {
     super(logger, { ...DEFAULT_SETTINGS, ...settings });
+    /** General-purpose worker (event processing, full-screenshot fallback). */
     this.worker = null;
+    /** Specialized worker for score-region OCR (PSM 6 + digit whitelist). */
+    this.scoreWorker = null;
+    /** Specialized worker for name-region OCR (PSM 6). */
+    this.nameWorker = null;
+    /** @type {{ corrections: Object, knownNames: string[] } | null} */
+    this.validationContext = validationContext;
   }
 
   async initialize() {
@@ -32,20 +41,43 @@ export class TesseractProvider extends OcrProvider {
     const psm = String(this.settings.psm ?? 11);
     if (psm !== '3') {
       await this.worker.setParameters({ tessedit_pageseg_mode: psm });
-      this.logger.info(`PSM-Modus: ${psm}`);
     }
     this.logger.success('OCR-Engine bereit.');
     this.logger.info(`Einstellungen: Scale=${this.settings.scale}x, Grau=${this.settings.greyscale}, Schaerfe=${this.settings.sharpen}, Kontrast=${this.settings.contrast}, Threshold=${this.settings.threshold}, PSM=${psm}, MinScore=${this.settings.minScore}`);
   }
 
-  async terminate() {
-    if (this.worker) {
-      await this.worker.terminate();
-      this.worker = null;
-    }
+  /**
+   * Initialize specialized sub-region workers for per-row cropped processing.
+   * Creates two Tesseract workers optimized for their respective data types.
+   */
+  async initializeSubRegionWorkers() {
+    const lang = this.settings.lang || 'deu';
+    this.logger.info('Initialisiere Sub-Region OCR-Worker...');
+    // Score worker: PSM 6 (uniform block) + digit-only whitelist.
+    // PSM 7 (single line) fails because the shield/bag icons around the score
+    // confuse single-line segmentation. PSM 6 handles the surrounding icons
+    // as separate blocks and extracts the digits cleanly.
+    this.scoreWorker = await createWorker(lang);
+    await this.scoreWorker.setParameters({
+      tessedit_pageseg_mode: '6',
+      tessedit_char_whitelist: '0123456789,. ',
+    });
+    // Name worker: PSM 6 (uniform block of text) for multi-line name + coords
+    this.nameWorker = await createWorker(lang);
+    await this.nameWorker.setParameters({
+      tessedit_pageseg_mode: '6',
+    });
+    this.logger.info('  Score-Worker: PSM 6, Whitelist=Ziffern');
+    this.logger.info('  Name-Worker:  PSM 6, volles Alphabet');
   }
 
-  /** Run OCR on a single image buffer. */
+  async terminate() {
+    if (this.worker) { await this.worker.terminate(); this.worker = null; }
+    if (this.scoreWorker) { await this.scoreWorker.terminate(); this.scoreWorker = null; }
+    if (this.nameWorker) { await this.nameWorker.terminate(); this.nameWorker = null; }
+  }
+
+  /** Run OCR on a single image buffer using the general-purpose worker. */
   async recognizeText(imageBuffer) {
     const processed = await preprocessImage(imageBuffer, this.settings);
     const { data } = await this.worker.recognize(processed);
@@ -64,22 +96,14 @@ export class TesseractProvider extends OcrProvider {
     const entries = [];
     for (let i = 0; i < coords.length; i++) {
       const coord = coords[i];
-      let rank = null;
-      for (const rp of rankPositions) {
-        if (rp.index < coord.index) rank = rp.rank;
-        else break;
-      }
       const name = extractMemberName(text, coord.index);
       const nextBoundary = findNextBoundary(text, coord.endIndex, coords, i, rankPositions);
       const score = extractScore(text, coord.endIndex, nextBoundary, minScore);
       if (name.length >= 2) {
-        entries.push({ rank, name, coords: coord.coordStr, score });
+        entries.push({ name, coords: coord.coordStr, score });
       }
     }
-    return {
-      lastRank: rankPositions.length > 0 ? rankPositions[rankPositions.length - 1].rank : null,
-      entries,
-    };
+    return { entries };
   }
 
   /** Extract scores indexed by coordinate string (for verification pass). */
@@ -99,58 +123,67 @@ export class TesseractProvider extends OcrProvider {
 
   /**
    * Process all screenshots in a folder (member mode).
-   * Uses dual-pass OCR: main pass for names/coords, greyscale verification for scores.
+   * Uses per-row sub-cropping: each member row is split into a name region
+   * and a score region, each preprocessed and OCR'd with optimized settings.
    */
   async processFolder(folderPath, onProgress, settings) {
     if (settings) Object.assign(this.settings, settings);
     this.aborted = false;
     const files = await listPngFiles(folderPath);
     this.logger.info(`${files.length} Screenshots gefunden in: ${folderPath}`);
-    await this.initialize();
-    let verifyWorker;
+    await this.initializeSubRegionWorkers();
     const allMembers = new Map();
-    let lastRank = 'Unbekannt';
+    const minScore = this.settings?.minScore ?? 5000;
+    let totalCrops = 0;
     try {
-      verifyWorker = await createVerifyWorker(this.settings);
-      const verifySettings = { ...this.settings, greyscale: true };
       for (let i = 0; i < files.length; i++) {
         if (this.aborted) { this.logger.warn('OCR abgebrochen.'); break; }
         const file = files[i];
-        this.logger.info(`OCR: ${file} (${i + 1}/${files.length})...`);
+        this.logger.info(`OCR (Crop): ${file} (${i + 1}/${files.length})...`);
         onProgress?.({ current: i + 1, total: files.length, file });
         try {
           const buffer = await readFile(join(folderPath, file));
-          const ocrText = await this.recognizeText(buffer);
-          logTextPreview(this.logger, ocrText);
-          const result = this.parseOcrText(ocrText);
-          // Verification pass
-          const verifyBuffer = await preprocessImage(buffer, verifySettings);
-          const { data: verifyData } = await verifyWorker.recognize(verifyBuffer);
-          const verifyScores = this._extractScoresMap(verifyData.text);
-          this.logger.info(`  ${result.entries.length} Eintraege, ${Object.keys(verifyScores).length} Verify-Scores.`);
+          const { rows } = await cropMemberRows(buffer);
           const filePath = join(folderPath, file);
-          for (const entry of result.entries) {
-            entry._sourceFiles = [filePath];
-            if (!entry.rank) { entry.rank = lastRank; } else { lastRank = entry.rank; }
-            // Score verification
-            const verifyScore = verifyScores[entry.coords] || 0;
-            if (verifyScore > 0 && verifyScore !== entry.score) {
-              const resolved = resolveScoreConflict(entry.score, verifyScore);
-              if (resolved !== entry.score) {
-                this.logger.info(`  \u27F3 Score korrigiert: ${entry.name} ${entry.score.toLocaleString('de-DE')} \u2192 ${resolved.toLocaleString('de-DE')}`);
-                entry.score = resolved;
+          for (const region of rows) {
+            if (region.type !== 'member') continue;
+            totalCrops++;
+            try {
+              // ── Name + Coords extraction ──────────────────────────────
+              const nameCrop = await cropNameRegion(region.buffer);
+              const nameProcessed = await preprocessImage(nameCrop, NAME_PRESET);
+              const { data: nameData } = await this.nameWorker.recognize(nameProcessed);
+              const { name, coords } = parseNameRegionText(nameData.text);
+              if (!name || name.length < 2) {
+                this.logger.warn(`  Crop: Kein Name extrahiert (y=${region.y}).`);
+                continue;
               }
+              // ── Score extraction ───────────────────────────────────────
+              const scoreCrop = await cropScoreRegion(region.buffer);
+              const scoreProcessed = await preprocessImage(scoreCrop, SCORE_PRESET);
+              const { data: scoreData } = await this.scoreWorker.recognize(scoreProcessed);
+              const score = parseScoreRegionText(scoreData.text, minScore);
+              const entry = { name, coords, score, _sourceFiles: [filePath] };
+              // Apply known corrections before merge
+              if (this.validationContext) {
+                const corrResult = applyKnownCorrections(entry.name, this.validationContext);
+                if (corrResult.corrected) {
+                  this.logger.info(`  ~ Name korrigiert: "${entry.name}" → "${corrResult.name}" (${corrResult.method})`);
+                  entry.name = corrResult.name;
+                }
+              }
+              this.logger.info(`  + ${entry.name} (${entry.coords}) — ${entry.score.toLocaleString('de-DE')}`);
+              mergeOrAddMember(allMembers, entry, this.logger);
+            } catch (rowErr) {
+              this.logger.warn(`  Crop Fehler (y=${region.y}): ${rowErr.message}`);
             }
-            mergeOrAddMember(allMembers, entry, this.logger);
           }
-          if (result.lastRank) lastRank = result.lastRank;
         } catch (fileErr) {
           this.logger.error(`Fehler bei ${file}: ${fileErr.message}`);
         }
       }
     } finally {
       await this.terminate();
-      if (verifyWorker) await verifyWorker.terminate();
     }
     let members = Array.from(allMembers.values());
     const beforeDedup = members.length;
@@ -158,7 +191,7 @@ export class TesseractProvider extends OcrProvider {
     if (members.length < beforeDedup) {
       this.logger.info(`Namens-Dedup: ${beforeDedup - members.length} Duplikat(e) entfernt.`);
     }
-    this.logger.success(`OCR abgeschlossen: ${members.length} Mitglieder gefunden.`);
+    this.logger.success(`OCR (Crop) abgeschlossen: ${members.length} Mitglieder aus ${totalCrops} Crops.`);
     return members;
   }
 
@@ -252,6 +285,14 @@ export class TesseractProvider extends OcrProvider {
           const filePath = join(folderPath, file);
           for (const entry of result.entries) {
             entry._sourceFiles = [filePath];
+            // Apply known corrections before merge so dedup sees corrected names
+            if (this.validationContext) {
+              const corrResult = applyKnownCorrections(entry.name, this.validationContext);
+              if (corrResult.corrected) {
+                this.logger.info(`  ~ Name korrigiert: "${entry.name}" → "${corrResult.name}" (${corrResult.method})`);
+                entry.name = corrResult.name;
+              }
+            }
             const nameKey = entry.name.toLowerCase().trim();
             // Score verification
             const verify = verifyScores[nameKey];
@@ -410,6 +451,71 @@ async function createVerifyWorker(settings) {
   const worker = await createWorker(lang);
   await worker.setParameters({ tessedit_pageseg_mode: String(psm) });
   return worker;
+}
+
+/**
+ * Parse OCR text from a name sub-region crop.
+ * Extracts the player name and coordinates from the cropped name+coords area.
+ *
+ * @param {string} text - Raw Tesseract output from the name region.
+ * @returns {{ name: string, coords: string }}
+ */
+function parseNameRegionText(text) {
+  if (!text || typeof text !== 'string') return { name: '', coords: '' };
+  const cleaned = text.trim();
+  // Find the first coordinate match
+  const coordRe = new RegExp(COORD_REGEX.source, COORD_REGEX.flags);
+  const coordMatch = coordRe.exec(cleaned);
+  if (coordMatch) {
+    const coords = `K:${coordMatch[1]} X:${coordMatch[2]} Y:${coordMatch[3]}`;
+    const name = extractMemberName(cleaned, coordMatch.index);
+    return { name, coords };
+  }
+  // No coordinates found — try to extract just the name from the entire text
+  let name = cleaned
+    .replace(/\|/g, 'I')
+    .replace(/[^a-zA-ZäöüÄÖÜßıİ0-9\s\-_.]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  // Strip trailing short noise tokens
+  name = name.replace(/\s+[a-z]$/i, '').trim();
+  return { name, coords: '' };
+}
+
+/**
+ * Parse OCR text from a score sub-region crop.
+ * Extracts the numeric score from digit-optimized Tesseract output.
+ *
+ * @param {string} text - Raw Tesseract output from the score region.
+ * @param {number} minScore - Minimum score threshold.
+ * @returns {number} Parsed score or 0.
+ */
+function parseScoreRegionText(text, minScore) {
+  if (!text || typeof text !== 'string') return 0;
+  // Clean consecutive separators ("311.,635,611" → "311,635,611").
+  // OCR sometimes reads a period+comma where only one separator should be.
+  let cleaned = text.replace(/([,.])\s*([,.])/g, '$1');
+  // The score crop should contain mostly digits and separators.
+  // Try structured score regex first (handles thousands separators).
+  const scoreRe = new RegExp(SCORE_REGEX.source, SCORE_REGEX.flags);
+  let m;
+  while ((m = scoreRe.exec(cleaned)) !== null) {
+    const num = parseInt(m[1].replace(/[,.\u00A0\s]/g, ''), 10);
+    if (num >= minScore) return num;
+  }
+  // Fallback: try partially formatted scores
+  const fallbackRe = new RegExp(SCORE_FALLBACK_REGEX.source, SCORE_FALLBACK_REGEX.flags);
+  while ((m = fallbackRe.exec(cleaned)) !== null) {
+    const num = parseInt(m[1].replace(/[,.\u00A0\s]/g, ''), 10);
+    if (num >= minScore) return num;
+  }
+  // Last resort: strip everything except digits, parse as integer
+  const digitsOnly = cleaned.replace(/[^0-9]/g, '');
+  if (digitsOnly.length >= 4) {
+    const num = parseInt(digitsOnly, 10);
+    if (num >= minScore) return num;
+  }
+  return 0;
 }
 
 // listPngFiles, mergeOrAddMember, mergeOrAddEvent, runEventSanityChecks, logTextPreview

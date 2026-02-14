@@ -42,7 +42,7 @@ vi.mock('../../../src/validation-manager.js', () => ({
   ValidationManager: class {},
 }));
 
-const { readFile, readdir, unlink } = await import('fs/promises');
+const { readFile, readdir, stat, unlink } = await import('fs/promises');
 const { registerHistoryHandlers } = await import('../../../src/ipc/history-handler.js');
 const mockLogger = { info: vi.fn(), success: vi.fn(), warn: vi.fn(), error: vi.fn() };
 
@@ -65,6 +65,53 @@ describe('history-handler', () => {
       const result = await handlers.get('load-history')({});
       expect(result.ok).toBe(true);
       expect(result.entries).toEqual([]);
+    });
+
+    it('parses new datetime filename format with time', async () => {
+      const csv = 'Rang,Name,Koordinaten,Score\r\nAnführer,"Alice","K:1",100';
+      readdir
+        .mockResolvedValueOnce(['mitglieder_2026-02-14_17-30-45.csv']) // member dir
+        .mockResolvedValueOnce([]) // event dir
+        .mockResolvedValueOnce([]); // legacy dir
+      readFile.mockResolvedValue(csv);
+      stat.mockResolvedValue({ mtime: new Date('2026-02-14T17:30:45'), size: 200 });
+      const result = await handlers.get('load-history')({});
+      expect(result.ok).toBe(true);
+      expect(result.entries).toHaveLength(1);
+      expect(result.entries[0].date).toBe('2026-02-14');
+      expect(result.entries[0].time).toBe('17:30:45');
+      expect(result.entries[0].memberCount).toBe(1);
+    });
+
+    it('parses legacy date-only filename format', async () => {
+      const csv = 'Rang,Name,Koordinaten,Score\r\nAnführer,"Bob","K:2",200';
+      readdir
+        .mockResolvedValueOnce(['mitglieder_2026-02-14.csv']) // member dir
+        .mockResolvedValueOnce([]) // event dir
+        .mockResolvedValueOnce([]); // legacy dir
+      readFile.mockResolvedValue(csv);
+      stat.mockResolvedValue({ mtime: new Date('2026-02-14T10:00:00'), size: 150 });
+      const result = await handlers.get('load-history')({});
+      expect(result.ok).toBe(true);
+      expect(result.entries).toHaveLength(1);
+      expect(result.entries[0].date).toBe('2026-02-14');
+      expect(result.entries[0].time).toBeNull();
+    });
+
+    it('sorts entries newest first (new format before legacy)', async () => {
+      const csv = 'Rang,Name,Koordinaten,Score\r\nAnführer,"X","K:1",100';
+      readdir
+        .mockResolvedValueOnce(['mitglieder_2026-02-13.csv', 'mitglieder_2026-02-14_09-00-00.csv'])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+      readFile.mockResolvedValue(csv);
+      stat.mockResolvedValue({ mtime: new Date(), size: 100 });
+      const result = await handlers.get('load-history')({});
+      expect(result.ok).toBe(true);
+      expect(result.entries).toHaveLength(2);
+      // Newer file should be first (sorted by fileName descending)
+      expect(result.entries[0].fileName).toBe('mitglieder_2026-02-14_09-00-00.csv');
+      expect(result.entries[1].fileName).toBe('mitglieder_2026-02-13.csv');
     });
   });
 

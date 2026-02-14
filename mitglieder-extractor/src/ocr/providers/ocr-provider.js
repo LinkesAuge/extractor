@@ -38,7 +38,7 @@ export class OcrProvider {
    * @param {string} folderPath - Path to folder containing PNG screenshots.
    * @param {Function} onProgress - Progress callback: ({ current, total, file }).
    * @param {Object} [settings] - Optional settings override for this run.
-   * @returns {Promise<Array<{rank: string, name: string, coords: string, score: number}>>}
+   * @returns {Promise<Array<{name: string, coords: string, score: number}>>}
    */
   async processFolder(folderPath, onProgress, settings) {
     throw new Error('OcrProvider.processFolder() must be implemented by subclass.');

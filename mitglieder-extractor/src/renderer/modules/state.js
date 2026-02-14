@@ -27,6 +27,8 @@ const state = {
   validationFilter: 'all',
   activeCorrections: new Set(),
   validationMode: 'member',
+  validationSortColumn: null,
+  validationSortDirection: 'asc',
 
   // History
   historyEntries: [],

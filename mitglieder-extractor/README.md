@@ -12,10 +12,11 @@ Die App automatisiert den gesamten Workflow:
 2. **Auto-Login** — Optionale automatische Anmeldung mit gespeicherten Zugangsdaten
 3. **Region auswaehlen** — Interaktive Auswahl des Listenbreichs im Spiel (wird gespeichert)
 4. **Scroll-Capture** — Automatisches Screenshot → Scroll → Screenshot bis Listenende
-5. **OCR-Auswertung** — Erkennung von Namen, Koordinaten, Raengen und Scores via Tesseract.js
-6. **Validierung** — Automatische Namens-Korrektur gegen eine bekannte Spielerliste mit Fuzzy-Matching
-7. **Auto-Save** — CSV wird automatisch in `results/` gespeichert wenn die Validierung fehlerfrei ist
-8. **History** — Gespeicherte Ergebnisse nach Datum einsehen und vergleichen
+5. **OCR-Auswertung** — Erkennung von Namen, Koordinaten und Scores via Tesseract.js oder Vision-OCR (GLM-OCR)
+6. **Laufzeit-Korrektur** — Bekannte Korrekturen und Fuzzy-Matching werden bereits waehrend der OCR-Auswertung angewandt, bevor Eintraege zusammengefuehrt werden
+7. **Validierung** — Nachgelagerte Namens-Validierung gegen eine bekannte Spielerliste mit Fuzzy-Matching
+8. **Auto-Save** — CSV wird automatisch in `results/` gespeichert wenn die Validierung fehlerfrei ist
+9. **History** — Gespeicherte Ergebnisse nach Datum einsehen und vergleichen
 
 ## Installation (fuer Benutzer)
 
@@ -79,7 +80,7 @@ Dies fuehrt zwei Schritte aus:
 | Script | Befehl | Beschreibung |
 |--------|--------|-------------|
 | `npm start` | `electron src/main.js` | App im Entwicklungsmodus starten |
-| `npm test` | `vitest run` | Unit-Tests ausfuehren (203 Tests) |
+| `npm test` | `vitest run` | Unit-Tests ausfuehren (320 Tests) |
 | `npm run test:watch` | `vitest` | Tests im Watch-Modus |
 | `npm run test:coverage` | `vitest run --coverage` | Tests mit Coverage-Bericht |
 | `npm run dist` | `prepare-browsers && build` | Kompletter Build (Browser + Installer) |
@@ -99,7 +100,7 @@ Typische Groesse: ~220 MB (inkl. Chromium-Browser, Electron, sharp, Tesseract.js
 
 ### Tests
 
-Die Testsuite verwendet **Vitest** und umfasst 259 Unit-Tests in 22 Dateien:
+Die Testsuite verwendet **Vitest** und umfasst 320 Unit-Tests in 24 Dateien:
 
 ```bash
 npm test
@@ -107,8 +108,9 @@ npm test
 
 | Testbereich | Dateien | Tests | Beschreibung |
 |-------------|---------|-------|-------------|
-| OCR-Module | 7 | 94 | Noise-Erkennung, Score-Extraktion, Name-Extraktion, Dedup, CSV-Formatierung, Bildvorverarbeitung, Konstanten |
-| OcrProcessor | 1 | 21 | Orchestrator-Logik, Member/Event-Parsing, Score-Map-Extraktion |
+| OCR-Module | 8 | 94 | Noise-Erkennung, Score-Extraktion, Name-Extraktion, Dedup, CSV-Formatierung, Bildvorverarbeitung, Konstanten, OcrProcessor |
+| Name-Korrektor | 1 | 20 | Laufzeit-Korrekturen, Fuzzy-Matching, Caching |
+| Overlap-Detektor | 1 | 27 | Luecken-Erkennung, Scroll-Empfehlungen, Reihenhoehen-Analyse |
 | ValidationManager | 1 | 39 | Namensverwaltung, Fuzzy-Matching, Levenshtein, Korrekturen, Persistenz |
 | Backend-Services | 6 | 53 | Datum-Util, i18n-Backend, GUI-Logger, ScrollCapturer, Pfad-Konstanten, App-State |
 | IPC-Handler | 7 | 74 | Config, Dialog, History, Validation, Browser, Capture, OCR (alle mit gemockten Electron-APIs) |
@@ -181,7 +183,7 @@ Im gepackten Modus (`app.isPackaged === true`) aendern sich die Datenpfade:
 - Tipp: Die Region sollte die Mitgliederliste von links nach rechts umfassen
 
 #### Kalibrierung
-- **Mausrad-Ticks**: Scroll-Staerke pro Schritt (Standard: 6)
+- **Scroll-Distanz (px)**: Scroll-Distanz in Pixeln pro Schritt (1–2000, Standard: 500). Kleinere Werte erzeugen mehr Ueberlappung zwischen Screenshots und verhindern, dass Mitglieder uebersprungen werden.
 - **Scroll-Delay**: Wartezeit nach dem Scrollen in ms (Standard: 500)
 - **Test-Scroll**: Testet die Einstellungen und zeigt Vorher/Nachher-Vergleich
 
@@ -206,7 +208,7 @@ Bildverarbeitungs- und OCR-Parameter:
 - **Schaerfe**: Schaerfe-Sigma (Standard: 0.3)
 - **Kontrast**: Kontrast-Multiplikator (Standard: 1.5)
 - **Schwellwert**: Binarisierung-Threshold (Standard: 152)
-- **PSM-Modus**: Tesseract Page Segmentation Mode (Standard: 11 - Sparse Text)
+- **PSM-Modus**: Tesseract Page Segmentation Mode (Standard: 6 - Einheitlicher Block)
 - **Sprache**: OCR-Sprache (Standard: Deutsch)
 - **Min. Score**: Minimaler Score-Wert fuer Erkennung (Standard: 5000)
 
@@ -230,8 +232,7 @@ Bildverarbeitungs- und OCR-Parameter:
 - **Capture-Ordner**: Ordner mit Screenshots zur Auswertung
 - **Durchsuchen**: Ordner waehlen | **Oeffnen**: Aktuellen Capture-Ordner im Explorer anzeigen
 - **Auswerten**: Startet die OCR-Verarbeitung
-- Ergebnistabelle mit: Rang, Name, Koordinaten, Score
-- Farbkodierte Rang-Badges (Anfuehrer, Vorgesetzter, Offizier, Veteran, etc.)
+- Ergebnistabelle mit: Name, Koordinaten, Score
 - **CSV exportieren**: Speichert Ergebnisse als CSV-Datei (Standard: `results/`-Ordner)
 
 #### Validierungs-Banner
@@ -254,7 +255,7 @@ Bei Gelb/Rot erscheint ein "Zur Validierung"-Button zum schnellen Tab-Wechsel.
 Die Validierungsliste dient als "Bekannte Spieler"-Datenbank und ermoeglicht automatische OCR-Fehlerkorrektur.
 
 #### Initialisierung
-- Beim ersten Start wird die Liste automatisch aus der Ground-Truth-Datei (66 Spieler) befuellt
+- Beim ersten Start wird die Liste automatisch aus der Ground-Truth-Datei (99 Spieler) befuellt
 - Die Liste wird in `validation-list.json` gespeichert (gitignored)
 
 #### Linke Seite: OCR-Ergebnisse
@@ -316,7 +317,7 @@ Zeigt alle gespeicherten CSV-Ergebnisse aus dem `results/`-Ordner.
 - **Loeschen**: Einzelne Eintraege per Hover-Button entfernen
 - **Aktualisieren**: Liste neu laden
 
-> **Hinweis**: Pro Tag wird maximal eine CSV-Datei gespeichert (`mitglieder_YYYY-MM-DD.csv`). Ein erneuter Lauf am selben Tag ueberschreibt die vorherige Datei.
+> **Hinweis**: Jeder Lauf erzeugt eine eigene CSV-Datei mit Zeitstempel (`mitglieder_YYYY-MM-DD_HH-MM-SS.csv`). Aeltere Dateien im Format `mitglieder_YYYY-MM-DD.csv` werden weiterhin erkannt.
 
 ## Konfiguration
 
@@ -326,7 +327,7 @@ Einstellungen werden in `mitglieder-config.json` gespeichert:
 {
   "language": "de",
   "region": { "x": 677, "y": 364, "width": 729, "height": 367 },
-  "scrollTicks": 6,
+  "scrollDistance": 500,
   "scrollDelay": 500,
   "maxScreenshots": 50,
   "outputDir": "./captures",
@@ -342,7 +343,7 @@ Einstellungen werden in `mitglieder-config.json` gespeichert:
     "sharpen": 0.3,
     "contrast": 1.5,
     "threshold": 152,
-    "psm": 11,
+    "psm": 6,
     "lang": "deu",
     "minScore": 5000
   }
@@ -371,7 +372,17 @@ mitglieder-extractor/
     validation-manager.js # Validierungsliste (Fuzzy-Match, Corrections)
     scroll-capturer.js   # Screenshot-Erfassung + Duplikaterkennung
     region-selector.js   # Interaktive Region-Auswahl im Browser
-    ocr-processor.js     # OCR-Engine (Tesseract.js + sharp)
+    ocr/                 # OCR-Pipeline-Module
+      providers/           # Engine-Implementierungen (Tesseract, Vision, Hybrid)
+      row-cropper.js       # Zeilen-Erkennung, Sub-Region-Cropping
+      image-preprocessor.js # sharp-Pipeline + SCORE_PRESET, NAME_PRESET
+      provider-factory.js  # Engine-Auswahl -> Provider-Klasse
+      name-corrector.js    # Laufzeit-Namenskorrektur
+      shared-utils.js      # mergeOrAdd, pickBetterScore
+      overlap-detector.js  # Ueberlappungs-Erkennung
+      vision-parser.js     # Vision-Modell-Antwort-Parsing
+      deduplicator.js      # 4-Pass-Deduplizierung
+      csv-formatter.js     # CSV-Ausgabe
     ipc/                 # IPC-Handler-Module (je ein Handler pro Funktionsbereich)
       browser-handler.js   # Browser starten/schliessen, Auto-Login
       capture-handler.js   # Scroll-Capture (Mitglieder + Event, vereinheitlicht)
@@ -394,7 +405,7 @@ mitglieder-extractor/
       i18n.js            # Internationalisierung (DE/EN, ~200 Uebersetzungsschluessel)
       icon.png           # App-Icon (Renderer)
       utils/
-        helpers.js         # DOM-Helfer ($, $$, t), escapeHtml, localDateString, getRankClass
+        helpers.js         # DOM-Helfer ($, $$, t), escapeHtml, localDateTimeString
       modules/
         state.js           # Zentraler Renderer-State
         config.js          # Config laden/speichern/wiederherstellen
@@ -412,9 +423,9 @@ mitglieder-extractor/
     prepare-browsers.js  # Build-Helfer: Playwright Chromium lokal kopieren
   test/
     ocr-benchmark.js     # Benchmark-System fuer OCR-Optimierung
+    vision-benchmark.js  # Vision-OCR Benchmark (Ollama)
     fixtures/
-      ground-truth.json  # Manuell verifizierte Referenzdaten
-      baseline_*/        # Baseline-Screenshots fuer Tests
+      ground-truth.json  # Pixel-verifizierte Referenzdaten (99 Mitglieder)
   dist/                  # Build-Output (Installer, gitignored)
   pw-browsers/           # Lokale Playwright-Browser fuer Build (gitignored)
   captures/              # Aufgenommene Screenshots (gitignored)
@@ -490,40 +501,26 @@ Die App verwendet Electrons IPC-System fuer die Kommunikation zwischen Haupt- un
 
 ## OCR-Verarbeitung
 
-### Pipeline
-
-Die OCR-Verarbeitung folgt einem mehrstufigen Ansatz:
+### Pipeline (Hybrid-Modus — Standard)
 
 ```
 Screenshot (PNG)
     │
     ▼
-Bildvorverarbeitung (sharp)
-    ├── Skalierung (3x Lanczos3)
-    ├── Graustufen-Konvertierung
-    ├── Kontrast-Anpassung (linear)
-    ├── Schaerfung (Gaussian)
-    ├── Binarisierung (Threshold)
-    └── Border-Padding (20px weiss)
+Zeilen-Erkennung (row-cropper.js)
+    ├── detectDividers() — goldene Trennlinien finden
+    ├── classifyRegions() — Zeilen vs Rang-Header vs Partials
+    └── cropMemberRows() — nur 'member'-Zeilen extrahieren
     │
-    ▼
-Texterkennung (Tesseract.js)
-    ├── Pass 1: Haupterkennung (konfigurierte Einstellungen)
-    └── Pass 2: Graustufen-Verifikation (Score-Korrektur)
-    │
-    ▼
-3-Phasen-Parsing
-    ├── Phase 1: Koordinaten als Anker finden (Regex)
-    ├── Phase 2: Namen rueckwaerts extrahieren (Noise-Filterung)
-    └── Phase 3: Scores vorwaerts extrahieren (Tausender-Format)
+    ▼ (pro Mitglieder-Zeile)
+    ├── Vision-Modell (volle Zeile) → Name + Koordinaten (Score wird ignoriert)
+    └── cropScoreRegion() → SCORE_PRESET → Tesseract PSM 6 → Score
     │
     ▼
 Post-Processing
-    ├── Rang-Zuordnung (Bereichs-Header)
-    ├── Score-Verifikation (Dual-Pass Vergleich)
-    ├── Koordinaten-Deduplizierung (Overlap)
-    ├── Namens-Deduplizierung (Exakt + Suffix)
-    └── Score-Deduplizierung (aufeinanderfolgend)
+    ├── Laufzeit-Namenskorrektur (name-corrector.js)
+    ├── 4-Pass-Deduplizierung (Exakt, Fuzzy, Suffix, Score)
+    └── Ueberlappungs-Analyse (overlap-detector.js)
     │
     ▼
 Validierung (ValidationManager)
@@ -534,8 +531,10 @@ Validierung (ValidationManager)
     │
     ▼
 Auto-Save (bei fehlerfreier Validierung)
-    └── results/mitglieder_YYYY-MM-DD.csv
+    └── results/mitglieder/mitglieder_YYYY-MM-DD_HH-MM-SS.csv
 ```
+
+Drei OCR-Engines stehen zur Auswahl: **Tesseract** (offline, schnell), **Vision** (GLM-OCR via Ollama, beste Namen-Genauigkeit), **Hybrid** (Standard, kombiniert beide — hoechste Gesamtqualitaet).
 
 ### Namenserkennung
 
@@ -547,33 +546,30 @@ Die Namenserkennung bekaempft OCR-Artefakte durch:
 
 ### Score-Erkennung
 
+- **Sub-Region-Cropping**: Score-Bereich (72-93% der Zeilenbreite) wird isoliert und mit SCORE_PRESET verarbeitet (4x Skalierung, hoher Kontrast)
+- **Spezialisierter Tesseract-Worker**: PSM 6 (einheitlicher Block), nur Ziffern im Whitelist
+- **Hybrid-Modus**: Tesseract ist die einzige Score-Quelle — Vision-Score wird ignoriert (100% Score-Genauigkeit)
 - **Primaerer Regex**: Erkennt Zahlen mit Tausender-Trennern (z.B. `1,922,130`)
 - **Fallback-Regex**: Erkennt teilweise formatierte Zahlen (z.B. `1922,130`)
-- **Separator-Bereinigung**: Entfernt doppelte/defekte Trennzeichen (z.B. `1,922,.130`)
-- **Dual-Pass-Verifikation**: Vergleicht Scores aus Haupt- und Graustufen-Pass
-- **Intelligente Konfliktloesung**: Erkennt fuehrende-Ziffer-Verluste und Komma→Ziffer-Fehler
 
 ### Deduplizierung
 
-Die 3-Pass-Deduplizierung behandelt verschiedene Duplikat-Typen:
+Die 4-Pass-Deduplizierung behandelt verschiedene Duplikat-Typen:
 
-1. **Koordinaten-Duplikate**: Gleiche Koordinaten aus ueberlappenden Screenshots → hoeherer Score wird behalten
-2. **Exakte Namens-Duplikate**: Gleicher Name (case-insensitive) → hoeherer Score
+1. **Exakte Namens-Duplikate**: Gleicher Name (case-insensitive) → laengster Score wird behalten
+2. **Fuzzy Namens-Duplikate**: Aehnliche Namen gleicher Laenge (1-2 Zeichen Differenz, adaptiv) → erster Eintrag + laengster Score
 3. **Suffix-Matching**: "FACH Iceman" vs "Iceman" → Noise-Prefix wird erkannt
 4. **Score-Duplikate**: Aufeinanderfolgende Eintraege mit identischem Score → kuerzerer/noisigerer Name wird entfernt
 
 ### Aktuelle Benchmark-Ergebnisse
 
-Getestet gegen 66 manuell verifizierte Mitglieder (Ground-Truth):
+Getestet gegen 99 pixel-verifizierte Mitglieder (Ground-Truth, Feb 2026):
 
-| Metrik | Wert |
-|--------|------|
-| Mitglieder gefunden | 66/66 (100%) |
-| Namen korrekt | 65/66 (98.5%) |
-| Scores exakt | 65/66 (98.5%) |
-| Scores falsch | 0 |
-| Scores nah (5% Toleranz) | 1 |
-| Extra-Eintraege | 0 |
+| Engine | Gefunden | Namen | Scores | Quality | Zeit |
+|--------|----------|-------|--------|---------|------|
+| **Hybrid** | **99/99** | **97/99 (98.0%)** | **99/99 (100%)** | **982** | 92s |
+| Vision | 99/99 | 96/99 (97.0%) | 96/99 (97.0%) | 969 | 78s |
+| Tesseract | 93/99 | 84/93 (90.3%) | 93/99 (93.9%) | 873 | 29s |
 
 **Bekannte Limitation**: Spielernamen mit einzelnen Buchstaben und Leerzeichen (z.B. "T H C") werden von Tesseract als ein Wort zusammengefasst ("THC"). Die Validierungsliste korrigiert dies automatisch.
 
@@ -602,14 +598,13 @@ Siehe [Test-Dokumentation](test/README.md) fuer Details zum Benchmark-System.
 ### Schnellstart
 
 ```bash
-# Einzelnes Preset testen
-node test/ocr-benchmark.js --preset psm11_grey
-
-# Alle Presets vergleichen
+# Tesseract-Benchmark (Standard)
 node test/ocr-benchmark.js
 
-# Rohen OCR-Text fuer einen Screenshot anzeigen (Debug)
-node test/ocr-benchmark.js --raw 0004
+# Bestimmte Engine testen
+node test/ocr-benchmark.js --engine tesseract
+node test/ocr-benchmark.js --engine vision
+node test/ocr-benchmark.js --engine hybrid
 
 # Eigenen Capture-Ordner verwenden
 node test/ocr-benchmark.js --folder path/to/captures

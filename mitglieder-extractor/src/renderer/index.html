@@ -102,9 +102,9 @@
       <section class="section" id="calibrationSection">
         <h2 class="section-title" data-i18n="section.calibration">Kalibrierung</h2>
         <div class="control-row">
-          <label class="label has-tooltip" for="scrollTicks" data-i18n="label.scrollTicks" data-i18n-tooltip="tooltip.scrollTicks" data-tooltip="Anzahl der Mausrad-Scroll-Schritte zwischen Screenshots. Mehr Ticks = groesserer Scroll-Abstand.">Mausrad-Ticks:</label>
-          <input type="range" id="scrollTicks" class="slider" min="1" max="50" value="6">
-          <span id="scrollTicksValue" class="slider-value">6</span>
+          <label class="label has-tooltip" for="scrollDistance" data-i18n="label.scrollDistance" data-i18n-tooltip="tooltip.scrollDistance" data-tooltip="Scroll-Distanz in Pixeln zwischen Screenshots. Hoehere Werte = groesserer Scroll-Abstand.">Scroll-Distanz (px):</label>
+          <input type="range" id="scrollDistance" class="slider" min="1" max="2000" step="10" value="500">
+          <span id="scrollDistanceValue" class="slider-value">500</span>
         </div>
         <div class="control-row">
           <label class="label has-tooltip" for="scrollDelay" data-i18n="label.scrollDelay" data-i18n-tooltip="tooltip.scrollDelay" data-tooltip="Wartezeit in Millisekunden nach dem Scrollen, bevor der naechste Screenshot gemacht wird. Laengere Wartezeit = stabilere Bilder.">Scroll-Delay (ms):</label>
@@ -176,6 +176,11 @@
             <span data-i18n="engine.vision">Vision Model (Advanced)</span>
             <small class="engine-hint" data-i18n="engine.visionHint">Lokale KI-Modelle fuer bessere Erkennung</small>
           </label>
+          <label class="engine-option">
+            <input type="radio" name="ocr-engine" value="hybrid">
+            <span data-i18n="engine.hybrid">Hybrid (Vision + Tesseract)</span>
+            <small class="engine-hint" data-i18n="engine.hybridHint">Vision fuer Namen, Tesseract fuer Scores</small>
+          </label>
         </div>
 
         <!-- Tesseract-specific settings -->
@@ -213,12 +218,12 @@
             <span id="ocrThresholdDisplay" class="slider-value">152</span>
           </div>
           <div class="control-row">
-            <label class="label has-tooltip" data-i18n="label.psm" data-i18n-tooltip="tooltip.psm" data-tooltip="Tesseract Page Segmentation Mode. Bestimmt wie der Text im Bild gesucht wird. 'Sparse Text' liefert lt. Benchmark die beste Namenserkennung.">PSM-Modus:</label>
+            <label class="label has-tooltip" data-i18n="label.psm" data-i18n-tooltip="tooltip.psm" data-tooltip="Tesseract Page Segmentation Mode. Bestimmt wie der Text im Bild gesucht wird. 'Einheitlicher Block' (PSM 6) ist optimal fuer die Sub-Region-Erkennung.">PSM-Modus:</label>
             <select id="ocrPsm" class="input input-select">
               <option value="3" data-i18n="option.automatic">Automatisch</option>
               <option value="4" data-i18n="option.singleColumn">Einzelne Spalte</option>
-              <option value="6" data-i18n="option.uniformBlock">Einheitlicher Block</option>
-              <option value="11" selected data-i18n="option.sparseText">Sparse Text (Standard)</option>
+              <option value="6" selected data-i18n="option.uniformBlock">Einheitlicher Block (Standard)</option>
+              <option value="11" data-i18n="option.sparseText">Sparse Text</option>
               <option value="12" data-i18n="option.sparseTextOsd">Sparse Text + OSD</option>
             </select>
           </div>
@@ -262,9 +267,9 @@
       <section class="section" id="eventCalibrationSection">
         <h2 class="section-title" data-i18n="section.eventCalibration">Event-Kalibrierung</h2>
         <div class="control-row">
-          <label class="label has-tooltip" for="eventScrollTicks" data-i18n="label.scrollTicks" data-i18n-tooltip="tooltip.scrollTicks" data-tooltip="Anzahl der Mausrad-Scroll-Schritte zwischen Screenshots.">Mausrad-Ticks:</label>
-          <input type="range" id="eventScrollTicks" class="slider" min="1" max="50" value="6">
-          <span id="eventScrollTicksValue" class="slider-value">6</span>
+          <label class="label has-tooltip" for="eventScrollDistance" data-i18n="label.scrollDistance" data-i18n-tooltip="tooltip.scrollDistance" data-tooltip="Scroll-Distanz in Pixeln zwischen Screenshots.">Scroll-Distanz (px):</label>
+          <input type="range" id="eventScrollDistance" class="slider" min="1" max="2000" step="10" value="500">
+          <span id="eventScrollDistanceValue" class="slider-value">500</span>
         </div>
         <div class="control-row">
           <label class="label has-tooltip" for="eventScrollDelay" data-i18n="label.scrollDelay" data-i18n-tooltip="tooltip.scrollDelay" data-tooltip="Wartezeit in Millisekunden nach dem Scrollen.">Scroll-Delay (ms):</label>
@@ -359,9 +364,9 @@
           <div class="control-row">
             <label class="label has-tooltip" data-i18n="label.psm" data-i18n-tooltip="tooltip.psm">PSM-Modus:</label>
             <select id="eventOcrPsm" class="input input-select">
-              <option value="3" selected data-i18n="option.automatic">Automatisch (Standard)</option>
+              <option value="3" data-i18n="option.automatic">Automatisch</option>
               <option value="4" data-i18n="option.singleColumn">Einzelne Spalte</option>
-              <option value="6" data-i18n="option.uniformBlock">Einheitlicher Block</option>
+              <option value="6" selected data-i18n="option.uniformBlock">Einheitlicher Block (Standard)</option>
               <option value="11" data-i18n="option.sparseText">Sparse Text</option>
               <option value="12" data-i18n="option.sparseTextOsd">Sparse Text + OSD</option>
             </select>
@@ -457,7 +462,6 @@
               <thead>
                 <tr>
                   <th>#</th>
-                  <th data-i18n="th.rank">Rang</th>
                   <th data-i18n="th.name">Name</th>
                   <th data-i18n="th.coords">Koordinaten</th>
                   <th data-i18n="th.score">Score</th>
@@ -729,7 +733,6 @@
             <thead>
               <tr>
                 <th>#</th>
-                <th data-i18n="th.rank">Rang</th>
                 <th data-i18n="th.name">Name</th>
                 <th data-i18n="th.coords">Koordinaten</th>
                 <th data-i18n="th.score">Score</th>

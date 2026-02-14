@@ -68,14 +68,14 @@
 
       // Calibration
       'section.calibration': 'Kalibrierung',
-      'label.scrollTicks': 'Mausrad-Ticks:',
+      'label.scrollDistance': 'Scroll-Distanz (px):',
       'label.scrollDelay': 'Scroll-Delay (ms):',
       'btn.testScroll': 'Test-Scroll',
       'label.before': 'Vorher',
       'label.after': 'Nachher',
       'status.scrolling': 'Scrolle...',
       'status.difference': 'Unterschied: {pct}%',
-      'tooltip.scrollTicks': 'Anzahl der Mausrad-Scroll-Schritte zwischen Screenshots. Mehr Ticks = groesserer Scroll-Abstand.',
+      'tooltip.scrollDistance': 'Scroll-Distanz in Pixeln zwischen Screenshots. Hoehere Werte = groesserer Scroll-Abstand, niedrigere Werte = mehr Ueberlappung.',
       'tooltip.scrollDelay': 'Wartezeit in Millisekunden nach dem Scrollen, bevor der naechste Screenshot gemacht wird. Laengere Wartezeit = stabilere Bilder.',
 
       // Capture
@@ -118,6 +118,8 @@
       'engine.tesseractHint': 'Empfohlen fuer die meisten Nutzer',
       'engine.vision': 'Vision Model (Advanced)',
       'engine.visionHint': 'Lokale KI-Modelle fuer bessere Erkennung',
+      'engine.hybrid': 'Hybrid (Vision + Tesseract)',
+      'engine.hybridHint': 'Vision fuer Namen, Tesseract fuer Scores — beste Genauigkeit',
 
       // Ollama Setup
       'ollama.step1Title': 'Ollama Runtime',
@@ -147,7 +149,7 @@
       'tooltip.sharpen': 'Schaerfe-Sigma fuer Bildschaerfung. Werte um 0.3 sind optimal fuer TotalBattle. 0 = keine Schaerfung, hoehere Werte koennen Artefakte erzeugen.',
       'tooltip.contrast': 'Kontrast-Multiplikator. 1.0 = unveraendert. Hoehere Werte (1.5-2.0) machen helle Bereiche heller und dunkle dunkler, was die Text-Erkennung verbessern kann.',
       'tooltip.threshold': 'Binarisierung: Pixel ueber dem Schwellwert werden weiss, darunter schwarz. Hilfreich fuer klare Text/Hintergrund-Trennung. Werte um 128-160 sind typisch.',
-      'tooltip.psm': 'Tesseract Page Segmentation Mode. Bestimmt wie der Text im Bild gesucht wird. \'Sparse Text\' liefert lt. Benchmark die beste Namenserkennung.',
+      'tooltip.psm': 'Tesseract Page Segmentation Mode. Bestimmt wie der Text im Bild gesucht wird. \'Einheitlicher Block\' (PSM 6) ist optimal fuer die Sub-Region-Erkennung von Namen und Scores.',
       'tooltip.ocrLang': 'OCR-Sprache fuer die Texterkennung. Deutsch ist optimal fuer TotalBattle DE. \'Deutsch + Englisch\' kann bei gemischten Texten helfen.',
       'tooltip.minScore': 'Mindest-Score fuer die Erkennung. Zahlen unter diesem Wert werden als Artefakte ignoriert und nicht als Score gewertet.',
       'option.automatic': 'Automatisch',
@@ -176,9 +178,7 @@
       // Validation
       'section.validationStatus': 'Validierungsstatus',
       'section.ocrResults': 'OCR-Ergebnisse',
-      'section.knownPlayers': 'Bekannte Spieler',
       'section.actions': 'Aktionen',
-      'label.savedCorrections': 'Gespeicherte Korrekturen',
       'hint.validationEmpty': 'Noch keine OCR-Ergebnisse vorhanden. Starte einen OCR-Lauf im Tab "Aufnahme & Ergebnisse" oder lade eine Validierungsliste.',
       'btn.acceptAllSuggestions': 'Alle Vorschlaege uebernehmen',
       'btn.addName': '+ Hinzufuegen',
@@ -199,7 +199,6 @@
       'th.status': 'Status',
       'th.ocrName': 'OCR-Name',
       'th.correctionSuggestion': 'Korrektur / Vorschlag',
-      'th.rank': 'Rang',
       'th.name': 'Name',
       'th.coords': 'Koordinaten',
       'th.score': 'Macht',
@@ -224,7 +223,6 @@
       'prompt.addName': 'Neuen Spielernamen eingeben:',
       'confirm.acceptSuggestions': '{count} Vorschlaege uebernehmen?',
       'tooltip.acceptSuggestion': 'Vorschlag uebernehmen',
-      'tooltip.startAssignment': 'Zuordnung starten',
       'tooltip.editName': 'Name bearbeiten',
       'tooltip.addToList': 'Zur Validierungsliste hinzufuegen',
       'tooltip.openScreenshot': 'Screenshot oeffnen',
@@ -373,14 +371,14 @@
 
       // Calibration
       'section.calibration': 'Calibration',
-      'label.scrollTicks': 'Mouse Wheel Ticks:',
+      'label.scrollDistance': 'Scroll Distance (px):',
       'label.scrollDelay': 'Scroll Delay (ms):',
       'btn.testScroll': 'Test Scroll',
       'label.before': 'Before',
       'label.after': 'After',
       'status.scrolling': 'Scrolling...',
       'status.difference': 'Difference: {pct}%',
-      'tooltip.scrollTicks': 'Number of mouse wheel scroll steps between screenshots. More ticks = larger scroll distance.',
+      'tooltip.scrollDistance': 'Scroll distance in pixels between screenshots. Higher values = larger scroll distance, lower values = more overlap.',
       'tooltip.scrollDelay': 'Wait time in milliseconds after scrolling before the next screenshot is taken. Longer wait = more stable images.',
 
       // Capture
@@ -423,6 +421,8 @@
       'engine.tesseractHint': 'Recommended for most users',
       'engine.vision': 'Vision Model (Advanced)',
       'engine.visionHint': 'Local AI models for better accuracy',
+      'engine.hybrid': 'Hybrid (Vision + Tesseract)',
+      'engine.hybridHint': 'Vision for names, Tesseract for scores — best accuracy',
 
       // Ollama Setup
       'ollama.step1Title': 'Ollama Runtime',
@@ -452,7 +452,7 @@
       'tooltip.sharpen': 'Sharpness sigma for image sharpening. Values around 0.3 are optimal for TotalBattle. 0 = no sharpening, higher values may produce artifacts.',
       'tooltip.contrast': 'Contrast multiplier. 1.0 = unchanged. Higher values (1.5-2.0) make bright areas brighter and dark areas darker, which can improve text recognition.',
       'tooltip.threshold': 'Binarization: Pixels above the threshold become white, below become black. Helpful for clear text/background separation. Values around 128-160 are typical.',
-      'tooltip.psm': 'Tesseract Page Segmentation Mode. Determines how text is searched in the image. \'Sparse Text\' provides the best name recognition according to benchmarks.',
+      'tooltip.psm': 'Tesseract Page Segmentation Mode. Determines how text is searched in the image. \'Uniform Block\' (PSM 6) is optimal for sub-region recognition of names and scores.',
       'tooltip.ocrLang': 'OCR language for text recognition. German is optimal for TotalBattle DE. \'German + English\' can help with mixed texts.',
       'tooltip.minScore': 'Minimum score for detection. Numbers below this value are ignored as artifacts and not counted as scores.',
       'option.automatic': 'Automatic',
@@ -481,9 +481,7 @@
       // Validation
       'section.validationStatus': 'Validation Status',
       'section.ocrResults': 'OCR Results',
-      'section.knownPlayers': 'Known Players',
       'section.actions': 'Actions',
-      'label.savedCorrections': 'Saved Corrections',
       'hint.validationEmpty': 'No OCR results yet. Start an OCR run in the "Capture & Results" tab or load a validation list.',
       'btn.acceptAllSuggestions': 'Accept All Suggestions',
       'btn.addName': '+ Add',
@@ -504,7 +502,6 @@
       'th.status': 'Status',
       'th.ocrName': 'OCR Name',
       'th.correctionSuggestion': 'Correction / Suggestion',
-      'th.rank': 'Rank',
       'th.name': 'Name',
       'th.coords': 'Coordinates',
       'th.score': 'Power',
@@ -529,7 +526,6 @@
       'prompt.addName': 'Enter new player name:',
       'confirm.acceptSuggestions': 'Accept {count} suggestions?',
       'tooltip.acceptSuggestion': 'Accept suggestion',
-      'tooltip.startAssignment': 'Start assignment',
       'tooltip.editName': 'Edit name',
       'tooltip.addToList': 'Add to validation list',
       'tooltip.openScreenshot': 'Open screenshot',

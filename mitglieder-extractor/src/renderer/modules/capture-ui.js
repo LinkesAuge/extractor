@@ -20,8 +20,8 @@ const MODE_DOM = {
     regionInfo:      () => $('#regionInfo'),
     previewContainer:() => $('#regionPreviewContainer'),
     preview:         () => $('#regionPreview'),
-    scrollTicks:     () => $('#scrollTicks'),
-    scrollTicksVal:  () => $('#scrollTicksValue'),
+    scrollDistance:     () => $('#scrollDistance'),
+    scrollDistanceVal: () => $('#scrollDistanceValue'),
     scrollDelay:     () => $('#scrollDelay'),
     scrollDelayVal:  () => $('#scrollDelayValue'),
     testBtn:         () => $('#btnTestScroll'),
@@ -49,8 +49,8 @@ const MODE_DOM = {
     regionInfo:      () => $('#eventRegionInfo'),
     previewContainer:() => $('#eventRegionPreviewContainer'),
     preview:         () => $('#eventRegionPreview'),
-    scrollTicks:     () => $('#eventScrollTicks'),
-    scrollTicksVal:  () => $('#eventScrollTicksValue'),
+    scrollDistance:     () => $('#eventScrollDistance'),
+    scrollDistanceVal: () => $('#eventScrollDistanceValue'),
     scrollDelay:     () => $('#eventScrollDelay'),
     scrollDelayVal:  () => $('#eventScrollDelayValue'),
     testBtn:         () => $('#btnTestEventScroll'),
@@ -148,10 +148,10 @@ function initCaptureMode(mode, { saveConfig, onCaptureDone }) {
   });
 
   // Slider listeners
-  dom.scrollTicks.addEventListener('input', () => {
-    dom.scrollTicksVal.textContent = dom.scrollTicks.value;
+  dom.scrollDistance.addEventListener('input', () => {
+    dom.scrollDistanceVal.textContent = dom.scrollDistance.value;
   });
-  dom.scrollTicks.addEventListener('change', saveConfig);
+  dom.scrollDistance.addEventListener('change', saveConfig);
   dom.scrollDelay.addEventListener('input', () => {
     dom.scrollDelayVal.textContent = dom.scrollDelay.value;
   });
@@ -179,7 +179,7 @@ function initCaptureMode(mode, { saveConfig, onCaptureDone }) {
     dom.testInfo.textContent = t('status.scrolling');
     const result = await api.testScroll({
       region,
-      scrollTicks: parseInt(dom.scrollTicks.value),
+      scrollDistance: parseInt(dom.scrollDistance.value),
       scrollDelay: parseInt(dom.scrollDelay.value),
     });
     dom.testBtn.disabled = false;
@@ -215,7 +215,7 @@ function initCaptureMode(mode, { saveConfig, onCaptureDone }) {
     saveConfig();
     await api.startCapture({
       region,
-      scrollTicks: parseInt(dom.scrollTicks.value),
+      scrollDistance: parseInt(dom.scrollDistance.value),
       scrollDelay: parseInt(dom.scrollDelay.value),
       maxScreenshots: parseInt(dom.maxScreenshots.value),
       outputDir: dom.outputDir.value,

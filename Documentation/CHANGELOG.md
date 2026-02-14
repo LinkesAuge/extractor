@@ -6,6 +6,266 @@
 
 ---
 
+## 2026-02-14 — Hybrid Provider Redesign (Vision Names + Tesseract Scores)
+
+Rewrote the hybrid OCR provider to use a clean separation of responsibilities: Vision model handles name/coordinate extraction, Tesseract handles score extraction exclusively.
+
+### Changes
+- **Rewrote `hybrid-provider.js`**: Vision model extracts names + coordinates only; its score output is ignored. Tesseract score worker (PSM 6 + digit whitelist) is the single source of truth for scores. Also applied the PSM 6 fix and separator cleanup from the Tesseract provider.
+- **Fixed member-row filtering**: Added `region.type !== 'member'` check — old hybrid processed ALL rows (headers, partials), producing 6 false positives. New version skips non-member rows.
+- **Extracted helper functions**: `retryWithTrim`, `verifyName`, `extractScoreFromCrop` for cleaner structure. Removed `pickBetterScore` import (no longer needed).
+
+### Benchmark Results (New Hybrid vs Others)
+| Engine | Found | Names | Scores | Quality | Time |
+|--------|-------|-------|--------|---------|------|
+| **Hybrid (new)** | **99/99** | **97/99 (98.0%)** | **99/99 (100%)** | **982** | 92s |
+| Vision | 99/99 | 96/99 (97.0%) | 96/99 (97.0%) | 969 | 78s |
+| Hybrid (old) | 97/99 | 95/97 (97.9%) | 93/99 (93.9%) | 916 | 155s |
+| Tesseract | 93/99 | 84/93 (90.3%) | 93/99 (93.9%) | 873 | 29s |
+
+---
+
+## 2026-02-14 — OCR Accuracy Improvements & Default Settings Alignment
+
+Diagnosed all score/name failures from the benchmark and fixed three root causes. Aligned default settings across constants, user config, and UI.
+
+### Fixes
+- **Score separator cleanup** (`tesseract-provider.js`): OCR sometimes reads consecutive separators like "311.,635,611". Added `.replace(/([,.])\s*([,.])/g, '$1')` to `parseScoreRegionText` — identical to the cleanup already in `extractScore`. Fixes Karodor score: 635,611 -> 311,635,611.
+- **Noise detector preserves name prefixes** (`noise-detector.js`): Added `PRESERVED_SHORT_TOKENS` set ("la", "le", "de", "gh", "ch", etc.) that bypass the 1-2 char noise filter. Fixes "La Nagual Magico" being stripped to "Nagual Magico" and "Gh" being classified as noise.
+- **Turkish character support** (`name-extractor.js`, `noise-detector.js`, `tesseract-provider.js`): Extended all character classes from `a-zA-ZäöüÄÖÜß` to `a-zA-ZäöüÄÖÜßıİ`. Fixes "OsmanlıTorunu" being split into "Osmanl Torunu".
+- **Default PSM updated to 6**: Changed `DEFAULT_SETTINGS.psm` from 11 to 6 across `constants.js`, `index.html` (both member and event), `i18n.js` tooltips, and user config. PSM 6 (uniform block) is optimal for sub-region cropping pipeline.
+- **Stale JSDoc comment**: Fixed score worker comment that still said "PSM 7".
+
+### Benchmark Results (Tesseract, after fixes)
+- Found: 93/99 | Names: 84/93 (90.3%) | Scores: 93/99 (93.9%) | Quality: 873
+
+### Remaining Limitations (OCR quality)
+- 6 missing: name crops produce garbled text (1-2 chars stripped as noise)
+- 9 wrong names: complete garbling (Anararad->"16"), first-word loss (Andreas Houlding->"Houlding"), OCR confusions (I->l, U->Ü, "0815"->"pi")
+- These require the Vision/Hybrid model for improvement
+
+---
+
+## 2026-02-14 — Benchmark Modernization & Score Worker Fix
+
+Rewrote the OCR benchmark to use the actual sub-cropping pipeline and fixed a critical Tesseract PSM issue in the score worker.
+
+### Changes
+- **Rewrote `test/ocr-benchmark.js`**: Removed the old manual OCR pipeline (21 presets, custom preprocessing, dual-pass verification). The benchmark now calls `TesseractProvider.processFolder()` directly via `createOcrProvider()`. Supports `--engine tesseract|vision|hybrid|all` instead of `--preset`. Removed ~300 lines of obsolete code.
+- **Fixed score worker PSM**: Changed score sub-region worker from PSM 7 (single text line) to PSM 6 (uniform block). PSM 7 failed because the shield and bag icons in the score crop confused single-line segmentation. PSM 6 handles surrounding icons as separate blocks and extracts digits cleanly. Score extraction improved from 2.0% to 92.9%.
+- **Updated `test/README.md`**: Replaced preset-based documentation with engine-based documentation. Updated benchmark output examples and optimization history.
+
+### Benchmark Results (Tesseract, sub-cropping pipeline)
+- Found: 93/99 members | Names: 82/93 (88.2%) | Scores: 92/99 (92.9%) | Quality: 859
+
+---
+
+## 2026-02-14 — Code Cleanup and Optimization
+
+Systematic cleanup of dead code, stale artifacts, .gitignore gaps, and over-exported internals.
+
+### Changes
+- **Removed legacy `OcrProcessor` wrapper** (`src/ocr-processor.js` deleted). Updated `ocr-handler.js` to import `toMemberCSV`/`toEventCSV` directly from `csv-formatter.js`. Updated `app-state.js` JSDoc types to reference `OcrProvider`. Re-targeted 21 tests from `OcrProcessor` to `TesseractProvider`.
+- **Cleaned stale test artifacts**: Deleted 58 old benchmark JSONs from `test/results/`, removed `test/debug/screenshot-verification.md` (data lives in `ground-truth.json`). Parameterized `compare-gt-csv.js` to accept a CLI path or auto-detect the latest CSV.
+- **Fixed .gitignore gaps**: Added entries for `capture-config.json`, `mitglieder-config.json`, `captures/`, `results/`, `logs/`, `test/results/`, `test/debug/crop-test/`. Untracked `mitglieder-config.json` (contains credentials).
+- **Trimmed over-exported internals**: Made `detectDividers`, `classifyRegions` module-private in `row-cropper.js`. Made `extractJsonArray`, `validateMemberEntry`, `validateEventEntry` module-private in `vision-parser.js`.
+- **CSS/i18n cleanup**: Added `.ocr-settings-grid` definition (flex column layout). Added `.ollama-test-result.success` and `.ollama-test-result.error` styles. Removed 3 unused i18n keys (`tooltip.startAssignment`, `label.savedCorrections`, `section.knownPlayers`) from both `de` and `en`.
+
+### Test Impact
+All 320 tests across 24 files pass. No behavioral changes.
+
+---
+
+## 2026-02-14 — Ground Truth Consolidated to Single Verified Source
+
+Replaced two outdated ground truth files with a single pixel-verified file based on manual verification of 86 screenshots against the CSV.
+
+### Changes
+- **`test/fixtures/ground-truth.json`**: Overwritten with 99 pixel-verified members from `screenshot_20260214_21_02`. Includes `manualCorrections` array documenting each fix.
+- **`test/fixtures/vision-ground-truth.json`**: Deleted (superseded by unified file).
+- **`test/vision-benchmark.js`**: Default GT path changed from `vision-ground-truth.json` to `ground-truth.json`.
+- **`test/debug/compare-gt-csv.js`**: GT path updated.
+- **`test/debug/score-diagnostic.js`**: GT path updated.
+- **`test/README.md`**: Removed dual-GT documentation; documented single unified file.
+- **`mitglieder-extractor/README.md`**: Updated fixture description and benchmark table.
+
+### Manual Corrections Applied
+- Feldjager score: 828,672,381 → 828,672,281 (confirmed single-digit OCR error in screenshot 0037)
+- nobs: added (visible in screenshots 0024-0025, missing from CSV)
+- Hatsch coords: Y:840 → Y:846 (Y:840 belongs to nobs)
+- OsmanlıTorunu: Turkish ı preserved (CSV had ASCII i)
+- Foo Fighter duplicate (CSV line 21, X:072) removed
+
+---
+
+## 2026-02-14 — Sub-Region Cropping for OCR Accuracy
+
+Added per-region sub-cropping to the OCR pipeline. Instead of processing full screenshots or full row images, each member row is now split into focused sub-crops (score region, name+coords region) with region-specific preprocessing and Tesseract settings.
+
+### New Functions in `src/ocr/row-cropper.js`
+- `cropScoreRegion(rowBuffer)`: Extracts the score area (~72-93% of row width).
+- `cropNameRegion(rowBuffer)`: Extracts the name+coordinates area (~13-68% of row width).
+- Configurable percentage-based boundaries via constants.
+
+### New Presets in `src/ocr/image-preprocessor.js`
+- `SCORE_PRESET`: 4x upscale, high contrast (2.0), aggressive threshold (150) — optimized for digit recognition.
+- `NAME_PRESET`: 3x upscale, moderate contrast (1.5), lighter threshold (140) — preserves special characters.
+
+### TesseractProvider Refactor
+- Now uses per-row sub-cropping instead of full-screenshot OCR.
+- Two specialized Tesseract workers: score worker (PSM 7 + digit-only whitelist) and name worker (PSM 6).
+- Eliminates the dual-pass verification approach — each region is already optimally preprocessed.
+- Makes Tesseract viable as a standalone provider with improved accuracy.
+
+### HybridProvider Refactor
+- Replaces the full-screenshot Tesseract pass with per-row score sub-cropping.
+- Score verification now uses `cropScoreRegion()` from the same row as the Vision extraction — guaranteed row correspondence, no coordinate matching needed.
+- Removed `_extractScoresFromScreenshot()` and its helper functions (`extractScoresMap`, `findCoordinates`, `findRankPositions`).
+
+### Motivation
+- Verification of 86 screenshots against CSV revealed Feldjager's score was misread: 828,672,281 became 828,672,381 (single digit error in the hundreds place).
+- Score digits are small relative to full screenshots/rows; isolating and enlarging them with optimized filters improves Tesseract digit recognition.
+
+---
+
+## 2026-02-14 — Hybrid OCR Engine (Vision + Tesseract)
+
+Added a new "Hybrid" OCR engine that combines the strengths of both existing engines: Vision model for name/coordinate extraction and Tesseract for score verification.
+
+### New Module: `src/ocr/providers/hybrid-provider.js`
+- Extends `OcrProvider` with a crop-based pipeline (same as Vision crop mode).
+- For each screenshot: runs Tesseract first to extract a coords→score map, then runs Vision crop extraction for names + coordinates.
+- Cross-references results: for each Vision entry with matching Tesseract coords, `pickBetterScore()` selects the more accurate score (more digits wins).
+- Includes all existing features: retry-with-trim, name-only verification, runtime name correction, overlap analysis.
+- Event processing delegates to VisionProvider (score verification less critical for events).
+
+### UI & Config
+- Added "Hybrid (Vision + Tesseract)" radio button in the engine selector.
+- Hybrid mode shows the Vision/Ollama settings panel (needs model selection).
+- i18n: Added German and English labels for the hybrid engine option.
+- Provider factory: Routes `engine: 'hybrid'` to `HybridProvider`.
+
+### Benchmark Results (Vision-only → Hybrid)
+- Scores exact: 58/99 → **60/99** (+2)
+- Scores wrong: 3 → **1** (Geoterrasco1 and Mork fixed by Tesseract)
+- Quality Score: 881 → **897** (+16)
+- Trade-off: ~20s slower (84.5s vs 62.3s) due to Tesseract running alongside Vision.
+
+---
+
+## 2026-02-14 — Fuzzy Dedup & Score Merge Improvements
+
+Fixed false merges in fuzzy deduplication and improved score accuracy across the merge/dedup pipeline.
+
+### Adaptive Fuzzy Dedup Threshold
+- **Problem**: `deduplicateFuzzyName` allowed 2-char diffs for *any* same-length name, causing false merges like "Mork"/"Dorr" (4 chars, 2 diffs) and "Totaur"/"Metaur" (6 chars, 2 diffs).
+- **Fix**: Adaptive threshold based on name length:
+  - Names < 10 chars: max 1 char diff
+  - Names >= 10 chars: max 2 char diffs (still catches "Foo Fighter"/"Poo Fighter")
+- Applied the same tightening to `namesAreSimilar()` in `shared-utils.js` (coordinate collision detection).
+
+### Score Merge Strategy: "Keep Longest"
+- **Problem**: Strict "keep first non-zero" score strategy kept early truncated readings (e.g. 845 instead of 935,778,265) when a later screenshot had the full score.
+- **Fix**: New `pickBetterScore(existing, incoming)` function that keeps the score with more digits (longer = less likely truncated). Same digit count → keeps the existing (first-seen) value.
+- Applied consistently in: `mergeOrAddMember`, `mergeOrAddEvent`, `deduplicateExact`, `deduplicateSuffix`, `deduplicateFuzzyName`.
+
+### Benchmark Results (before → after)
+- Found: 97/99 → **99/99** (Totaur and Mork recovered)
+- Scores exact: 56/99 → **58/99** (+2, Mahoni fixed)
+- Quality Score: 851 → **881** (+30)
+
+---
+
+## 2026-02-14 — Runtime Validation Integration
+
+Integrated the validation/correction list into the OCR pipeline so names are corrected immediately after extraction, before merge and dedup. This prevents duplicates caused by OCR misreadings when the correction is already known (e.g. "Poo Fighter" → "Foo Fighter").
+
+### New Module: `src/ocr/name-corrector.js`
+- Stateless `applyKnownCorrections(name, ctx)` function that applies corrections in priority order:
+  1. **Direct correction** from `validation-list.json` `corrections` map (case-insensitive)
+  2. **Canonical name normalization** against `knownNames` (fixes casing)
+  3. **Fuzzy match** via Levenshtein distance (threshold: 2 for names >= 5 chars, 1 for shorter) and suffix matching
+- Includes exported `levenshtein()` utility (extracted from the same logic in `ValidationManager`).
+- Lazily builds and caches lowercase lookup maps for O(1) matching.
+
+### Pipeline Integration
+- **Vision provider** (`processFolder`, `processFolderCropped`, `processEventFolder`): Corrections applied per-entry after extraction, before `mergeOrAddMember`/`mergeOrAddEvent`.
+- **Tesseract provider** (`processFolder`, `processEventFolder`): Same pattern — corrections applied per-entry before merge.
+- **Provider factory**: Accepts and passes `validationContext` to both provider constructors.
+- **OCR handler**: Reads `validationManager.getState()` from `appState` at OCR start and passes it to `createOcrProvider`. Graceful fallback if validation data isn't loaded yet.
+- Log output: `~ Name korrigiert: "Poo Fighter" → "Foo Fighter" (correction)` with method tag (correction/canonical/fuzzy).
+- UI validation still runs afterward as a safety net for anything the runtime step didn't catch.
+
+### Tests
+- Added 20 unit tests for `name-corrector.js` covering: null/empty guards, direct corrections, case-insensitive corrections, canonical normalization, fuzzy matching (1-char and 2-char diffs), suffix matching (noise prefix), short-name thresholds, context caching, and priority ordering.
+- Full test suite: 320 tests passing.
+
+---
+
+## 2026-02-14 — Merge Logic Hardening
+
+Fixed three issues causing data loss and incorrect overwrites during the OCR merge/dedup pipeline.
+
+### Coordinate Collision Protection
+- `mergeOrAddMember()` now checks name similarity before merging entries with identical coordinates. If two different players are assigned the same coords (due to OCR misread), they are kept as separate entries instead of one being silently swallowed.
+- Added `namesAreSimilar()` — compares names using substring matching and character-level edit distance (tolerance: 2 chars). Catches OCR variants ("Foo Fighter" / "Poo Fighter") while rejecting true collisions ("Hatsch" / "nobs").
+
+### Score Stability (Keep-First Strategy)
+- Changed all merge and dedup logic from "keep higher score" to "keep first non-zero score". Once a valid score is established, later screenshots with OCR noise variations no longer overwrite it. Score is only updated when the existing value is 0 (zeroed by score-bleeding detection).
+- Applied consistently in `mergeOrAddMember`, `mergeOrAddEvent`, `deduplicateExact`, and `deduplicateSuffix`.
+
+### Fuzzy Name Deduplication
+- Added a new `deduplicateFuzzyName` pass between exact dedup and suffix dedup. Detects same-length names with 1-2 character differences (e.g. "Foo Fighter" / "Poo Fighter") and merges them, keeping the first entry.
+- Imported `namesAreSimilar` from `shared-utils.js` into `deduplicator.js`.
+
+---
+
+## 2026-02-14 — Remove Rank Extraction
+
+Removed rank (Rang) extraction and display from the entire pipeline. Ranks are no longer needed in the output data, which also eliminates ~4 model inference calls per capture (rank header processing).
+
+### Pipeline Changes
+- **Vision prompts**: Removed rank field from member extraction prompt; deleted `RANK_HEADER_PROMPT` and `rank-header` mode.
+- **Vision parser**: Removed `normalizeRank()`, `VALID_RANKS`, `parseRankHeaderResponse()`. `validateMemberEntry()` now returns `{name, coords, score}`.
+- **Vision provider**: Skipped rank header inference in `processFolderCropped` — headers are still detected for cropping but no longer sent to the model. Removed `currentRank` / `lastRank` tracking from both `processFolder` and `processFolderCropped`.
+- **Tesseract provider**: Removed rank assignment from `parseOcrText()` and `processFolder()`.
+- **Shared utils**: Removed rank merge logic from `mergeOrAddMember()`.
+- **CSV formatter**: Removed "Rang" column — output is now `Name,Koordinaten,Score`.
+
+### UI Changes
+- Removed rank column (`<th>`) from OCR results and history detail tables in `index.html`.
+- Removed rank badge rendering from `ocr-ui.js` and `history-ui.js`.
+- Removed `getRankClass()` helper and all `.ocr-rank-badge` / `.rank-*` CSS styles.
+- Removed `th.rank` i18n keys.
+
+### History & Backward Compatibility
+- `parseMemberCsvLines()` now auto-detects the CSV format from the header row, supporting both old (`Rang,Name,Koordinaten,Score`) and new (`Name,Koordinaten,Score`) files.
+
+### Benchmark
+- Removed `rankGroups`, `rankCorrect`, `rankWrong` from ground truth and benchmark runner.
+- Simplified quality score formula (no rank component).
+
+---
+
+## 2026-02-14 — Pixel-Based Scroll Distance & Overlap Detection
+
+Replaced discrete scroll-tick system with fine-grained pixel-based scroll distance and added intelligent overlap detection to the OCR pipeline.
+
+### Scroll Distance Migration
+- **Config schema**: Replaced `scrollTicks` / `eventScrollTicks` with `scrollDistance` / `eventScrollDistance` (1–2000 px). Added automatic migration of legacy config values (ticks × 100 → pixels).
+- **Capture logic**: `ScrollCapturer` and `capture-handler.js` now derive individual `mouse.wheel` events from the pixel distance (full ticks + remainder).
+- **UI**: Slider range 1–2000 px (step 10), updated labels, tooltips, and i18n keys (DE + EN).
+- **Tests**: Updated `scroll-capturer.test.js` and `capture-handler.test.js` for pixel-based API.
+
+### Overlap Detection (OCR Pipeline)
+- **New module**: `src/ocr/overlap-detector.js` — analyzes screenshot-to-screenshot overlap after OCR to detect gaps where members may have been skipped.
+- **Gap detection**: For each consecutive screenshot pair, checks whether at least one member appears in both. Logs warnings with specific screenshot pairs when no overlap is found.
+- **Scroll recommendation**: Estimates optimal scroll distance from region height and average member-row height (targets ≥ 2 rows of overlap). Warns when current distance risks gaps.
+- **Integration**: Both `processFolder` and `processFolderCropped` in `VisionProvider` now run overlap analysis after deduplication and include overlap metadata in results.
+- **Tests**: Full unit test coverage for overlap-detector (gap detection, recommendation logic, edge cases).
+
+---
+
 ## 2026-02-13 — Codebase Hardening Round 2
 
 Security, crash prevention, IPC validation, robustness, DRY, accessibility, and deferred items.

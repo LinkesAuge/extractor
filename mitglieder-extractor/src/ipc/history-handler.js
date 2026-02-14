@@ -108,14 +108,14 @@ async function scanResultsDir(dirPath) {
     for (const file of csvFiles) {
       const filePath = join(dirPath, file);
       const fileStat = await stat(filePath);
-      const dateMatch = file.match(/(\d{4}-\d{2}-\d{2})/);
-      const date = dateMatch ? dateMatch[1] : fileStat.mtime.toLocaleDateString('sv-SE');
+      const { date, time } = parseDateTimeFromFileName(file, fileStat);
       const type = file.startsWith('event_') ? 'event' : 'member';
       const content = await readFile(filePath, 'utf-8');
       const lineCount = content.trim().split(/\r?\n/).filter(l => l.trim()).length;
       entries.push({
         fileName: file,
         date,
+        time,
         type,
         memberCount: Math.max(0, lineCount - 1),
         modified: fileStat.mtime.toISOString(),
@@ -152,21 +152,66 @@ function parseEventCsvLines(lines) {
 
 /**
  * Parses member CSV lines (skips header).
+ * Supports both old format (Rang,Name,Koordinaten,Score) and
+ * new format (Name,Koordinaten,Score) for backward compatibility.
+ *
  * @param {string[]} lines
- * @returns {Array<{rank: string, name: string, coords: string, score: number}>}
+ * @returns {Array<{name: string, coords: string, score: number}>}
  */
 function parseMemberCsvLines(lines) {
   const members = [];
+  // Detect format from header: old format has 4 columns (starts with "Rang")
+  const header = lines[0] || '';
+  const isLegacy = /^Rang\s*,/i.test(header);
   for (let i = 1; i < lines.length; i++) {
-    const match = lines[i].match(/^([^,]*),("(?:[^"]|"")*"|[^,]*),("(?:[^"]|"")*"|[^,]*),(\d+)$/);
-    if (match) {
-      members.push({
-        rank: match[1],
-        name: match[2].replace(/^"|"$/g, '').replace(/""/g, '"'),
-        coords: match[3].replace(/^"|"$/g, '').replace(/""/g, '"'),
-        score: parseInt(match[4], 10) || 0,
-      });
+    if (isLegacy) {
+      // Old: Rang,Name,Koordinaten,Score
+      const match = lines[i].match(/^([^,]*),("(?:[^"]|"")*"|[^,]*),("(?:[^"]|"")*"|[^,]*),(\d+)$/);
+      if (match) {
+        members.push({
+          name: match[2].replace(/^"|"$/g, '').replace(/""/g, '"'),
+          coords: match[3].replace(/^"|"$/g, '').replace(/""/g, '"'),
+          score: parseInt(match[4], 10) || 0,
+        });
+      }
+    } else {
+      // New: Name,Koordinaten,Score
+      const match = lines[i].match(/^("(?:[^"]|"")*"|[^,]*),("(?:[^"]|"")*"|[^,]*),(\d+)$/);
+      if (match) {
+        members.push({
+          name: match[1].replace(/^"|"$/g, '').replace(/""/g, '"'),
+          coords: match[2].replace(/^"|"$/g, '').replace(/""/g, '"'),
+          score: parseInt(match[3], 10) || 0,
+        });
+      }
     }
   }
   return members;
+}
+
+/**
+ * Extract date and optional time from a result CSV filename.
+ * Supports both legacy `mitglieder_2026-02-14.csv` and new
+ * `mitglieder_2026-02-14_17-30-45.csv` formats.
+ *
+ * @param {string} fileName - CSV filename.
+ * @param {{ mtime: Date }} fileStat - File stat object (fallback).
+ * @returns {{ date: string, time: string|null }}
+ */
+function parseDateTimeFromFileName(fileName, fileStat) {
+  // New format: YYYY-MM-DD_HH-MM-SS
+  const fullMatch = fileName.match(/(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2}-\d{2})/);
+  if (fullMatch) {
+    return { date: fullMatch[1], time: fullMatch[2].replace(/-/g, ':') };
+  }
+  // Legacy format: YYYY-MM-DD only
+  const dateMatch = fileName.match(/(\d{4}-\d{2}-\d{2})/);
+  if (dateMatch) {
+    return { date: dateMatch[1], time: null };
+  }
+  // Fallback: use file modification time
+  return {
+    date: fileStat.mtime.toLocaleDateString('sv-SE'),
+    time: null,
+  };
 }

@@ -2,13 +2,13 @@ const BOM = '\uFEFF';
 
 /**
  * Formats a member list as a CSV string (UTF-8 with BOM for Excel).
- * @param {Array<{rank: string, name: string, coords: string, score: number}>} members
+ * @param {Array<{name: string, coords: string, score: number}>} members
  * @returns {string} CSV content.
  */
 export function toMemberCSV(members) {
-  const header = 'Rang,Name,Koordinaten,Score';
+  const header = 'Name,Koordinaten,Score';
   const rows = members.map(m =>
-    `${m.rank},"${(m.name ?? '').replace(/"/g, '""')}","${(m.coords ?? '')}",${m.score}`
+    `"${(m.name ?? '').replace(/"/g, '""')}","${(m.coords ?? '')}",${m.score}`
   );
   return BOM + [header, ...rows].join('\r\n');
 }
