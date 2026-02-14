@@ -38,7 +38,7 @@ export class TesseractProvider extends OcrProvider {
     const lang = this.settings.lang || 'deu';
     this.logger.info(`Initialisiere OCR-Engine (Tesseract.js / ${lang})...`);
     this.worker = await createWorker(lang);
-    const psm = String(this.settings.psm ?? 11);
+    const psm = String(this.settings.psm ?? 6);
     if (psm !== '3') {
       await this.worker.setParameters({ tessedit_pageseg_mode: psm });
     }
