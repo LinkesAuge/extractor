@@ -272,4 +272,147 @@ describe('ValidationManager', () => {
       expect(manager._fuzzyMatch('DrgonSlyer')).toBe('DragonSlayer'); // distance 2
     });
   });
+
+  // ─── Player History ────────────────────────────────────────────────────
+
+  describe('playerHistory', () => {
+    it('starts with empty history', () => {
+      expect(manager.playerHistory).toEqual({});
+    });
+
+    it('updatePlayerHistory stores valid entries', () => {
+      const members = [
+        { name: 'Alpha', coords: 'K:98 X:100 Y:200', score: 1000000 },
+        { name: 'Beta', coords: 'K:98 X:150 Y:300', score: 900000 },
+      ];
+      const count = manager.updatePlayerHistory(members);
+      expect(count).toBe(2);
+      expect(manager.playerHistory['Alpha'].score).toBe(1000000);
+      expect(manager.playerHistory['Beta'].coords).toBe('K:98 X:150 Y:300');
+    });
+
+    it('updatePlayerHistory skips zero-score entries', () => {
+      const members = [
+        { name: 'Good', coords: 'K:98 X:100 Y:200', score: 1000000 },
+        { name: 'Bad', coords: 'K:98 X:150 Y:300', score: 0 },
+      ];
+      const count = manager.updatePlayerHistory(members);
+      expect(count).toBe(1);
+      expect(manager.playerHistory['Bad']).toBeUndefined();
+    });
+
+    it('updatePlayerHistory does not skip entries with warnings (user already reviewed)', () => {
+      const members = [
+        { name: 'Warned', coords: 'K:98 X:100 Y:200', score: 1000000, _warning: 'invalid_coords' },
+      ];
+      const count = manager.updatePlayerHistory(members);
+      expect(count).toBe(1);
+      expect(manager.playerHistory['Warned']).toBeTruthy();
+    });
+
+    it('getPlayerHistory returns entry or null', () => {
+      manager.updatePlayerHistory([
+        { name: 'Alpha', coords: 'K:98 X:100 Y:200', score: 1000000 },
+      ]);
+      expect(manager.getPlayerHistory('Alpha')).toBeTruthy();
+      expect(manager.getPlayerHistory('Alpha').score).toBe(1000000);
+      expect(manager.getPlayerHistory('Unknown')).toBeNull();
+    });
+
+    it('persists playerHistory through save/load', async () => {
+      await mkdir(dir, { recursive: true });
+      manager.updatePlayerHistory([
+        { name: 'Alpha', coords: 'K:98 X:100 Y:200', score: 500000 },
+      ]);
+      await manager.save();
+      const manager2 = new ValidationManager(dir);
+      await manager2.load();
+      expect(manager2.playerHistory['Alpha'].score).toBe(500000);
+    });
+
+    it('exportData includes playerHistory', () => {
+      manager.updatePlayerHistory([
+        { name: 'Alpha', coords: 'K:98 X:100 Y:200', score: 500000 },
+      ]);
+      const data = manager.exportData();
+      expect(data.playerHistory['Alpha']).toBeTruthy();
+    });
+  });
+
+  // ─── History Comparison ────────────────────────────────────────────────
+
+  describe('compareWithHistory', () => {
+    beforeEach(() => {
+      manager.playerHistory = {
+        'Alpha': { coords: 'K:98 X:100 Y:200', score: 1000000, lastSeen: '2026-02-14' },
+        'Beta': { coords: 'K:98 X:150 Y:300', score: 900000, lastSeen: '2026-02-14' },
+      };
+    });
+
+    it('does nothing for players not in history', () => {
+      const members = [{ name: 'NewPlayer', coords: 'K:98 X:500 Y:600', score: 100000 }];
+      manager.compareWithHistory(members);
+      expect(members[0]._historyWarning).toBeUndefined();
+      expect(members[0]._previousScore).toBeUndefined();
+      expect(members[0]._previousCoords).toBeUndefined();
+    });
+
+    it('always attaches _previousScore and _previousCoords when history exists', () => {
+      const members = [{ name: 'Alpha', coords: 'K:98 X:100 Y:200', score: 1100000 }];
+      manager.compareWithHistory(members, { scoreChangeThreshold: 0.5 });
+      // Score is within threshold, so no warning
+      expect(members[0]._historyWarning).toBeUndefined();
+      // But previous values are always attached
+      expect(members[0]._previousScore).toBe(1000000);
+      expect(members[0]._previousCoords).toBe('K:98 X:100 Y:200');
+    });
+
+    it('flags score change exceeding threshold', () => {
+      const members = [{ name: 'Alpha', coords: 'K:98 X:100 Y:200', score: 100000 }];
+      manager.compareWithHistory(members, { scoreChangeThreshold: 0.5 });
+      expect(members[0]._historyWarning).toBe('score_changed');
+      expect(members[0]._previousScore).toBe(1000000);
+    });
+
+    it('does not flag score change within threshold but still attaches previous', () => {
+      const members = [{ name: 'Alpha', coords: 'K:98 X:100 Y:200', score: 1100000 }];
+      manager.compareWithHistory(members, { scoreChangeThreshold: 0.5 });
+      expect(members[0]._historyWarning).toBeUndefined();
+      expect(members[0]._previousScore).toBe(1000000);
+    });
+
+    it('flags coords change', () => {
+      const members = [{ name: 'Beta', coords: 'K:98 X:999 Y:888', score: 900000 }];
+      manager.compareWithHistory(members, { scoreChangeThreshold: 0.5 });
+      expect(members[0]._historyWarning).toBe('coords_changed');
+      expect(members[0]._previousCoords).toBe('K:98 X:150 Y:300');
+    });
+
+    it('flags K-value change in coords', () => {
+      const members = [{ name: 'Alpha', coords: 'K:99 X:100 Y:200', score: 1000000 }];
+      manager.compareWithHistory(members, { scoreChangeThreshold: 0.5 });
+      expect(members[0]._historyWarning).toBe('coords_changed');
+      expect(members[0]._previousCoords).toBe('K:98 X:100 Y:200');
+    });
+
+    it('uses default scoreChangeThreshold of 0.5', () => {
+      const members = [{ name: 'Alpha', coords: 'K:98 X:100 Y:200', score: 1600000 }];
+      manager.compareWithHistory(members); // 60% change from 1000000 -> 1600000
+      expect(members[0]._historyWarning).toBe('score_changed');
+      expect(members[0]._previousScore).toBe(1000000);
+    });
+
+    it('falls back to default threshold when scoreChangeThreshold is NaN', () => {
+      const members = [{ name: 'Alpha', coords: 'K:98 X:100 Y:200', score: 100000 }];
+      manager.compareWithHistory(members, { scoreChangeThreshold: NaN });
+      // NaN should be treated as 0.5 default, 90% change should trigger warning
+      expect(members[0]._historyWarning).toBe('score_changed');
+    });
+
+    it('falls back to default threshold when scoreChangeThreshold is undefined', () => {
+      const members = [{ name: 'Alpha', coords: 'K:98 X:100 Y:200', score: 100000 }];
+      manager.compareWithHistory(members, { scoreChangeThreshold: undefined });
+      expect(members[0]._historyWarning).toBe('score_changed');
+    });
+  });
 });

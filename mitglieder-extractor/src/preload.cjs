@@ -34,11 +34,14 @@ contextBridge.exposeInMainWorld('api', {
   browseCaptureFolder: (defaultPath) => ipcRenderer.invoke('browse-capture-folder', defaultPath),
   deleteFolder: (path) => ipcRenderer.invoke('delete-folder', path),
 
+  // File picker for screenshots
+  browseFiles: (options) => ipcRenderer.invoke('browse-files', options),
+
   // OCR Auswertung
   startOcr: (folderPath, settings) => ipcRenderer.invoke('start-ocr', folderPath, settings),
   stopOcr: () => ipcRenderer.invoke('stop-ocr'),
   exportCsv: (members, defaultName) => ipcRenderer.invoke('export-csv', members, defaultName),
-  autoSaveCsv: (members) => ipcRenderer.invoke('auto-save-csv', members),
+  importOcrCsv: () => ipcRenderer.invoke('import-ocr-csv'),
 
   // Event Region
   selectEventRegion: () => ipcRenderer.invoke('select-event-region'),
@@ -51,11 +54,13 @@ contextBridge.exposeInMainWorld('api', {
   startEventCapture: (options) => ipcRenderer.invoke('start-event-capture', options),
   stopEventCapture: () => ipcRenderer.invoke('stop-event-capture'),
 
+  // Partial OCR (re-run selected files)
+  startPartialOcr: (filePaths, settings) => ipcRenderer.invoke('start-partial-ocr', filePaths, settings),
+
   // Event OCR Auswertung
   startEventOcr: (folderPath, settings) => ipcRenderer.invoke('start-event-ocr', folderPath, settings),
   stopEventOcr: () => ipcRenderer.invoke('stop-event-ocr'),
   exportEventCsv: (entries, defaultName) => ipcRenderer.invoke('export-event-csv', entries, defaultName),
-  autoSaveEventCsv: (entries) => ipcRenderer.invoke('auto-save-event-csv', entries),
 
   // History
   loadHistory: () => ipcRenderer.invoke('load-history'),
@@ -70,8 +75,11 @@ contextBridge.exposeInMainWorld('api', {
   addCorrection: (ocrName, correctName) => ipcRenderer.invoke('add-correction', ocrName, correctName),
   removeCorrection: (ocrName) => ipcRenderer.invoke('remove-correction', ocrName),
   validateOcrResults: (members, options) => ipcRenderer.invoke('validate-ocr-results', members, options),
-  importValidationList: () => ipcRenderer.invoke('import-validation-list'),
-  exportValidationList: () => ipcRenderer.invoke('export-validation-list'),
+  updatePlayerHistory: (members) => ipcRenderer.invoke('update-player-history', members),
+  importValidationNames: () => ipcRenderer.invoke('import-validation-names-csv'),
+  exportValidationNames: () => ipcRenderer.invoke('export-validation-names-csv'),
+  importCorrections: () => ipcRenderer.invoke('import-corrections-csv'),
+  exportCorrections: () => ipcRenderer.invoke('export-corrections-csv'),
 
   // Ollama / Vision Model
   ollamaStatus: () => ipcRenderer.invoke('ollama-status'),

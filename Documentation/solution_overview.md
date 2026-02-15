@@ -12,9 +12,11 @@ This document captures architecture decisions, the technical design, data models
 - **Hybrid OCR engine**: Combines Vision model (excellent for names/coords) with Tesseract (zero wrong scores). Vision extracts name + coordinates from each member row; Tesseract extracts scores from sub-cropped score regions. Clean separation — Vision's score output is ignored entirely.
 - **sharp for image preprocessing**: Chosen for its speed and Node.js native bindings. Requires `asarUnpack` in Electron builds.
 - **Unified member/event handlers**: Rather than separate code paths, member and event operations share parameterized handlers that accept a mode flag. Separate IPC channels are maintained for backward compatibility.
+- **Partial OCR re-run**: `start-partial-ocr` IPC handler accepts an array of file paths (not a folder). It copies files to a temp dir, runs OCR via the existing provider, and returns results. Used for both "re-run selected entries" and "add screenshots from file picker" workflows.
 - **Mutable state objects**: `app-state.js` (main process) and `state.js` (renderer) are plain objects. No immutability enforcement — simplicity over safety for a single-user desktop app.
 - **German-first UI**: Default language is German with English as secondary. Translation keys are German phrases. The README is in German.
 - **Validation list as local JSON**: Known player names stored in `validation-list.json`. No database — the file is loaded into memory on startup and saved on every change.
+- **Explicit CSV save**: No auto-save after OCR. Users must explicitly export CSV results. Player history is updated only on user-initiated exports. Validation names and corrections use CSV format for import/export (replaced JSON).
 - **One CSV per run**: Results saved with timestamps (`mitglieder_YYYY-MM-DD_HH-MM-SS.csv`). Multiple runs per day are preserved.
 
 ## Architecture
@@ -143,7 +145,8 @@ Validation (ValidationManager)
     │
     ▼
 Output
-    ├── CSV auto-save (if all names confirmed)
+    ├── CSV export (user-initiated, updates player history)
+    ├── CSV import (load previous results for further editing)
     └── Results table in UI (with color-coded statuses)
 ```
 

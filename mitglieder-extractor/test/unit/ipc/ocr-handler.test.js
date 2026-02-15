@@ -15,11 +15,15 @@ vi.mock('electron', () => ({
   ipcMain: { handle: vi.fn((ch, fn) => handlers.set(ch, fn)) },
   dialog: {
     showSaveDialog: vi.fn().mockResolvedValue({ canceled: false, filePath: '/mock/export.csv' }),
+    showOpenDialog: vi.fn().mockResolvedValue({ canceled: false, filePaths: ['/mock/import.csv'] }),
   },
   app: { isPackaged: false, getPath: () => '/mock' },
 }));
 
+const BOM = '\uFEFF';
+
 vi.mock('fs/promises', () => ({
+  readFile: vi.fn().mockResolvedValue(`${'\uFEFF'}Name,Koordinaten,Score\r\n"Player1","K:1 X:1 Y:1",5000000`),
   writeFile: vi.fn().mockResolvedValue(undefined),
   mkdir: vi.fn().mockResolvedValue(undefined),
   appendFile: vi.fn().mockResolvedValue(undefined),
@@ -112,7 +116,7 @@ describe('ocr-handler', () => {
       'start-ocr', 'stop-ocr',
       'start-event-ocr', 'stop-event-ocr',
       'export-csv', 'export-event-csv',
-      'auto-save-csv', 'auto-save-event-csv',
+      'start-partial-ocr', 'import-ocr-csv',
     ];
     for (const ch of expected) {
       expect(handlers.has(ch)).toBe(true);
@@ -205,24 +209,15 @@ describe('ocr-handler', () => {
     });
   });
 
-  // ─── Auto-Save ──────────────────────────────────────────────────────
+  // ─── CSV Import ─────────────────────────────────────────────────────
 
-  describe('auto-save-csv', () => {
-    it('saves CSV with date-stamped filename', async () => {
-      const data = [{ name: 'Test', coords: 'K:1', score: 100 }];
-      const result = await handlers.get('auto-save-csv')({}, data);
+  describe('import-ocr-csv', () => {
+    it('opens file dialog, parses CSV, and returns members', async () => {
+      const result = await handlers.get('import-ocr-csv')({});
       expect(result.ok).toBe(true);
-      expect(result.fileName).toBe('mitglieder_2026-02-13_14-30-00.csv');
-      expect(writeFile).toHaveBeenCalled();
-    });
-  });
-
-  describe('auto-save-event-csv', () => {
-    it('saves event CSV with date-stamped filename', async () => {
-      const data = [{ name: 'Test', power: 100, eventPoints: 50 }];
-      const result = await handlers.get('auto-save-event-csv')({}, data);
-      expect(result.ok).toBe(true);
-      expect(result.fileName).toBe('event_2026-02-13_14-30-00.csv');
+      expect(result.members).toHaveLength(1);
+      expect(result.members[0].name).toBe('Player1');
+      expect(result.members[0].score).toBe(5000000);
     });
   });
 });

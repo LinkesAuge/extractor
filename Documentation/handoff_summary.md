@@ -38,18 +38,20 @@ Each member row is split into focused regions before OCR:
 | Image processing | `image-preprocessor.js` (sharp pipeline + SCORE_PRESET, NAME_PRESET) |
 | Vision integration | `vision-parser.js`, `vision-prompts.js` (Ollama API) |
 | Name correction | `name-corrector.js` (runtime correction before merge/dedup) |
+| Sanity checks | `sanity-checker.js` (invalid coords, K-value consistency, duplicate coords, zero score, score outlier) |
 | Overlap detection | `overlap-detector.js` (gap detection, scroll recommendation) |
 | Shared utilities | `shared-utils.js` (mergeOrAdd, namesAreSimilar, pickBetterScore) |
 | Provider factory | `provider-factory.js` (routes engine selection to provider class) |
+| Validation | `validation-manager.js` (names, corrections, player history, history comparison) |
 
 ### Test Suite
 
-**320 tests** across **24 files** using Vitest 4.x. All passing.
+**344 tests** across **25 files** using Vitest 4.x. All passing.
 
 | Area | Files | Tests |
 |------|-------|-------|
-| OCR modules | 8 | 114 |
-| ValidationManager | 1 | 39 |
+| OCR modules | 9 | 125 |
+| ValidationManager | 1 | 52 |
 | Backend services | 6 | 53 |
 | IPC handlers | 7 | 74 |
 | Name corrector | 1 | 20 |
@@ -74,13 +76,18 @@ Single unified file: `test/fixtures/ground-truth.json` — 99 pixel-verified mem
 - **4-tab GUI**: Settings, Capture & Results, Validation, History
 - **Auto workflow**: capture -> auto-OCR -> auto-validation -> auto-save CSV
 - **Validation**: fuzzy name matching (exact, suffix, Levenshtein) with stored corrections
+- **Post-OCR sanity checks**: invalid coords, K-value consistency, duplicate coords, zero score, score outlier detection
+- **Player history**: stores last-known coords/score per player; flags significant changes on next run
+- **Per-row and batch delete**: remove hallucinated or incorrect entries from validation results
+- **Warning filter**: filter validation table to show only flagged entries
+- **Configurable thresholds**: score outlier (default 20%) and score change (default 50%) in settings UI
 - **Bilingual**: German (default) + English
 - **Build**: electron-builder NSIS installer (~220 MB with bundled Chromium)
 
 ## Known Behaviors
 
 - Config in `mitglieder-config.json` — includes login credentials in plain text (gitignored).
-- Validation list in `validation-list.json` — auto-initialized from ground truth on first run.
+- Validation list in `validation-list.json` — contains `knownNames`, `corrections`, and `playerHistory`. Auto-initialized from ground truth on first run. Player history auto-updated on CSV export.
 - Results saved as `mitglieder_YYYY-MM-DD_HH-MM-SS.csv` / `event_YYYY-MM-DD.csv`.
 - Browser profile persists between sessions (cookies, localStorage).
 - Development paths use `process.cwd()`; packaged paths use `%AppData%/member-extractor/`.

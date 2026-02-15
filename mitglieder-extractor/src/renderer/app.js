@@ -10,8 +10,8 @@ import { saveCurrentConfig, loadAndRestoreConfig } from './modules/config.js';
 import { initBrowserUI, refreshBrowserUI } from './modules/browser-ui.js';
 import { initCaptureUI, updateCaptureButtons, loadSavedRegionPreview, refreshCaptureUI } from './modules/capture-ui.js';
 import {
-  initOcrUI, startOcr, setOcrFolder, showValidationBanner, autoSaveCsv,
-  isAutoOcrEnabled, isAutoValidationEnabled, isAutoSaveEnabled, refreshOcrUI,
+  initOcrUI, startOcr, setOcrFolder, showValidationBanner,
+  isAutoOcrEnabled, isAutoValidationEnabled, refreshOcrUI,
 } from './modules/ocr-ui.js';
 import {
   initValidationUI, loadValidationList, validateCurrentResults,
@@ -93,17 +93,6 @@ initOcrUI({
       if (mode === 'event') state.validationMode = 'event';
       await validateCurrentResults();
       showValidationBanner(mode);
-      // Auto-save if validation has no errors
-      if (isAutoSaveEnabled(mode)) {
-        if (mode === 'member' && state.validatedMembers) {
-          const hasErrors = state.validatedMembers.some(m =>
-            m.validationStatus === 'unknown' || m.validationStatus === 'suggested'
-          );
-          if (!hasErrors) await autoSaveCsv('member');
-        } else if (mode === 'event') {
-          await autoSaveCsv('event');
-        }
-      }
     }
   },
 });

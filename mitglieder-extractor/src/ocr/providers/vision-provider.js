@@ -7,6 +7,7 @@ import { getOllamaRef } from '../../services/ollama/model-registry.js';
 import { getPromptForMode } from '../vision-prompts.js';
 import { parseMemberResponse, parseEventResponse, parseSingleMemberResponse } from '../vision-parser.js';
 import { deduplicateMembersByName, deduplicateEventsByName } from '../deduplicator.js';
+import { runMemberSanityChecks } from '../sanity-checker.js';
 import { listPngFiles, mergeOrAddMember, mergeOrAddEvent, runEventSanityChecks } from '../shared-utils.js';
 import { cropMemberRows, trimProfileArea } from '../row-cropper.js';
 import { analyzeOverlap } from '../overlap-detector.js';
@@ -113,6 +114,9 @@ export class VisionProvider extends OcrProvider {
     }
     // Overlap analysis: detect gaps and recommend scroll distance
     const overlapAnalysis = analyzeOverlap(members, files, regionHeight, [], this.logger);
+    runMemberSanityChecks(members, this.logger, {
+      scoreOutlierThreshold: this.settings?.scoreOutlierThreshold,
+    });
     this.logger.success(`Vision-OCR abgeschlossen: ${members.length} Mitglieder gefunden.`);
     return members;
   }
@@ -231,6 +235,9 @@ export class VisionProvider extends OcrProvider {
     }
     // Overlap analysis: detect gaps and recommend optimal scroll distance
     analyzeOverlap(members, files, regionHeight, allRowHeights, this.logger);
+    runMemberSanityChecks(members, this.logger, {
+      scoreOutlierThreshold: this.settings?.scoreOutlierThreshold,
+    });
     this.logger.success(`Vision-OCR (Crop) abgeschlossen: ${members.length} Mitglieder aus ${totalCrops} Crops.`);
     return members;
   }

@@ -1,11 +1,12 @@
 import { ipcMain, dialog } from 'electron';
-import { writeFile, mkdir } from 'fs/promises';
-import { join, resolve } from 'path';
+import { writeFile, readFile, mkdir, copyFile, rm } from 'fs/promises';
+import { join, resolve, basename } from 'path';
+import { tmpdir } from 'os';
 import { toMemberCSV, toEventCSV } from '../ocr/csv-formatter.js';
+import { parseMemberCSV } from '../ocr/csv-parser.js';
 import { createOcrProvider } from '../ocr/provider-factory.js';
 import { startLogSession } from '../services/gui-logger.js';
 import { MEMBER_RESULTS_DIR, EVENT_RESULTS_DIR } from '../utils/paths.js';
-import { localDateTime } from '../utils/date.js';
 import { dt } from '../services/i18n-backend.js';
 import appState from '../services/app-state.js';
 
@@ -51,6 +52,54 @@ export function registerOcrHandlers(logger) {
     return { ok: true };
   });
 
+  // ─── Partial OCR (re-run selected files) ───────────────────────────────────
+  ipcMain.handle('start-partial-ocr', async (_e, filePaths, ocrSettings) => {
+    if (!Array.isArray(filePaths) || filePaths.length === 0) {
+      return { ok: false, error: 'Keine Dateien angegeben.' };
+    }
+    if (appState.ocrProcessor) {
+      return { ok: false, error: 'OCR laeuft bereits. Bitte warten oder abbrechen.' };
+    }
+    const tempDir = join(tmpdir(), `partial-ocr-${Date.now()}`);
+    try {
+      await startLogSession('partial-ocr');
+      await mkdir(tempDir, { recursive: true });
+      // Copy files into temp directory to reuse processFolder
+      for (const fp of filePaths) {
+        const absPath = resolve(fp);
+        await copyFile(absPath, join(tempDir, basename(absPath)));
+      }
+      logger.info(`Partial-OCR: ${filePaths.length} Datei(en) in ${tempDir}`);
+      const engine = ocrSettings?.engine || 'tesseract';
+      let validationContext = null;
+      try {
+        const vm = appState.validationManager;
+        if (vm && vm.knownNames?.length > 0) {
+          validationContext = vm.getState();
+        }
+      } catch { /* optional */ }
+      const processor = createOcrProvider({ engine, logger, settings: ocrSettings || {}, validationContext });
+      appState.ocrProcessor = processor;
+      const onProgress = (progress) => {
+        appState.mainWindow?.webContents.send('ocr-progress', {
+          current: progress.current,
+          total: progress.total,
+          file: progress.file,
+        });
+      };
+      const members = await processor.processFolder(tempDir, onProgress);
+      appState.ocrProcessor = null;
+      logger.success(`Partial-OCR abgeschlossen: ${members.length} Mitglieder.`);
+      return { ok: true, members };
+    } catch (err) {
+      logger.error(`Partial-OCR-Fehler: ${err.message}`);
+      appState.ocrProcessor = null;
+      return { ok: false, error: err.message };
+    } finally {
+      try { await rm(tempDir, { recursive: true, force: true }); } catch { /* cleanup best-effort */ }
+    }
+  });
+
   // ─── CSV Export (unified) ──────────────────────────────────────────────────
   registerExportCsvHandler('export-csv', {
     resultsDir: MEMBER_RESULTS_DIR,
@@ -66,19 +115,26 @@ export function registerOcrHandlers(logger) {
     logger,
   });
 
-  // ─── Auto-Save CSV (unified) ──────────────────────────────────────────────
-  registerAutoSaveHandler('auto-save-csv', {
-    resultsDir: MEMBER_RESULTS_DIR,
-    filePrefix: 'mitglieder',
-    toCsv: toMemberCSV,
-    logger,
-  });
-
-  registerAutoSaveHandler('auto-save-event-csv', {
-    resultsDir: EVENT_RESULTS_DIR,
-    filePrefix: 'event',
-    toCsv: toEventCSV,
-    logger,
+  // ─── CSV Import (OCR results) ─────────────────────────────────────────────
+  ipcMain.handle('import-ocr-csv', async () => {
+    try {
+      const result = await dialog.showOpenDialog(appState.mainWindow, {
+        title: dt('importOcrCsv'),
+        filters: [
+          { name: dt('csvFiles'), extensions: ['csv'] },
+          { name: dt('allFiles'), extensions: ['*'] },
+        ],
+        properties: ['openFile'],
+      });
+      if (result.canceled || !result.filePaths.length) return { ok: false };
+      const raw = await readFile(result.filePaths[0], 'utf-8');
+      const members = parseMemberCSV(raw);
+      logger.success(`CSV importiert: ${members.length} Eintraege aus ${result.filePaths[0]}`);
+      return { ok: true, members, path: result.filePaths[0] };
+    } catch (err) {
+      logger.error(`CSV-Import fehlgeschlagen: ${err.message}`);
+      return { ok: false, error: err.message };
+    }
   });
 }
 
@@ -166,24 +222,3 @@ function registerExportCsvHandler(channel, config) {
   });
 }
 
-// ─── Auto-Save CSV (unified) ────────────────────────────────────────────────
-
-function registerAutoSaveHandler(channel, config) {
-  const { resultsDir, filePrefix, toCsv, logger } = config;
-
-  ipcMain.handle(channel, async (_e, data) => {
-    try {
-      await mkdir(resultsDir, { recursive: true });
-      const timestamp = localDateTime();
-      const fileName = `${filePrefix}_${timestamp}.csv`;
-      const filePath = join(resultsDir, fileName);
-      const csv = toCsv(data);
-      await writeFile(filePath, csv, 'utf-8');
-      logger.success(`Auto-Save: ${filePath}`);
-      return { ok: true, path: filePath, fileName };
-    } catch (err) {
-      logger.error(`Auto-Save fehlgeschlagen: ${err.message}`);
-      return { ok: false, error: err.message };
-    }
-  });
-}

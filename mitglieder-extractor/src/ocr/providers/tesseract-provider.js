@@ -5,6 +5,7 @@ import { preprocessImage, SCORE_PRESET, NAME_PRESET } from '../image-preprocesso
 import { extractMemberName, extractEventName } from '../name-extractor.js';
 import { extractScore, findNextBoundary, resolveScoreConflict } from '../score-utils.js';
 import { deduplicateMembersByName, deduplicateEventsByName } from '../deduplicator.js';
+import { runMemberSanityChecks } from '../sanity-checker.js';
 import {
   RANK_PATTERNS, COORD_REGEX, CLAN_TAG_REGEX,
   PUNKTE_REGEX, SCORE_REGEX, SCORE_FALLBACK_REGEX,
@@ -191,6 +192,9 @@ export class TesseractProvider extends OcrProvider {
     if (members.length < beforeDedup) {
       this.logger.info(`Namens-Dedup: ${beforeDedup - members.length} Duplikat(e) entfernt.`);
     }
+    runMemberSanityChecks(members, this.logger, {
+      scoreOutlierThreshold: this.settings?.scoreOutlierThreshold,
+    });
     this.logger.success(`OCR (Crop) abgeschlossen: ${members.length} Mitglieder aus ${totalCrops} Crops.`);
     return members;
   }

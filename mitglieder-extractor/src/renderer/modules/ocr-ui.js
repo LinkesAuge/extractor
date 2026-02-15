@@ -1,6 +1,6 @@
 /**
  * Unified OCR UI for both member and event modes.
- * Handles OCR start/stop, settings sliders, results display, and auto-save.
+ * Handles OCR start/stop, settings sliders, and results display.
  * @module modules/ocr-ui
  */
 
@@ -19,8 +19,6 @@ const MODE_DOM = {
     autoOcrText:     () => $('#autoOcrToggleText'),
     autoValidation:  () => $('#autoValidationEnabled'),
     autoValidationText: () => $('#autoValidationToggleText'),
-    autoSave:        () => $('#autoSaveEnabled'),
-    autoSaveText:    () => $('#autoSaveToggleText'),
     banner:          () => $('#ocrValidationBanner'),
     bannerIcon:      () => $('#ocrValidationIcon'),
     bannerMsg:       () => $('#ocrValidationMsg'),
@@ -61,8 +59,6 @@ const MODE_DOM = {
     autoOcrText:     () => $('#eventAutoOcrToggleText'),
     autoValidation:  () => $('#eventAutoValidationEnabled'),
     autoValidationText: () => $('#eventAutoValidationToggleText'),
-    autoSave:        () => $('#eventAutoSaveEnabled'),
-    autoSaveText:    () => $('#eventAutoSaveToggleText'),
     banner:          () => $('#eventOcrValidationBanner'),
     bannerIcon:      () => $('#eventOcrValidationIcon'),
     bannerMsg:       () => $('#eventOcrValidationMsg'),
@@ -115,7 +111,6 @@ const API = {
     startOcr: (f, s) => window.api.startOcr(f, s),
     stopOcr: () => window.api.stopOcr(),
     exportCsv: (d, n) => window.api.exportCsv(d, n),
-    autoSave: (d) => window.api.autoSaveCsv(d),
     onProgress: (cb) => window.api.onOcrProgress(cb),
     onDone: (cb) => window.api.onOcrDone(cb),
   },
@@ -123,7 +118,6 @@ const API = {
     startOcr: (f, s) => window.api.startEventOcr(f, s),
     stopOcr: () => window.api.stopEventOcr(),
     exportCsv: (d, n) => window.api.exportEventCsv(d, n),
-    autoSave: (d) => window.api.autoSaveEventCsv(d),
     onProgress: (cb) => window.api.onEventOcrProgress(cb),
     onDone: (cb) => window.api.onEventOcrDone(cb),
   },
@@ -156,6 +150,13 @@ export function getOcrSettings(mode) {
   };
   if (engine === 'vision') {
     settings.ollamaModel = getSelectedModelId();
+  }
+  // Quality check thresholds (only for member mode)
+  if (mode === 'member') {
+    const outlierEl = document.getElementById('scoreOutlierThreshold');
+    const changeEl = document.getElementById('scoreChangeThreshold');
+    if (outlierEl) settings.scoreOutlierThreshold = parseFloat(outlierEl.value);
+    if (changeEl) settings.scoreChangeThreshold = parseFloat(changeEl.value);
   }
   return settings;
 }
@@ -282,31 +283,6 @@ export function showValidationBanner(mode) {
 }
 
 /**
- * Auto-save OCR results as CSV.
- * @param {string} mode - 'member' or 'event'.
- */
-export async function autoSaveCsv(mode) {
-  const dom = getDom(mode);
-  const api = API[mode];
-  if (mode === 'event') {
-    if (!state.eventOcrEntries || state.eventOcrEntries.length === 0) return;
-    const result = await api.autoSave(state.eventOcrEntries);
-    if (result.ok) {
-      dom.status.textContent += ` ${t('status.eventCsvAutoSaved', { fileName: result.fileName })}`;
-    }
-  } else {
-    if (!state.ocrMembers || state.ocrMembers.length === 0) return;
-    const membersToSave = state.validatedMembers
-      ? state.validatedMembers.map(m => ({ name: m.name, coords: m.coords, score: m.score }))
-      : state.ocrMembers;
-    const result = await api.autoSave(membersToSave);
-    if (result.ok) {
-      dom.status.textContent += ` ${t('status.csvAutoSaved', { fileName: result.fileName })}`;
-    }
-  }
-}
-
-/**
  * Initialize OCR settings slider event listeners for a mode.
  * @param {string} mode - 'member' or 'event'.
  * @param {Function} saveConfig - Persist current config.
@@ -357,11 +333,6 @@ function initOcrMode(mode, { saveConfig, onOcrDone }) {
     updateToggleText(dom.autoValidation, dom.autoValidationText);
     saveConfig();
   });
-  dom.autoSave.addEventListener('change', () => {
-    updateToggleText(dom.autoSave, dom.autoSaveText);
-    saveConfig();
-  });
-
   // Banner navigation
   dom.bannerBtn.addEventListener('click', () => {
     if (mode === 'event') {
@@ -402,6 +373,10 @@ function initOcrMode(mode, { saveConfig, onOcrDone }) {
     if (result.ok) {
       const key = mode === 'event' ? 'status.eventCsvSaved' : 'status.csvSaved';
       dom.status.textContent = t(key, { path: result.path });
+      // Update player history after successful member export
+      if (mode === 'member') {
+        await window.api.updatePlayerHistory(data);
+      }
     }
   });
 
@@ -436,7 +411,6 @@ export function refreshOcrUI() {
     const dom = getDom(mode);
     updateToggleText(dom.autoOcr, dom.autoOcrText);
     updateToggleText(dom.autoValidation, dom.autoValidationText);
-    updateToggleText(dom.autoSave, dom.autoSaveText);
     updateToggleText(dom.greyscale, dom.greyscaleText);
     updateToggleText(dom.thresholdOn, dom.thresholdText);
   }
@@ -467,15 +441,6 @@ export function isAutoValidationEnabled(mode) {
 }
 
 /**
- * Check whether auto-save is enabled for a mode.
- * @param {string} mode - 'member' or 'event'.
- * @returns {boolean} True if auto-save is checked.
- */
-export function isAutoSaveEnabled(mode) {
-  return getDom(mode).autoSave.checked;
-}
-
-/**
  * Set the OCR folder input value for a mode.
  * @param {string} mode - 'member' or 'event'.
  * @param {string} path - Folder path.
@@ -493,4 +458,28 @@ export function setOcrFolder(mode, path) {
 export function initOcrUI(deps) {
   initOcrMode('member', deps);
   initOcrMode('event', deps);
+  initQualityCheckSliders(deps.saveConfig);
+}
+
+/**
+ * Initialize quality check threshold sliders.
+ * @param {Function} saveConfig - Persist config.
+ */
+function initQualityCheckSliders(saveConfig) {
+  const outlierSlider = document.getElementById('scoreOutlierThreshold');
+  const outlierDisplay = document.getElementById('scoreOutlierThresholdValue');
+  const changeSlider = document.getElementById('scoreChangeThreshold');
+  const changeDisplay = document.getElementById('scoreChangeThresholdValue');
+  if (outlierSlider && outlierDisplay) {
+    outlierSlider.addEventListener('input', () => {
+      outlierDisplay.textContent = Math.round(parseFloat(outlierSlider.value) * 100) + '%';
+    });
+    outlierSlider.addEventListener('change', saveConfig);
+  }
+  if (changeSlider && changeDisplay) {
+    changeSlider.addEventListener('input', () => {
+      changeDisplay.textContent = Math.round(parseFloat(changeSlider.value) * 100) + '%';
+    });
+    changeSlider.addEventListener('change', saveConfig);
+  }
 }

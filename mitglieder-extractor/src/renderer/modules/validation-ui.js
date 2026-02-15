@@ -3,10 +3,12 @@
  * @module modules/validation-ui
  */
 
-import { $, $$, t, escapeHtml, localDateTimeString, switchToSubTab } from '../utils/helpers.js';
+import { $, $$, t, escapeHtml, escapeAttr, localDateTimeString, switchToSubTab } from '../utils/helpers.js';
 import state from './state.js';
 import { showInputDialog } from '../components/input-dialog.js';
 import { showConfirmDialog, showAlertDialog } from '../components/confirm-dialog.js';
+import { showEngineSelectDialog } from '../components/engine-select-dialog.js';
+import { showAddPlayerDialog } from '../components/add-player-dialog.js';
 import { switchToTab } from './tab-manager.js';
 
 // ─── DOM Elements ──────────────────────────────────────────────────────────
@@ -34,11 +36,17 @@ const btnAddManualCorrection = $('#btnAddManualCorrection');
 const correctionSearch = $('#correctionSearch');
 const btnAcceptAllSuggestions = $('#btnAcceptAllSuggestions');
 const btnAddSelectedToList = $('#btnAddSelectedToList');
+const btnDeleteSelected = $('#btnDeleteSelected');
+const btnRerunOcr = $('#btnRerunOcr');
+const btnAddScreenshots = $('#btnAddScreenshots');
 const validationFilterBtns = $$('.validation-filter-btn');
 const btnAddValidationName = $('#btnAddValidationName');
+const btnImportOcrCsv = $('#btnImportOcrCsv');
 const btnValidationExportCsv = $('#btnValidationExportCsv');
-const btnImportValidation = $('#btnImportValidation');
-const btnExportValidation = $('#btnExportValidation');
+const btnImportNames = $('#btnImportNames');
+const btnExportNames = $('#btnExportNames');
+const btnImportCorrections = $('#btnImportCorrections');
+const btnExportCorrections = $('#btnExportCorrections');
 const btnRevalidate = $('#btnRevalidate');
 const validationModeSubTabBar = $('#validationModeSubTabBar');
 
@@ -50,6 +58,7 @@ export async function loadValidationList() {
   if (result.ok) {
     state.validationKnownNames = result.knownNames || [];
     state.validationCorrections = result.corrections || {};
+    state.validationPlayerHistory = result.playerHistory || {};
     renderValidationNames();
     renderCorrections();
     if (state.ocrMembers && state.ocrMembers.length > 0 && state.validationKnownNames.length > 0 && !state.validatedMembers) {
@@ -68,9 +77,30 @@ export async function validateCurrentResults() {
     return;
   }
   const options = state.validationMode === 'event' ? { mode: 'event' } : {};
+  // Pass score change threshold from settings for history comparison
+  if (state.validationMode !== 'event') {
+    const changeEl = document.getElementById('scoreChangeThreshold');
+    if (changeEl) {
+      const parsed = parseFloat(changeEl.value);
+      if (!Number.isNaN(parsed) && parsed >= 0.01) options.scoreChangeThreshold = parsed;
+    }
+  }
   const result = await window.api.validateOcrResults(members, options);
   if (result.ok) {
     state.validatedMembers = result.members;
+    // Copy history annotations from validatedMembers back to ocrMembers so
+    // getMemberWarning and buildScoreColumns can access them on the source entries.
+    if (state.validationMode !== 'event' && state.ocrMembers) {
+      for (let i = 0; i < state.validatedMembers.length && i < state.ocrMembers.length; i++) {
+        const vm = state.validatedMembers[i];
+        const src = state.ocrMembers[i];
+        if (vm._historyWarning) src._historyWarning = vm._historyWarning;
+        else delete src._historyWarning;
+        if (vm._previousScore != null) src._previousScore = vm._previousScore;
+        if (vm._previousCoords) src._previousCoords = vm._previousCoords;
+        if (vm._scoreChangePercent != null) src._scoreChangePercent = vm._scoreChangePercent;
+      }
+    }
     validationOcrCurrentPage = 0;
     validationEmptyHint.style.display = 'none';
     validationOcrContent.style.display = '';
@@ -87,9 +117,19 @@ function updateValidationSummary() {
   state.validatedMembers.forEach(m => counts[m.validationStatus]++);
   const total = state.validatedMembers.length;
   const ok = counts.confirmed + counts.corrected;
-  validationSummary.textContent = t('validation.summary', {
+  // Count warnings from source entries
+  const activeEntries = state.validationMode === 'event' ? state.eventOcrEntries : state.ocrMembers;
+  let warnings = 0;
+  if (activeEntries) {
+    activeEntries.forEach(e => { if (hasAnyWarning(e)) warnings++; });
+  }
+  let summary = t('validation.summary', {
     ok, total, suggested: counts.suggested, unknown: counts.unknown,
   });
+  if (warnings > 0) {
+    summary += ` | ${t('validation.warnings', { count: warnings })}`;
+  }
+  validationSummary.textContent = summary;
 }
 
 // ─── Validation OCR Table ──────────────────────────────────────────────────
@@ -150,7 +190,13 @@ export function renderValidationOcrTable() {
 
   const visibleIndices = [];
   state.validatedMembers.forEach((m, idx) => {
-    if (state.validationFilter !== 'all' && m.validationStatus !== state.validationFilter) return;
+    if (state.validationFilter === 'warning') {
+      // Warning filter: show entries with any sanity or history warning
+      const srcEntry = activeEntries && activeEntries[idx];
+      if (!srcEntry || !hasAnyWarning(srcEntry)) return;
+    } else if (state.validationFilter !== 'all' && m.validationStatus !== state.validationFilter) {
+      return;
+    }
     visibleIndices.push(idx);
   });
 
@@ -170,8 +216,10 @@ export function renderValidationOcrTable() {
 
   indicesToRender.forEach((idx) => {
     const m = state.validatedMembers[idx];
+    const srcEntry = activeEntries && activeEntries[idx];
     const tr = document.createElement('tr');
     tr.className = `v-row-${m.validationStatus}`;
+    if (srcEntry && hasAnyWarning(srcEntry)) tr.classList.add('v-row-warning');
     if (state.selectedOcrRow === idx) tr.classList.add('selected');
 
     const statusLabel = statusLabels[m.validationStatus] || m.validationStatus;
@@ -193,7 +241,7 @@ export function renderValidationOcrTable() {
     `;
 
     tr.addEventListener('click', (e) => {
-      if (e.target.closest('.v-action-btn') || e.target.closest('.v-row-checkbox') || e.target.closest('.td-score')) return;
+      if (e.target.closest('.v-action-btn') || e.target.closest('.v-row-checkbox') || e.target.closest('.td-score') || e.target.closest('.revert-btn')) return;
       state.selectedOcrRow = idx;
       renderValidationOcrTable();
     });
@@ -204,6 +252,7 @@ export function renderValidationOcrTable() {
   bindCheckboxes(indicesToRender, newSelectAll);
   bindScoreEditing(isEvent, activeEntries);
   bindActionButtons(activeEntries);
+  bindRevertButtons(activeEntries);
   updateBatchButtonState();
 
   if (validationOcrPagination) {
@@ -307,6 +356,7 @@ function buildActionHtml(m, idx, activeEntries) {
     const tipText = count === 1 ? t('tooltip.openScreenshot') : t('tooltip.openScreenshots', { count });
     html += ` <button class="v-action-btn screenshot-btn" data-idx="${idx}" data-action="open-screenshot" title="${tipText}">&#128065;</button>`;
   }
+  html += ` <button class="v-action-btn delete-btn" data-idx="${idx}" data-action="delete-entry" title="${t('tooltip.deleteEntry')}">&#128465;</button>`;
   return html;
 }
 
@@ -329,12 +379,163 @@ function buildScoreColumns(isEvent, activeEntries, idx) {
       <td class="td-score${epEdited}${warnClass}" data-idx="${idx}" data-field="eventPoints" title="${warnTitle}">${srcEntry.eventPoints.toLocaleString('de-DE')}</td>
     `;
   }
+  // Member mode: check for sanity warnings and history warnings
   const coordsEdited = srcEntry._coordsEdited ? ' score-edited' : '';
   const scoreEdited = srcEntry._scoreEdited ? ' score-edited' : '';
+  const { warnClass: coordsWarn, tooltip: coordsTip } = getMemberWarning(srcEntry, 'coords');
+  const { warnClass: scoreWarn, tooltip: scoreTip } = getMemberWarning(srcEntry, 'score');
+  // Previous values from player history (attached by compareWithHistory on validatedMembers)
+  const vm = state.validatedMembers && state.validatedMembers[idx];
+  const prevCoords = vm && vm._previousCoords;
+  const prevScore = vm && vm._previousScore;
+  const prevCoordsHtml = prevCoords
+    ? `<span class="prev-value">(${escapeHtml(prevCoords)})</span><button class="revert-btn" data-idx="${idx}" data-field="coords" data-prev="${escapeAttr(prevCoords)}" title="${t('tooltip.revertValue')}">&#8630;</button>`
+    : '';
+  const prevScoreHtml = (prevScore != null && prevScore > 0)
+    ? `<span class="prev-value">(${prevScore.toLocaleString('de-DE')})</span><button class="revert-btn" data-idx="${idx}" data-field="score" data-prev="${prevScore}" title="${t('tooltip.revertValue')}">&#8630;</button>`
+    : '';
   return `
-    <td class="td-score${coordsEdited}" data-idx="${idx}" data-field="coords" title="${t('tooltip.clickToEdit')}">${escapeHtml(srcEntry.coords || '')}</td>
-    <td class="td-score${scoreEdited}" data-idx="${idx}" data-field="score" title="${t('tooltip.clickToEdit')}">${(srcEntry.score || 0).toLocaleString('de-DE')}</td>
+    <td class="td-score${coordsEdited}${coordsWarn}" data-idx="${idx}" data-field="coords" title="${coordsTip}">
+      <span class="current-value">${escapeHtml(srcEntry.coords || '')}</span>${prevCoordsHtml}
+    </td>
+    <td class="td-score${scoreEdited}${scoreWarn}" data-idx="${idx}" data-field="score" title="${scoreTip}">
+      <span class="current-value">${(srcEntry.score || 0).toLocaleString('de-DE')}</span>${prevScoreHtml}
+    </td>
   `;
+}
+
+/**
+ * Determine warning CSS class and tooltip for a member entry field.
+ * @param {Object} entry - OCR member entry.
+ * @param {'coords'|'score'} field - Which field to check.
+ * @returns {{ warnClass: string, tooltip: string }}
+ */
+function getMemberWarning(entry, field) {
+  const editTip = t('tooltip.clickToEdit');
+  // Critical warnings (red): invalid coords, wrong kingdom, zero score
+  const criticalTypes = ['invalid_coords', 'wrong_kingdom', 'score_zero'];
+  // Sanity check warnings
+  if (entry._warning) {
+    if (field === 'coords' && ['invalid_coords', 'wrong_kingdom', 'duplicate_coords'].includes(entry._warning)) {
+      const isCritical = criticalTypes.includes(entry._warning);
+      return {
+        warnClass: isCritical ? ' score-critical' : ' score-warning',
+        tooltip: escapeAttr(entry._warningDetail || t('tooltip.scoreWarning')),
+      };
+    }
+    if (field === 'score' && ['score_zero', 'score_outlier', 'duplicate_coords'].includes(entry._warning)) {
+      const isCritical = entry._warning === 'score_zero';
+      return {
+        warnClass: isCritical ? ' score-critical' : ' score-warning',
+        tooltip: escapeAttr(entry._warningDetail || t('tooltip.scoreWarning')),
+      };
+    }
+  }
+  // History warnings
+  if (entry._historyWarning) {
+    if (field === 'coords' && entry._historyWarning === 'coords_changed' && entry._previousCoords) {
+      return {
+        warnClass: ' score-warning',
+        tooltip: escapeAttr(`${t('tooltip.historyCoords')}: ${entry._previousCoords}`),
+      };
+    }
+    if (field === 'score' && entry._historyWarning === 'score_changed' && entry._previousScore != null) {
+      return {
+        warnClass: ' score-warning',
+        tooltip: escapeAttr(`${t('tooltip.historyScore')}: ${entry._previousScore.toLocaleString('de-DE')} (${entry._scoreChangePercent}%)`),
+      };
+    }
+  }
+  return { warnClass: '', tooltip: editTip };
+}
+
+/**
+ * Check if a member entry has any warning (sanity or history).
+ * @param {Object} entry - OCR member entry.
+ * @returns {boolean}
+ */
+function hasAnyWarning(entry) {
+  return !!(entry._warning || entry._historyWarning);
+}
+
+/** Regex for valid coordinate format: "K:NN X:NNN Y:NNN" */
+const COORDS_REGEX = /^K:(\d{1,3})\s+X:\d+\s+Y:\d+$/;
+
+/**
+ * Lightweight client-side re-check of sanity warnings on all entries.
+ * Clears stale warnings and recalculates: invalid coords, K-value,
+ * duplicate coords, zero score. Does NOT check score outliers (too complex
+ * for a quick re-check; the initial OCR run handles that).
+ * @param {Array<Object>} entries - Source member entries (ocrMembers).
+ */
+function recheckSanityWarnings(entries) {
+  if (!entries || entries.length === 0) return;
+  // Clear all existing sanity warnings (keep history warnings intact)
+  for (const e of entries) {
+    delete e._warning;
+    delete e._warningDetail;
+  }
+  // 1. Invalid coords
+  for (const e of entries) {
+    if (!e.coords || !COORDS_REGEX.test(e.coords)) {
+      e._warning = 'invalid_coords';
+      e._warningDetail = `Ungueltige Koordinaten: "${e.coords || '(leer)'}"`;
+    }
+  }
+  // 2. K-value consistency
+  const kCounts = new Map();
+  for (const e of entries) {
+    if (e._warning) continue;
+    const km = e.coords && e.coords.match(/^K:(\d+)/);
+    if (km) {
+      const k = parseInt(km[1], 10);
+      kCounts.set(k, (kCounts.get(k) || 0) + 1);
+    }
+  }
+  let dominantK = null;
+  if (kCounts.size > 0) {
+    let bestK = null, bestC = 0, total = 0;
+    for (const [k, c] of kCounts) { if (c > bestC) { bestK = k; bestC = c; } total += c; }
+    if (bestC / total >= 0.8) dominantK = bestK;
+  }
+  if (dominantK !== null) {
+    for (const e of entries) {
+      if (e._warning) continue;
+      const km = e.coords && e.coords.match(/^K:(\d+)/);
+      if (km) {
+        const k = parseInt(km[1], 10);
+        if (k !== dominantK) {
+          e._warning = 'wrong_kingdom';
+          e._warningDetail = `K:${k} weicht ab (erwartet K:${dominantK})`;
+        }
+      }
+    }
+  }
+  // 3. Duplicate coordinates
+  const coordsMap = new Map();
+  for (const e of entries) {
+    if (!e.coords || e._warning) continue;
+    const key = e.coords.trim();
+    if (coordsMap.has(key)) {
+      const existing = coordsMap.get(key);
+      const loser = e.score < existing.score ? e : existing;
+      if (!loser._warning) {
+        const winner = loser === e ? existing : e;
+        loser._warning = 'duplicate_coords';
+        loser._warningDetail = `Gleiche Koordinaten wie "${winner.name || '(unbekannt)'}"`;
+      }
+    } else {
+      coordsMap.set(key, e);
+    }
+  }
+  // 4. Zero score
+  for (const e of entries) {
+    if (e._warning) continue;
+    if (e.score === 0) {
+      e._warning = 'score_zero';
+      e._warningDetail = 'Score ist 0';
+    }
+  }
 }
 
 /** Bind checkbox change handlers and select-all. */
@@ -385,16 +586,27 @@ function bindScoreEditing(isEvent, activeEntries) {
       input.select();
       const commitEdit = () => {
         const rawVal = input.value.trim();
+        let changed = false;
         if (field === 'coords') {
-          if (rawVal !== (entry.coords || '')) { entry.coords = rawVal; entry._coordsEdited = true; }
-          td.textContent = entry.coords || '';
+          if (rawVal !== (entry.coords || '')) { entry.coords = rawVal; entry._coordsEdited = true; changed = true; }
         } else {
           const parsed = parseInt(rawVal.replace(/[,.\u00A0\s]/g, ''));
           const numVal = isNaN(parsed) ? 0 : parsed;
-          if (numVal !== entry[field]) { entry[field] = numVal; entry[`_${field}Edited`] = true; }
-          td.textContent = entry[field].toLocaleString('de-DE');
+          if (numVal !== entry[field]) { entry[field] = numVal; entry[`_${field}Edited`] = true; changed = true; }
         }
-        if (entry[`_${field}Edited`]) td.classList.add('score-edited');
+        if (changed && !isEvent) {
+          // Re-run sanity checks and re-render the full table to update warnings
+          recheckSanityWarnings(activeEntries);
+          renderValidationOcrTable();
+        } else {
+          // Just update the cell text
+          if (field === 'coords') {
+            td.textContent = entry.coords || '';
+          } else {
+            td.textContent = entry[field].toLocaleString('de-DE');
+          }
+          if (entry[`_${field}Edited`]) td.classList.add('score-edited');
+        }
       };
       input.addEventListener('blur', commitEdit);
       input.addEventListener('keydown', (ke) => {
@@ -432,7 +644,34 @@ function bindActionButtons(activeEntries) {
             await window.api.openScreenshot(filePath);
           }
         }
+      } else if (action === 'delete-entry') {
+        await deleteOcrEntry(idx);
       }
+    });
+  });
+}
+
+/** Bind click handlers for revert-to-previous-value buttons. */
+function bindRevertButtons(activeEntries) {
+  validationOcrBody.querySelectorAll('.revert-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const idx = parseInt(btn.dataset.idx);
+      const field = btn.dataset.field;
+      const prev = btn.dataset.prev;
+      if (isNaN(idx) || !field || prev == null) return;
+      const entry = activeEntries && activeEntries[idx];
+      if (!entry) return;
+      if (field === 'coords') {
+        entry.coords = prev;
+        entry._coordsEdited = true;
+      } else if (field === 'score') {
+        entry.score = parseInt(prev);
+        entry[`_${field}Edited`] = true;
+      }
+      // Re-run local sanity checks after revert
+      recheckSanityWarnings(activeEntries);
+      renderValidationOcrTable();
     });
   });
 }
@@ -462,6 +701,49 @@ async function makeOcrCorrection(idx, activeEntries) {
   await validateCurrentResults();
   // Switch to corrections sub-tab
   switchToSubTab('validationRightSubTabBar', 'validation-corrections');
+}
+
+/**
+ * Delete a single OCR entry by index.
+ * Removes from both ocrMembers/eventOcrEntries and validatedMembers.
+ */
+async function deleteOcrEntry(idx) {
+  const member = state.validatedMembers[idx];
+  if (!member) return;
+  const name = member.originalName || member.name;
+  if (!(await showConfirmDialog(t('confirm.deleteEntry', { name })))) return;
+  deleteEntryByIndex(idx);
+  await validateCurrentResults();
+}
+
+/**
+ * Delete multiple selected OCR entries.
+ * Indices are removed from highest to lowest to avoid shifting.
+ */
+async function deleteSelectedEntries() {
+  if (state.selectedOcrRows.size === 0) return;
+  const count = state.selectedOcrRows.size;
+  if (!(await showConfirmDialog(t('confirm.deleteEntries', { count })))) return;
+  const sortedDesc = [...state.selectedOcrRows].sort((a, b) => b - a);
+  for (const idx of sortedDesc) {
+    deleteEntryByIndex(idx);
+  }
+  state.selectedOcrRows.clear();
+  await validateCurrentResults();
+}
+
+/**
+ * Remove an entry at the given index from the source arrays.
+ * @param {number} idx - Index to remove.
+ */
+function deleteEntryByIndex(idx) {
+  const activeEntries = state.validationMode === 'event' ? state.eventOcrEntries : state.ocrMembers;
+  if (activeEntries && idx >= 0 && idx < activeEntries.length) {
+    activeEntries.splice(idx, 1);
+  }
+  if (state.validatedMembers && idx >= 0 && idx < state.validatedMembers.length) {
+    state.validatedMembers.splice(idx, 1);
+  }
 }
 
 /** Add a single OCR name to the validation list. */
@@ -509,13 +791,129 @@ async function addSelectedOcrNamesToValidationList() {
   if (state.validatedMembers) await validateCurrentResults();
 }
 
-/** Update the batch-add button state. */
+/** Update the batch action button states. */
 function updateBatchButtonState() {
-  if (!btnAddSelectedToList) return;
-  btnAddSelectedToList.disabled = state.selectedOcrRows.size === 0;
-  btnAddSelectedToList.textContent = state.selectedOcrRows.size > 0
-    ? t('btn.addSelectedToListCount', { count: state.selectedOcrRows.size })
-    : t('btn.addSelectedToList');
+  const count = state.selectedOcrRows.size;
+  const hasSelection = count > 0;
+  if (btnAddSelectedToList) {
+    btnAddSelectedToList.disabled = !hasSelection;
+    btnAddSelectedToList.textContent = hasSelection
+      ? t('btn.addSelectedToListCount', { count })
+      : t('btn.addSelectedToList');
+  }
+  if (btnDeleteSelected) {
+    btnDeleteSelected.disabled = !hasSelection;
+    btnDeleteSelected.textContent = hasSelection
+      ? t('btn.deleteSelectedCount', { count })
+      : t('btn.deleteSelected');
+  }
+  if (btnRerunOcr) {
+    btnRerunOcr.disabled = !hasSelection;
+  }
+}
+
+// ─── Insert Player from Known List ──────────────────────────────────────────
+
+/**
+ * Insert a known player into the current OCR results.
+ * Uses player history for coords/score if available, otherwise defaults.
+ * @param {string} name - Player name to insert.
+ */
+async function insertPlayerIntoResults(name) {
+  const activeEntries = state.validationMode === 'event' ? state.eventOcrEntries : state.ocrMembers;
+  if (!activeEntries) return;
+  const history = state.validationPlayerHistory || {};
+  const ph = history[name];
+  const newEntry = {
+    name,
+    coords: ph?.coords || '',
+    score: ph?.score || 0,
+    _manuallyAdded: true,
+  };
+  activeEntries.push(newEntry);
+  await validateCurrentResults();
+}
+
+// ─── Re-run OCR ─────────────────────────────────────────────────────────────
+
+/**
+ * Re-run OCR for the selected entries.
+ * Collects _sourceFiles from selected entries, prompts for engine, runs
+ * partial OCR, removes old entries, and merges new results back.
+ */
+async function rerunSelectedOcr() {
+  const activeEntries = state.validationMode === 'event' ? state.eventOcrEntries : state.ocrMembers;
+  if (!activeEntries || state.selectedOcrRows.size === 0) return;
+  // Collect unique source file paths from selected entries
+  const filePaths = new Set();
+  for (const idx of state.selectedOcrRows) {
+    const entry = activeEntries[idx];
+    if (entry?._sourceFiles) {
+      for (const fp of entry._sourceFiles) filePaths.add(fp);
+    }
+  }
+  if (filePaths.size === 0) {
+    await showAlertDialog('Keine Quelldateien fuer die ausgewaehlten Eintraege gefunden.');
+    return;
+  }
+  const engineResult = await showEngineSelectDialog();
+  if (!engineResult) return;
+  validationSummary.textContent = t('status.partialOcrRunning');
+  try {
+    const ocrSettings = { engine: engineResult.engine };
+    const result = await window.api.startPartialOcr([...filePaths], ocrSettings);
+    if (!result.ok) {
+      await showAlertDialog(result.error || 'OCR fehlgeschlagen');
+      return;
+    }
+    // Remove old selected entries (highest index first)
+    const sortedDesc = [...state.selectedOcrRows].sort((a, b) => b - a);
+    for (const idx of sortedDesc) {
+      deleteEntryByIndex(idx);
+    }
+    state.selectedOcrRows.clear();
+    // Append new results
+    if (result.members && result.members.length > 0) {
+      for (const m of result.members) activeEntries.push(m);
+    }
+    await validateCurrentResults();
+    validationSummary.textContent = t('status.partialOcrDone', { count: result.members?.length || 0 });
+  } catch (err) {
+    validationSummary.textContent = `Fehler: ${err.message}`;
+  }
+}
+
+/**
+ * Open a file picker, run OCR on selected screenshots, and merge results.
+ */
+async function addScreenshotsOcr() {
+  const activeEntries = state.validationMode === 'event' ? state.eventOcrEntries : state.ocrMembers;
+  if (!activeEntries) return;
+  const fileResult = await window.api.browseFiles({
+    title: t('dialog.selectScreenshots'),
+    filters: [
+      { name: 'Screenshots', extensions: ['png', 'jpg', 'jpeg', 'bmp', 'webp'] },
+    ],
+  });
+  if (!fileResult.ok || !fileResult.paths || fileResult.paths.length === 0) return;
+  const engineResult = await showEngineSelectDialog();
+  if (!engineResult) return;
+  validationSummary.textContent = t('status.partialOcrRunning');
+  try {
+    const ocrSettings = { engine: engineResult.engine };
+    const result = await window.api.startPartialOcr(fileResult.paths, ocrSettings);
+    if (!result.ok) {
+      await showAlertDialog(result.error || 'OCR fehlgeschlagen');
+      return;
+    }
+    if (result.members && result.members.length > 0) {
+      for (const m of result.members) activeEntries.push(m);
+    }
+    await validateCurrentResults();
+    validationSummary.textContent = t('status.partialOcrDone', { count: result.members?.length || 0 });
+  } catch (err) {
+    validationSummary.textContent = `Fehler: ${err.message}`;
+  }
 }
 
 // ─── Names List ────────────────────────────────────────────────────────────
@@ -529,19 +927,56 @@ export function renderValidationNames() {
     ? state.validationKnownNames.filter(n => n.toLowerCase().includes(searchTerm))
     : state.validationKnownNames;
   const sorted = filtered.slice().sort((a, b) => a.localeCompare(b, 'de'));
+  const history = state.validationPlayerHistory || {};
+  // Build a set of player names found in the current OCR run for found/missing highlighting
+  const foundNames = new Set();
+  if (state.validatedMembers && state.validatedMembers.length > 0) {
+    for (const m of state.validatedMembers) {
+      if (m.name) foundNames.add(m.name);
+    }
+  }
+  const hasOcrResults = foundNames.size > 0;
+  // Count found and missing for the label
+  let foundCount = 0, missingCount = 0;
+  if (hasOcrResults) {
+    for (const name of state.validationKnownNames) {
+      if (foundNames.has(name)) foundCount++;
+      else missingCount++;
+    }
+    validationNameCount.textContent = t('format.nameCountDetailed', {
+      count: state.validationKnownNames.length,
+      found: foundCount,
+      missing: missingCount,
+    });
+  }
   sorted.forEach(name => {
     const item = document.createElement('div');
     item.className = 'validation-name-item';
+    // Highlight: suggestion match > found (green) > missing (red)
     if (state.selectedOcrRow !== null && state.validatedMembers) {
       const sel = state.validatedMembers[state.selectedOcrRow];
       if (sel && sel.suggestion === name) item.classList.add('highlighted');
     }
+    if (hasOcrResults) {
+      if (foundNames.has(name)) item.classList.add('player-found');
+      else item.classList.add('player-missing');
+    }
+    const ph = history[name];
+    const statsHtml = ph
+      ? `<span class="player-stats" title="${escapeAttr(t('tooltip.lastSeen') + ': ' + (ph.lastSeen || '?'))}">${escapeHtml(ph.coords || '?')} | ${(ph.score || 0).toLocaleString('de-DE')}</span>`
+      : '';
+    // Show insert button only when OCR results exist and player is missing
+    const showInsert = hasOcrResults && !foundNames.has(name);
+    const insertBtnHtml = showInsert
+      ? `<button class="insert-btn" title="${escapeAttr(t('tooltip.insertIntoResults'))}">&#8629;</button>`
+      : '';
     item.innerHTML = `
-      <span>${escapeHtml(name)}</span>
-      <button class="remove-btn" title="${t('tooltip.removeName')}">&times;</button>
+      <span class="player-name">${escapeHtml(name)}</span>
+      ${statsHtml}
+      <div class="player-actions">${insertBtnHtml}<button class="remove-btn" title="${t('tooltip.removeName')}">&times;</button></div>
     `;
     item.addEventListener('click', async (e) => {
-      if (e.target.closest('.remove-btn')) return;
+      if (e.target.closest('.remove-btn') || e.target.closest('.insert-btn')) return;
       if (state.selectedOcrRow === null || !state.validatedMembers) return;
       const member = state.validatedMembers[state.selectedOcrRow];
       if (!member) return;
@@ -552,6 +987,13 @@ export function renderValidationNames() {
       state.selectedOcrRow = null;
       await validateCurrentResults();
     });
+    const insertBtn = item.querySelector('.insert-btn');
+    if (insertBtn) {
+      insertBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await insertPlayerIntoResults(name);
+      });
+    }
     item.querySelector('.remove-btn').addEventListener('click', async (e) => {
       e.stopPropagation();
       if (await showConfirmDialog(t('confirm.removeName', { name }))) {
@@ -586,9 +1028,9 @@ export function renderCorrections() {
     const item = document.createElement('div');
     item.className = 'correction-item' + (isActive ? ' active-correction' : '');
     item.innerHTML = `
-      <span class="correction-from" title="${escapeHtml(from)}">${escapeHtml(from)}</span>
+      <span class="correction-from" title="${escapeAttr(from)}">${escapeHtml(from)}</span>
       <span class="correction-arrow">&rarr;</span>
-      <span class="correction-to" title="${escapeHtml(to)}">${escapeHtml(to)}</span>
+      <span class="correction-to" title="${escapeAttr(to)}">${escapeHtml(to)}</span>
       ${isActive ? '<span class="correction-active-badge" title="' + t('tooltip.correctionActive') + '">&#9679;</span>' : ''}
       <button class="remove-btn" title="${t('tooltip.removeCorrection')}">&times;</button>
     `;
@@ -647,19 +1089,37 @@ export function initValidationUI({ saveConfig }) {
   // Batch add
   btnAddSelectedToList.addEventListener('click', () => addSelectedOcrNamesToValidationList());
 
-  // Add name
+  // Batch delete
+  if (btnDeleteSelected) {
+    btnDeleteSelected.addEventListener('click', () => deleteSelectedEntries());
+  }
+
+  // Re-run OCR for selected entries
+  if (btnRerunOcr) {
+    btnRerunOcr.addEventListener('click', () => rerunSelectedOcr());
+  }
+
+  // Add screenshots via file picker
+  if (btnAddScreenshots) {
+    btnAddScreenshots.addEventListener('click', () => addScreenshotsOcr());
+  }
+
+  // Add name (multi-field dialog with optional coords/score)
   btnAddValidationName.addEventListener('click', async () => {
-    const name = await showInputDialog(t('prompt.addName'));
-    if (name && name.trim()) {
-      const trimmed = name.trim();
-      if (state.validationKnownNames.includes(trimmed)) {
-        await showAlertDialog(t('alert.nameAlreadyExists', { name: trimmed }));
-        return;
-      }
-      await window.api.addValidationName(trimmed);
-      await loadValidationList();
-      if (state.validatedMembers) await validateCurrentResults();
+    const result = await showAddPlayerDialog();
+    if (!result) return;
+    const { name, coords, score } = result;
+    if (state.validationKnownNames.includes(name)) {
+      await showAlertDialog(t('alert.nameAlreadyExists', { name }));
+      return;
     }
+    await window.api.addValidationName(name);
+    // Save coords/score to player history if provided
+    if (coords || score > 0) {
+      await window.api.updatePlayerHistory([{ name, coords, score }]);
+    }
+    await loadValidationList();
+    if (state.validatedMembers) await validateCurrentResults();
   });
 
   // Accept all suggestions
@@ -690,19 +1150,48 @@ export function initValidationUI({ saveConfig }) {
       if (!membersToExport || membersToExport.length === 0) return;
       const defaultName = `mitglieder_${localDateTimeString()}.csv`;
       const result = await window.api.exportCsv(membersToExport, defaultName);
-      if (result.ok) validationSummary.textContent = t('status.csvSaved', { path: result.path });
+      if (result.ok) {
+        validationSummary.textContent = t('status.csvSaved', { path: result.path });
+        // Update player history after successful member export
+        const dataForHistory = membersToExport.map(m => ({ name: m.name, coords: m.coords, score: m.score }));
+        await window.api.updatePlayerHistory(dataForHistory);
+      }
     }
   });
 
-  // Import / Export validation list
-  btnImportValidation.addEventListener('click', async () => {
-    const result = await window.api.importValidationList();
+  // Import OCR results from CSV
+  btnImportOcrCsv.addEventListener('click', async () => {
+    const result = await window.api.importOcrCsv();
+    if (result.ok && result.members) {
+      state.ocrMembers = result.members;
+      state.validationMode = 'member';
+      state.validatedMembers = null;
+      state.selectedOcrRows.clear();
+      state.selectedOcrRow = null;
+      await validateCurrentResults();
+      validationSummary.textContent = t('status.csvImported', { count: result.members.length });
+    }
+  });
+
+  // Import / Export validation names (CSV)
+  btnImportNames.addEventListener('click', async () => {
+    const result = await window.api.importValidationNames();
     if (result.ok) {
       await loadValidationList();
       if (state.validatedMembers) await validateCurrentResults();
     }
   });
-  btnExportValidation.addEventListener('click', () => window.api.exportValidationList());
+  btnExportNames.addEventListener('click', () => window.api.exportValidationNames());
+
+  // Import / Export corrections (CSV)
+  btnImportCorrections.addEventListener('click', async () => {
+    const result = await window.api.importCorrections();
+    if (result.ok) {
+      await loadValidationList();
+      if (state.validatedMembers) await validateCurrentResults();
+    }
+  });
+  btnExportCorrections.addEventListener('click', () => window.api.exportCorrections());
 
   // Revalidate
   btnRevalidate.addEventListener('click', async () => {

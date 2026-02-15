@@ -27,6 +27,7 @@ import { listPngFiles, mergeOrAddMember } from '../shared-utils.js';
 import { cropMemberRows, trimProfileArea, cropScoreRegion } from '../row-cropper.js';
 import { analyzeOverlap } from '../overlap-detector.js';
 import { applyKnownCorrections } from '../name-corrector.js';
+import { runMemberSanityChecks } from '../sanity-checker.js';
 import { preprocessImage, SCORE_PRESET } from '../image-preprocessor.js';
 import { SCORE_REGEX, SCORE_FALLBACK_REGEX } from '../constants.js';
 
@@ -174,6 +175,9 @@ export class HybridProvider extends OcrProvider {
       this.logger.info(`Namens-Dedup: ${beforeDedup - members.length} Duplikat(e) entfernt.`);
     }
     analyzeOverlap(members, files, regionHeight, allRowHeights, this.logger);
+    runMemberSanityChecks(members, this.logger, {
+      scoreOutlierThreshold: this.settings?.scoreOutlierThreshold,
+    });
     this.logger.success(`Hybrid-OCR abgeschlossen: ${members.length} Mitglieder aus ${totalCrops} Crops.`);
     return members;
   }

@@ -6,6 +6,107 @@
 
 ---
 
+## 2026-02-15 — Import/Export Overhaul and Auto-Save Removal
+
+### Auto-Save Removal
+- **Removed auto-save toggle** from both member and event OCR settings. Users must now explicitly export CSV results. This prevents accidental overwrites and gives users full control over when data is saved.
+- Removed `autoSaveCsv()` function, `isAutoSaveEnabled()`, and all auto-save IPC handlers (`auto-save-csv`, `auto-save-event-csv`).
+- Removed `autoSave` / `eventAutoSave` from config schema, config save/restore, and HTML toggles.
+- Player history is now updated only on explicit user actions (CSV export, add player dialog).
+
+### CSV Import for OCR Results
+- **New "CSV importieren" button** in the validation actions bar. Opens a file picker, parses the CSV (Name, Koordinaten, Score columns), and replaces current OCR results.
+- **New `csv-parser.js` module** with `parseMemberCSV()`, `parseNamesCsv()`, and `parseCorrectionsCsv()` — handles BOM, quoted fields, escaped quotes, locale-formatted scores, and flexible header names.
+- **New IPC handler** `import-ocr-csv` in `ocr-handler.js`.
+
+### CSV-Based Validation Names and Corrections Import/Export
+- **Replaced JSON import/export** with four dedicated CSV buttons:
+  - "Namen importieren" / "Namen exportieren" (single `Name` column CSV)
+  - "Korrekturen importieren" / "Korrekturen exportieren" (two-column `OCR-Name,Korrekter Name` CSV)
+- **New IPC handlers**: `import-validation-names-csv`, `export-validation-names-csv`, `import-corrections-csv`, `export-corrections-csv`.
+- Removed old `import-validation-list` and `export-validation-list` JSON-based handlers.
+
+### UI Restructure
+- **Actions bar** reorganized into grouped rows: OCR Results (import/export), Known Players (import/export), Corrections (import/export), and Revalidate.
+- New `.actions-grid` / `.action-group` CSS layout for clean button grouping with labeled sections.
+
+### i18n Updates
+- Added new keys: `btn.importCsv`, `btn.importNames`, `btn.exportNames`, `btn.importCorrections`, `btn.exportCorrections`, `label.ocrResults`, `label.knownPlayers`, `label.corrections`, `status.csvImported`.
+- Removed obsolete keys: `toggle.autoSave`, `tooltip.autoSave`, `status.csvAutoSaved`, `status.eventCsvAutoSaved`, `btn.exportCorrectedCsv`, `btn.import`, `btn.export`.
+- Updated backend i18n with new dialog titles for all import/export operations.
+
+### Testing
+- New `csv-parser.test.js` with 20 tests covering all three parsers (member CSV, names CSV, corrections CSV).
+- Updated `ocr-handler.test.js`, `validation-handler.test.js`, and `i18n-backend.test.js` to reflect new handlers and removed auto-save.
+- All 369 tests pass.
+
+---
+
+## 2026-02-15 — Validation UI Enhancements (Phase 2)
+
+### Bug Fixes
+- **Fixed NaN threshold bug**: `compareWithHistory` now guards against `NaN` in `scoreChangeThreshold` (defense in depth: both renderer `parseFloat` and backend fallback). Previously `NaN ?? 0.5` stayed `NaN`, so `change > NaN` was always false — no score change warnings were ever triggered.
+
+### New Features: Insert Player from Known List
+- **Insert button** on each missing player in the Known Players list. Clicking inserts the player into OCR results with coords/score from history (if available).
+
+### New Features: Partial OCR Re-run
+- **"Re-run OCR" button**: select entries in the validation table, pick an engine (tesseract/vision/hybrid), and re-process their source files. Old entries are replaced with fresh results.
+- **"+ Screenshots" button**: open a file picker, select PNG files, choose an engine, and append OCR results to the existing table.
+- **New IPC handler** `start-partial-ocr`: accepts file paths array, copies to temp dir, runs OCR via existing provider, returns results.
+- **Engine selection dialog**: reusable modal with radio buttons for all three OCR engines.
+
+### New Features: Enhanced Add Player Dialog
+- **Multi-field dialog**: when adding a player to the known list, user can now optionally provide coords and score. These are saved to player history immediately.
+- **Moved "Hinzufuegen" button** below the Known Players list for better UX.
+
+### New Components
+- `engine-select-dialog.js`: engine selection modal with radio buttons.
+- `add-player-dialog.js`: multi-field add-player modal (name + optional coords/score).
+
+### Testing
+- Added NaN guard tests for `compareWithHistory` (NaN and undefined threshold).
+
+---
+
+## 2026-02-15 — OCR Quality Checks, Player History, and Validation UI Improvements
+
+### Post-OCR Sanity Checks
+- **New `sanity-checker.js`** module: runs 5 checks after dedup (invalid coords, K-value consistency, duplicate coords, zero score, score outlier). Annotates entries with `_warning` / `_warningDetail` — does not auto-remove.
+- **Integrated** into all three providers (Tesseract, Vision, Hybrid) after deduplication.
+- **Duplicate coords warning** now shows the conflicting player name (with `(unbekannt)` fallback).
+
+### Player History and Comparison
+- **Extended `ValidationManager`** with `playerHistory` (stored in `validation-list.json`): `updatePlayerHistory()`, `getPlayerHistory()`, `compareWithHistory()`.
+- **History comparison** during validation: flags score changes exceeding threshold and coordinate changes (including K-value).
+- **Previous values always attached**: `_previousScore` / `_previousCoords` are set whenever history exists (not only when warnings trigger), so the UI can always display them.
+- **Auto-updates** player history when CSV is exported or auto-saved.
+- **Bug fix**: `updatePlayerHistory` no longer skips entries with `_warning` — user has already reviewed results by the time they export.
+
+### Validation UI Enhancements
+- **Warning indicators**: member-mode score/coord cells show orange (warning) or red (critical) highlights for sanity and history warnings, with detailed tooltips.
+- **Row-level warning indicator**: left border highlight on rows with any warning.
+- **"Warnings" filter button**: filters the validation table to show only flagged entries.
+- **Previous values inline**: previous score/coords shown in brackets next to current values when player history exists.
+- **Revert buttons**: one-click revert to previous value for coords and score fields.
+- **Live re-check**: editing coords, score, or reverting values triggers a local sanity re-check (clears stale warnings, recalculates duplicates).
+- **Player stats in Known Players list**: each name shows last-known coords, score, and "last seen" date from player history.
+- **Per-row delete**: trash button on each row with confirmation dialog.
+- **Batch delete**: "Delete selected" button for multi-select deletion.
+
+### Configurable Thresholds
+- **New config fields**: `scoreOutlierThreshold` (default 0.2 = 20%) and `scoreChangeThreshold` (default 0.5 = 50%) in config schema (Zod-validated).
+- **Settings UI sliders**: "Quality Checks" section in OCR settings with percentage display.
+- Thresholds passed through to sanity checker and history comparison.
+
+### Testing
+- **New `sanity-checker.test.js`**: 11 tests covering all check types, priority rules, and edge cases.
+- **Extended `validation-manager.test.js`**: 21 new tests for player history CRUD, persistence, and history comparison.
+- **Fixed `validation-handler.test.js`** mock to include new `compareWithHistory` method.
+- All 344 tests pass.
+
+---
+
 ## 2026-02-15 — Test Folder Reorganization
 
 - **Moved benchmark scripts** to `test/benchmarks/` subfolder (`ocr-benchmark.js`, `vision-benchmark.js`, `event-ocr-benchmark.js`). Updated all import paths and `__dirname` references.

@@ -47,7 +47,6 @@ export const configSchema = z
     outputDir: z.string().optional(),
     autoOcr: z.boolean().optional(),
     autoValidation: z.boolean().optional(),
-    autoSave: z.boolean().optional(),
     ocrFolder: z.string().optional(),
     ocrSettings: ocrSettingsSchema,
     eventScrollDistance: z.number().min(1).max(2000).optional(),
@@ -56,7 +55,6 @@ export const configSchema = z
     eventOutputDir: z.string().optional(),
     eventAutoOcr: z.boolean().optional(),
     eventAutoValidation: z.boolean().optional(),
-    eventAutoSave: z.boolean().optional(),
     eventOcrFolder: z.string().optional(),
     eventOcrSettings: ocrSettingsSchema,
     // ─── Advanced OCR (Vision Model) ──────────────────────────────────────
@@ -64,6 +62,11 @@ export const configSchema = z
     ollamaEnabled: z.boolean().optional(),
     ollamaModel: z.string().optional(),
     visionMaxDimension: z.number().optional(),
+    // ─── Sanity / History Thresholds ────────────────────────────────────
+    /** Score outlier ratio — entry flagged if score / neighbor-avg < this (0–1). Default 0.2. */
+    scoreOutlierThreshold: z.number().min(0.01).max(1).optional(),
+    /** Score change ratio — flagged if |new-old|/old > this (0–1). Default 0.5. */
+    scoreChangeThreshold: z.number().min(0.01).max(2).optional(),
   })
   .passthrough();
 

@@ -65,7 +65,7 @@ d:\Projekte\WebDev\AssetExtractor\
 │   ├── src/
 │   │   ├── main.js                 # Electron entry (~75 lines): window, IPC registration
 │   │   ├── preload.cjs             # Secure IPC bridge (contextBridge)
-│   │   ├── validation-manager.js   # Name validation: fuzzy match, Levenshtein, corrections
+│   │   ├── validation-manager.js   # Name validation, player history, history comparison
 │   │   ├── scroll-capturer.js      # Scroll capture with sharp pixel comparison
 │   │   ├── region-selector.js      # Interactive region selection overlay
 │   │   │
@@ -87,6 +87,7 @@ d:\Projekte\WebDev\AssetExtractor\
 │   │   │   ├── score-utils.js      # Score extraction, boundary finding, conflict resolution
 │   │   │   ├── name-corrector.js   # Runtime name correction (before merge/dedup)
 │   │   │   ├── deduplicator.js     # Unified member/event deduplication (4-pass)
+│   │   │   ├── sanity-checker.js   # Post-OCR sanity checks (K-value, coords, scores)
 │   │   │   ├── csv-formatter.js    # CSV output formatting (member + event)
 │   │   │   ├── shared-utils.js     # mergeOrAdd, pickBetterScore, namesAreSimilar
 │   │   │   ├── overlap-detector.js # Screenshot overlap gap detection
@@ -260,6 +261,7 @@ Provider-based pipeline with sub-region cropping. Three interchangeable engines 
 | `name-corrector.js`     | Runtime name correction from validation list before merge |
 | `shared-utils.js`       | `mergeOrAdd`, `pickBetterScore`, `namesAreSimilar`       |
 | `deduplicator.js`       | 4-pass dedup: exact names, fuzzy names, suffix, scores   |
+| `sanity-checker.js`     | Post-OCR: invalid coords, K-value, dupes, zero/outlier scores |
 | `overlap-detector.js`   | Screenshot-to-screenshot gap detection, scroll recommendations |
 | `vision-parser.js`      | Vision model JSON response parsing and sanitization      |
 | `vision-prompts.js`     | Ollama prompt templates for member/event extraction      |
@@ -269,11 +271,11 @@ Provider-based pipeline with sub-region cropping. Three interchangeable engines 
 | `score-utils.js`        | Score parsing, boundary detection, conflict resolution   |
 | `csv-formatter.js`      | CSV output with BOM, headers, double-quote escaping      |
 
-**Data flow (Hybrid)**: `cropMemberRows` → Vision (full row → name + coords) + `cropScoreRegion` → Tesseract (PSM 6 → score) → name correction → dedup (4-pass) → overlap analysis → CSV
+**Data flow (Hybrid)**: `cropMemberRows` → Vision (full row → name + coords) + `cropScoreRegion` → Tesseract (PSM 6 → score) → name correction → dedup (4-pass) → sanity checks → overlap analysis → CSV
 
 ### 4.7 Member Extractor — Validation (`src/validation-manager.js`)
 
-Fuzzy name matching against a known player database with OCR correction mappings.
+Fuzzy name matching against a known player database with OCR correction mappings and player history tracking.
 
 | Feature            | Implementation                                              |
 | ------------------ | ----------------------------------------------------------- |
@@ -281,9 +283,18 @@ Fuzzy name matching against a known player database with OCR correction mappings
 | Suffix match       | "oEy Django" ends with known "Django"                       |
 | Fuzzy match        | Levenshtein distance ≤ 2 for names ≥ 5 chars               |
 | Corrections        | Stored OCR→correct mappings applied before matching         |
-| Persistence        | JSON file (`validation-list.json`) with names + corrections |
+| Player history     | Last-known coords/score per player, updated on CSV export   |
+| History comparison | Flags score changes > threshold and coordinate changes      |
+| Persistence        | JSON file (`validation-list.json`) with names, corrections, playerHistory |
 
 **Statuses**: `confirmed` (exact match), `corrected` (known correction applied), `suggested` (fuzzy match, needs review), `unknown` (no match found).
+
+**Sanity checks** (`sanity-checker.js`): Run after dedup in all providers. Annotates entries with `_warning` / `_warningDetail`:
+- Invalid coords format (no K:XX X:YY Y:ZZ)
+- K-value deviation from dominant kingdom (requires 80% consensus)
+- Duplicate coordinates (lower-score entry flagged)
+- Zero score
+- Score outlier (configurable threshold, default 20% of neighbor average)
 
 ### 4.8 Member Extractor — Renderer UI (`src/renderer/`)
 
@@ -388,7 +399,7 @@ Fuzzy name matching against a known player database with OCR correction mappings
 
 | Area              | Files | Tests | Modules Covered                                        |
 | ----------------- | ----- | ----- | ------------------------------------------------------ |
-| OCR modules       | 8     | 94    | constants, noise-detector, score-utils, name-extractor, deduplicator, csv-formatter, image-preprocessor, ocr-processor |
+| OCR modules       | 9     | 125   | constants, noise-detector, score-utils, name-extractor, deduplicator, csv-formatter, image-preprocessor, ocr-processor, sanity-checker |
 | Name corrector    | 1     | 20    | Runtime corrections, fuzzy matching, caching           |
 | Overlap detector  | 1     | 27    | Gap detection, scroll recommendations, row height analysis |
 | ValidationManager | 1     | 39    | Name CRUD, fuzzy matching, Levenshtein, corrections, persistence |

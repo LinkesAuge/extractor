@@ -25,6 +25,12 @@ export class ValidationManager {
     /** @private Case-insensitive map: lowercase name → canonical name. */
     this._lowerMap = new Map();
     this.corrections = {};
+    /**
+     * Player history: last-known coords/score per player.
+     * Key = canonical player name, value = { coords, score, lastSeen }.
+     * @type {Object<string, { coords: string, score: number, lastSeen: string }>}
+     */
+    this.playerHistory = {};
   }
 
   /** @private Rebuild lookup caches from knownNames array. */
@@ -41,10 +47,12 @@ export class ValidationManager {
       const parsed = JSON.parse(data);
       this.knownNames = parsed.knownNames || [];
       this.corrections = parsed.corrections || {};
+      this.playerHistory = parsed.playerHistory || {};
     } catch {
       // Datei existiert noch nicht — leere Liste
       this.knownNames = [];
       this.corrections = {};
+      this.playerHistory = {};
     }
     this._rebuildCaches();
     return this.getState();
@@ -54,6 +62,7 @@ export class ValidationManager {
     const data = {
       knownNames: this.knownNames.slice().sort((a, b) => a.localeCompare(b, 'de')),
       corrections: this.corrections,
+      playerHistory: this.playerHistory,
     };
     await writeFile(this.dataFile, JSON.stringify(data, null, 2), 'utf-8');
   }
@@ -62,6 +71,7 @@ export class ValidationManager {
     return {
       knownNames: this.knownNames,
       corrections: { ...this.corrections },
+      playerHistory: { ...this.playerHistory },
     };
   }
 
@@ -117,7 +127,87 @@ export class ValidationManager {
     return {
       knownNames: this.knownNames.slice().sort((a, b) => a.localeCompare(b, 'de')),
       corrections: { ...this.corrections },
+      playerHistory: { ...this.playerHistory },
     };
+  }
+
+  // ─── Player History ─────────────────────────────────────────────────────
+
+  /**
+   * Get the history entry for a single player.
+   * @param {string} name - Canonical player name.
+   * @returns {{ coords: string, score: number, lastSeen: string }|null}
+   */
+  getPlayerHistory(name) {
+    return this.playerHistory[name] || null;
+  }
+
+  /**
+   * Update player history from a finalized member list (after user review).
+   * Only updates entries with non-zero scores and valid-looking coords.
+   *
+   * @param {Array<Object>} members - Validated members with name, coords, score.
+   * @returns {number} Number of players updated.
+   */
+  updatePlayerHistory(members) {
+    const today = new Date().toISOString().slice(0, 10);
+    let updated = 0;
+    for (const m of members) {
+      const name = m.name;
+      if (!name || !m.coords || m.score === 0) continue;
+      this.playerHistory[name] = {
+        coords: m.coords,
+        score: m.score,
+        lastSeen: today,
+      };
+      updated++;
+    }
+    return updated;
+  }
+
+  /**
+   * Compare current OCR results against player history.
+   * Always attaches _previousScore/_previousCoords when history exists so the
+   * UI can display them.  Sets _historyWarning only when thresholds are exceeded.
+   *
+   * @param {Array<Object>} members - OCR member entries.
+   * @param {Object} [options]
+   * @param {number} [options.scoreChangeThreshold=0.5] - Max allowed score change ratio (0.5 = 50%).
+   * @returns {Array<Object>} Same array with history annotations.
+   */
+  compareWithHistory(members, options = {}) {
+    const raw = options.scoreChangeThreshold;
+    const threshold = (typeof raw === 'number' && !Number.isNaN(raw)) ? raw : 0.5;
+    for (const m of members) {
+      const history = this.playerHistory[m.name];
+      if (!history) continue;
+      // Always attach previous values so the UI can show them
+      if (history.score > 0) {
+        m._previousScore = history.score;
+      }
+      if (history.coords) {
+        m._previousCoords = history.coords;
+      }
+      // Score change warning (only when threshold exceeded)
+      if (history.score > 0 && m.score > 0) {
+        const change = Math.abs(m.score - history.score) / history.score;
+        if (change > threshold) {
+          m._historyWarning = 'score_changed';
+          m._scoreChangePercent = Math.round(change * 100);
+        }
+      }
+      // Coords change warning
+      if (history.coords && m.coords && history.coords !== m.coords) {
+        const oldK = history.coords.match(/^K:(\d+)/);
+        const newK = m.coords.match(/^K:(\d+)/);
+        if (oldK && newK && oldK[1] !== newK[1]) {
+          m._historyWarning = 'coords_changed';
+        } else if (!m._historyWarning) {
+          m._historyWarning = 'coords_changed';
+        }
+      }
+    }
+    return members;
   }
 
   // ─── OCR-Ergebnisse korrigieren und validieren ───────────────────────────

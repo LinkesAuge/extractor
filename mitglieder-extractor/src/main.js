@@ -41,9 +41,9 @@ registerOllamaHandlers(guiLogger);
 
 function createWindow() {
   appState.mainWindow = new BrowserWindow({
-    width: 1080,
-    height: 900,
-    minWidth: 600,
+    width: 1400,
+    height: 960,
+    minWidth: 900,
     minHeight: 700,
     title: 'Member Extractor',
     icon: nativeImage.createFromPath(APP_ICON).resize({ width: 256, height: 256 }),

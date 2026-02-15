@@ -22,6 +22,7 @@ const state = {
   validatedMembers: null,
   validationKnownNames: [],
   validationCorrections: {},
+  validationPlayerHistory: {},
   selectedOcrRow: null,
   selectedOcrRows: new Set(),
   validationFilter: 'all',

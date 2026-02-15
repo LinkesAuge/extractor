@@ -106,6 +106,23 @@ export function registerDialogHandlers(logger) {
     }
   });
 
+  ipcMain.handle('browse-files', async (_e, options) => {
+    const dialogOpts = {
+      title: options?.title || dt('browseFiles'),
+      properties: ['openFile', 'multiSelections'],
+      filters: options?.filters || [
+        { name: dt('screenshots'), extensions: ['png', 'jpg', 'jpeg', 'bmp', 'webp'] },
+        { name: dt('allFiles'), extensions: ['*'] },
+      ],
+    };
+    if (options?.defaultPath) {
+      dialogOpts.defaultPath = resolve(options.defaultPath);
+    }
+    const result = await dialog.showOpenDialog(appState.mainWindow, dialogOpts);
+    if (result.canceled || !result.filePaths.length) return { ok: false };
+    return { ok: true, paths: result.filePaths };
+  });
+
   ipcMain.handle('delete-folder', async (_e, folderPath) => {
     try {
       const absPath = resolve(folderPath);

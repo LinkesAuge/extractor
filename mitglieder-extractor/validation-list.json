@@ -41,7 +41,6 @@
     "Eyel",
     "Fablula",
     "Feldjäger",
-    "Fluxsfire",
     "Foo Fighter",
     "FUBAR",
     "Geoterrasco1",
@@ -61,18 +60,14 @@
     "Kiruna",
     "Kisriel",
     "Klan Toilette WC",
-    "Kunigunde",
     "La Nagual Magico",
-    "Little Dragon",
     "Lord JAMS",
     "Lucky",
     "Mahoni",
     "Malolas",
-    "Masius",
     "Metalla 137",
     "Metaur",
     "mimin",
-    "Mogli",
     "Moony",
     "Moraron",
     "Mork",
@@ -91,7 +86,6 @@
     "Schmerztherapeut",
     "Skarabäus Ägypten",
     "Spartacus",
-    "Stahlbieger",
     "stefanus maximus",
     "Strategus",
     "Tango12",
@@ -102,15 +96,12 @@
     "Tortenheber",
     "Totaur",
     "Triple X",
-    "Truhenzaehler",
     "Tugo",
     "Unleashed",
     "Venom s Kitchen"
   ],
   "corrections": {
     "Ragnar Ansga rw": "Ragnar Ansgar",
-    "Truhenzaehler .": "Truhenzaehler",
-    "Mogli X": "Mogli",
     "Skarabäus Ägypten X": "Skarabäus Ägypten",
     "Bumblebee X": "Bumblebee",
     "stefanus maximus _": "stefanus maximus",
@@ -122,18 +113,13 @@
     "Dexter I": "Dexter",
     "Ragnar Ansga": "Ragnar Ansgar",
     "012.A": "EOS",
-    "shiver of sharks": "A shiver of sharks",
     "Nagual Magico-": "La Nagual Magico",
-    "Masius 207": "Masius",
     "Kiruna 207": "Kiruna",
-    "Anararad 729": "Anararad",
     "PumuckI": "Pumuckl",
     "Lord JAMS 129": "Lord JAMS",
-    "0815 429": "0815",
     "Elgin Tonic Wöpf": "Elgin Tonic",
     "Ch 7": "Gh",
     "Nagual Magico": "La Nagual Magico",
-    "Angus 129": "Angus",
     "01.2.A": "EOS",
     "The Crimson Horror Yöf": "The Crimson Horror",
     "WW": "Gh",
@@ -142,10 +128,510 @@
     "Geoterrascol": "Geoterrasco1",
     "Cäsar": "Julius Cäsar",
     "z- Ragnar Ansgar": "Ragnar Ansgar",
-    "FeÜ N Masius": "Masius",
     "1A": "EOS",
     "Metalla": "Metalla 137",
-    "Hatschen": "Hatsch",
     "Poo Fighter": "Foo Fighter"
+  },
+  "playerHistory": {
+    "Schmerztherapeut": {
+      "coords": "K:98 X:666 Y:852",
+      "score": 1205074866,
+      "lastSeen": "2026-02-15"
+    },
+    "Court Jester Herzi": {
+      "coords": "K:98 X:670 Y:844",
+      "score": 1411816546,
+      "lastSeen": "2026-02-15"
+    },
+    "Bumblebee": {
+      "coords": "K:98 X:669 Y:849",
+      "score": 1065784873,
+      "lastSeen": "2026-02-15"
+    },
+    "Anararad": {
+      "coords": "K:98 X:667 Y:851",
+      "score": 1036130091,
+      "lastSeen": "2026-02-15"
+    },
+    "Jolanim": {
+      "coords": "K:98 X:675 Y:841",
+      "score": 993566936,
+      "lastSeen": "2026-02-15"
+    },
+    "Mahoni": {
+      "coords": "K:98 X:665 Y:845",
+      "score": 942470265,
+      "lastSeen": "2026-02-15"
+    },
+    "RobertCraven": {
+      "coords": "K:98 X:672 Y:838",
+      "score": 1651814901,
+      "lastSeen": "2026-02-15"
+    },
+    "Einsamer Krieger": {
+      "coords": "K:98 X:676 Y:846",
+      "score": 1646311401,
+      "lastSeen": "2026-02-15"
+    },
+    "Dexter": {
+      "coords": "K:98 X:666 Y:850",
+      "score": 1478968531,
+      "lastSeen": "2026-02-15"
+    },
+    "stefanus maximus": {
+      "coords": "K:98 X:667 Y:855",
+      "score": 1435484831,
+      "lastSeen": "2026-02-15"
+    },
+    "Django": {
+      "coords": "K:98 X:675 Y:847",
+      "score": 1201856455,
+      "lastSeen": "2026-02-15"
+    },
+    "Anubi": {
+      "coords": "K:98 X:682 Y:838",
+      "score": 1167556227,
+      "lastSeen": "2026-02-15"
+    },
+    "Triple X": {
+      "coords": "K:98 X:668 Y:840",
+      "score": 1146270815,
+      "lastSeen": "2026-02-15"
+    },
+    "EOS": {
+      "coords": "K:98 X:669 Y:851",
+      "score": 1142096325,
+      "lastSeen": "2026-02-15"
+    },
+    "Alarich": {
+      "coords": "K:98 X:677 Y:843",
+      "score": 1107868616,
+      "lastSeen": "2026-02-15"
+    },
+    "Foo Fighter": {
+      "coords": "K:98 X:672 Y:848",
+      "score": 1102584591,
+      "lastSeen": "2026-02-15"
+    },
+    "Dorr": {
+      "coords": "K:98 X:677 Y:841",
+      "score": 1081404281,
+      "lastSeen": "2026-02-15"
+    },
+    "Moraron": {
+      "coords": "K:98 X:670 Y:848",
+      "score": 1068445505,
+      "lastSeen": "2026-02-15"
+    },
+    "Pumuckl": {
+      "coords": "K:98 X:677 Y:845",
+      "score": 1066278635,
+      "lastSeen": "2026-02-15"
+    },
+    "Elki": {
+      "coords": "K:98 X:672 Y:840",
+      "score": 1046485951,
+      "lastSeen": "2026-02-15"
+    },
+    "Naughty Bunny": {
+      "coords": "K:98 X:218 Y:772",
+      "score": 1018194635,
+      "lastSeen": "2026-02-15"
+    },
+    "Herzog der Ropp": {
+      "coords": "K:98 X:680 Y:826",
+      "score": 1016310896,
+      "lastSeen": "2026-02-15"
+    },
+    "Andreas Houlding": {
+      "coords": "K:98 X:673 Y:851",
+      "score": 1007026618,
+      "lastSeen": "2026-02-15"
+    },
+    "Metaur": {
+      "coords": "K:98 X:669 Y:847",
+      "score": 986967805,
+      "lastSeen": "2026-02-15"
+    },
+    "Cordaginn": {
+      "coords": "K:98 X:675 Y:835",
+      "score": 961966596,
+      "lastSeen": "2026-02-15"
+    },
+    "Daledeyl": {
+      "coords": "K:98 X:668 Y:846",
+      "score": 957343696,
+      "lastSeen": "2026-02-15"
+    },
+    "Nerin": {
+      "coords": "K:98 X:673 Y:833",
+      "score": 943703495,
+      "lastSeen": "2026-02-15"
+    },
+    "nobs": {
+      "coords": "K:98 X:674 Y:840",
+      "score": 929520851,
+      "lastSeen": "2026-02-15"
+    },
+    "Angus": {
+      "coords": "K:98 X:678 Y:842",
+      "score": 919701121,
+      "lastSeen": "2026-02-15"
+    },
+    "Karodor 2": {
+      "coords": "K:98 X:674 Y:836",
+      "score": 910797785,
+      "lastSeen": "2026-02-15"
+    },
+    "Lord JAMS": {
+      "coords": "K:98 X:672 Y:842",
+      "score": 903310215,
+      "lastSeen": "2026-02-15"
+    },
+    "Skarabäus Ägypten": {
+      "coords": "K:98 X:671 Y:845",
+      "score": 902683155,
+      "lastSeen": "2026-02-15"
+    },
+    "Alisea": {
+      "coords": "K:98 X:662 Y:848",
+      "score": 898092161,
+      "lastSeen": "2026-02-15"
+    },
+    "Cheffe Matthias": {
+      "coords": "K:98 X:671 Y:837",
+      "score": 887477841,
+      "lastSeen": "2026-02-15"
+    },
+    "BaD Tiger": {
+      "coords": "K:98 X:670 Y:846",
+      "score": 880574944,
+      "lastSeen": "2026-02-15"
+    },
+    "FUBAR": {
+      "coords": "K:98 X:668 Y:850",
+      "score": 878247155,
+      "lastSeen": "2026-02-15"
+    },
+    "Hausarzt": {
+      "coords": "K:98 X:418 Y:568",
+      "score": 867591565,
+      "lastSeen": "2026-02-15"
+    },
+    "Eyel": {
+      "coords": "K:98 X:680 Y:842",
+      "score": 860568231,
+      "lastSeen": "2026-02-15"
+    },
+    "Runebinder": {
+      "coords": "K:98 X:673 Y:845",
+      "score": 856314681,
+      "lastSeen": "2026-02-15"
+    },
+    "Tortenheber": {
+      "coords": "K:98 X:672 Y:836",
+      "score": 848897655,
+      "lastSeen": "2026-02-15"
+    },
+    "Feldjäger": {
+      "coords": "K:98 X:668 Y:844",
+      "score": 831923281,
+      "lastSeen": "2026-02-15"
+    },
+    "Thorocketanos Groot": {
+      "coords": "K:98 X:665 Y:841",
+      "score": 828712362,
+      "lastSeen": "2026-02-15"
+    },
+    "0815": {
+      "coords": "K:98 X:665 Y:851",
+      "score": 795407265,
+      "lastSeen": "2026-02-15"
+    },
+    "Metalla 137": {
+      "coords": "K:98 X:662 Y:846",
+      "score": 487922835,
+      "lastSeen": "2026-02-15"
+    },
+    "Dark Night": {
+      "coords": "K:98 X:667 Y:841",
+      "score": 793743480,
+      "lastSeen": "2026-02-15"
+    },
+    "Philippe 2": {
+      "coords": "K:98 X:677 Y:835",
+      "score": 787841831,
+      "lastSeen": "2026-02-15"
+    },
+    "Bofur": {
+      "coords": "K:98 X:671 Y:847",
+      "score": 783434356,
+      "lastSeen": "2026-02-15"
+    },
+    "Bernado": {
+      "coords": "K:98 X:671 Y:843",
+      "score": 781508325,
+      "lastSeen": "2026-02-15"
+    },
+    "Fablula": {
+      "coords": "K:98 X:671 Y:839",
+      "score": 768711671,
+      "lastSeen": "2026-02-15"
+    },
+    "Ayana": {
+      "coords": "K:98 X:673 Y:839",
+      "score": 762895381,
+      "lastSeen": "2026-02-15"
+    },
+    "Totaur": {
+      "coords": "K:98 X:682 Y:840",
+      "score": 749675591,
+      "lastSeen": "2026-02-15"
+    },
+    "Aragon": {
+      "coords": "K:98 X:670 Y:840",
+      "score": 749285181,
+      "lastSeen": "2026-02-15"
+    },
+    "KatHi": {
+      "coords": "K:98 X:672 Y:846",
+      "score": 736458201,
+      "lastSeen": "2026-02-15"
+    },
+    "Kiruna": {
+      "coords": "K:98 X:676 Y:844",
+      "score": 715429945,
+      "lastSeen": "2026-02-15"
+    },
+    "Sador": {
+      "coords": "K:98 X:674 Y:838",
+      "score": 714112275,
+      "lastSeen": "2026-02-15"
+    },
+    "ChristheFreak": {
+      "coords": "K:98 X:671 Y:841",
+      "score": 707494731,
+      "lastSeen": "2026-02-15"
+    },
+    "DarkGambit": {
+      "coords": "K:98 X:679 Y:845",
+      "score": 700255285,
+      "lastSeen": "2026-02-15"
+    },
+    "Unleashed": {
+      "coords": "K:98 X:669 Y:845",
+      "score": 696816681,
+      "lastSeen": "2026-02-15"
+    },
+    "Spartacus": {
+      "coords": "K:98 X:668 Y:852",
+      "score": 652784281,
+      "lastSeen": "2026-02-15"
+    },
+    "Tugo": {
+      "coords": "K:98 X:670 Y:850",
+      "score": 635934213,
+      "lastSeen": "2026-02-15"
+    },
+    "Gh": {
+      "coords": "K:98 X:676 Y:840",
+      "score": 619311105,
+      "lastSeen": "2026-02-15"
+    },
+    "Drache 1": {
+      "coords": "K:98 X:670 Y:842",
+      "score": 617824395,
+      "lastSeen": "2026-02-15"
+    },
+    "Geoterrasco1": {
+      "coords": "K:98 X:669 Y:839",
+      "score": 610422105,
+      "lastSeen": "2026-02-15"
+    },
+    "Julius Cäsar": {
+      "coords": "K:98 X:675 Y:833",
+      "score": 598581906,
+      "lastSeen": "2026-02-15"
+    },
+    "EraGOn II": {
+      "coords": "K:98 X:667 Y:845",
+      "score": 591362430,
+      "lastSeen": "2026-02-15"
+    },
+    "Moony": {
+      "coords": "K:98 X:673 Y:843",
+      "score": 587473325,
+      "lastSeen": "2026-02-15"
+    },
+    "Bellator": {
+      "coords": "K:98 X:663 Y:845",
+      "score": 584326055,
+      "lastSeen": "2026-02-15"
+    },
+    "Kamillio Uludaz": {
+      "coords": "K:98 X:674 Y:842",
+      "score": 582376465,
+      "lastSeen": "2026-02-15"
+    },
+    "mimin": {
+      "coords": "K:98 X:666 Y:844",
+      "score": 580375195,
+      "lastSeen": "2026-02-15"
+    },
+    "Kisriel": {
+      "coords": "K:98 X:674 Y:834",
+      "score": 576814365,
+      "lastSeen": "2026-02-15"
+    },
+    "A shiver of sharks": {
+      "coords": "K:98 X:661 Y:847",
+      "score": 557774515,
+      "lastSeen": "2026-02-15"
+    },
+    "Strategus": {
+      "coords": "K:98 X:676 Y:834",
+      "score": 543722856,
+      "lastSeen": "2026-02-15"
+    },
+    "Elgin Tonic": {
+      "coords": "K:98 X:663 Y:847",
+      "score": 526286945,
+      "lastSeen": "2026-02-15"
+    },
+    "Goltizshura": {
+      "coords": "K:98 X:676 Y:842",
+      "score": 503211148,
+      "lastSeen": "2026-02-15"
+    },
+    "The Crimson Horror": {
+      "coords": "K:98 X:662 Y:786",
+      "score": 497612301,
+      "lastSeen": "2026-02-15"
+    },
+    "Thaisje": {
+      "coords": "K:98 X:674 Y:844",
+      "score": 494996935,
+      "lastSeen": "2026-02-15"
+    },
+    "Arminius": {
+      "coords": "K:98 X:668 Y:842",
+      "score": 489100871,
+      "lastSeen": "2026-02-15"
+    },
+    "Chompiras": {
+      "coords": "K:98 X:670 Y:838",
+      "score": 482652720,
+      "lastSeen": "2026-02-15"
+    },
+    "Lucky": {
+      "coords": "K:98 X:669 Y:843",
+      "score": 480831291,
+      "lastSeen": "2026-02-15"
+    },
+    "Venom s Kitchen": {
+      "coords": "K:98 X:675 Y:845",
+      "score": 478255515,
+      "lastSeen": "2026-02-15"
+    },
+    "Mumand": {
+      "coords": "K:98 X:664 Y:846",
+      "score": 467499891,
+      "lastSeen": "2026-02-15"
+    },
+    "Promozion": {
+      "coords": "K:98 X:682 Y:836",
+      "score": 452768406,
+      "lastSeen": "2026-02-15"
+    },
+    "Ragnar Ansgar": {
+      "coords": "K:98 X:669 Y:893",
+      "score": 447440095,
+      "lastSeen": "2026-02-15"
+    },
+    "Pronziel": {
+      "coords": "K:98 X:669 Y:893",
+      "score": 452768406,
+      "lastSeen": "2026-02-15"
+    },
+    "La Nagual Magico": {
+      "coords": "K:98 X:669 Y:841",
+      "score": 444493685,
+      "lastSeen": "2026-02-15"
+    },
+    "Tango12": {
+      "coords": "K:98 X:673 Y:841",
+      "score": 444417385,
+      "lastSeen": "2026-02-15"
+    },
+    "Birgit": {
+      "coords": "K:98 X:675 Y:843",
+      "score": 435596326,
+      "lastSeen": "2026-02-15"
+    },
+    "OsmanliTorunu": {
+      "coords": "K:98 X:673 Y:847",
+      "score": 429386502,
+      "lastSeen": "2026-02-15"
+    },
+    "Don Corleone": {
+      "coords": "K:98 X:640 Y:828",
+      "score": 412182194,
+      "lastSeen": "2026-02-15"
+    },
+    "Andreas": {
+      "coords": "K:98 X:679 Y:835",
+      "score": 376446381,
+      "lastSeen": "2026-02-15"
+    },
+    "Dark Force": {
+      "coords": "K:98 X:610 Y:842",
+      "score": 169651831,
+      "lastSeen": "2026-02-15"
+    },
+    "Ijebu Man": {
+      "coords": "K:98 X:664 Y:784",
+      "score": 894805315,
+      "lastSeen": "2026-02-15"
+    },
+    "Dont Ask Why": {
+      "coords": "K:98 X:667 Y:853",
+      "score": 506925783,
+      "lastSeen": "2026-02-15"
+    },
+    "Tanos": {
+      "coords": "K:98 X:672 Y:844",
+      "score": 462962101,
+      "lastSeen": "2026-02-15"
+    },
+    "Malolas": {
+      "coords": "K:98 X:660 Y:850",
+      "score": 418524631,
+      "lastSeen": "2026-02-15"
+    },
+    "Karodor": {
+      "coords": "K:98 X:750 Y:878",
+      "score": 311951611,
+      "lastSeen": "2026-02-15"
+    },
+    "Mork": {
+      "coords": "K:98 X:749 Y:879",
+      "score": 270273655,
+      "lastSeen": "2026-02-15"
+    },
+    "Glor": {
+      "coords": "K:98 X:670 Y:834",
+      "score": 198448063,
+      "lastSeen": "2026-02-15"
+    },
+    "Klan Toilette WC": {
+      "coords": "K:98 X:502 Y:208",
+      "score": 420606,
+      "lastSeen": "2026-02-15"
+    },
+    "Hatsch": {
+      "coords": "K:98 X:674 Y:846",
+      "score": 1633846555,
+      "lastSeen": "2026-02-15"
+    }
   }
 }

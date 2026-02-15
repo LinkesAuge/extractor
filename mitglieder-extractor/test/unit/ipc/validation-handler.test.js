@@ -19,6 +19,9 @@ const mockValidationManager = {
   }))),
   importNames: vi.fn(() => 5),
   exportData: vi.fn(() => ({ knownNames: ['A'], corrections: {} })),
+  compareWithHistory: vi.fn(members => members),
+  updatePlayerHistory: vi.fn(() => 0),
+  playerHistory: {},
 };
 
 vi.mock('electron', () => ({
@@ -30,8 +33,10 @@ vi.mock('electron', () => ({
   app: { isPackaged: false, getPath: () => '/mock' },
 }));
 
+const BOM = '\uFEFF';
+
 vi.mock('fs/promises', () => ({
-  readFile: vi.fn().mockResolvedValue(JSON.stringify({ knownNames: ['ImportedName'] })),
+  readFile: vi.fn().mockResolvedValue(`${'\uFEFF'}Name\r\n"ImportedName"`),
   writeFile: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -72,7 +77,9 @@ describe('validation-handler', () => {
       'load-validation-list', 'save-validation-list',
       'add-validation-name', 'remove-validation-name',
       'add-correction', 'remove-correction',
-      'validate-ocr-results', 'import-validation-list', 'export-validation-list',
+      'validate-ocr-results', 'update-player-history',
+      'import-validation-names-csv', 'export-validation-names-csv',
+      'import-corrections-csv', 'export-corrections-csv',
     ];
     for (const ch of expected) {
       expect(handlers.has(ch)).toBe(true);
@@ -122,19 +129,38 @@ describe('validation-handler', () => {
     });
   });
 
-  describe('import-validation-list', () => {
-    it('imports names from file', async () => {
-      const result = await handlers.get('import-validation-list')({});
+  describe('import-validation-names-csv', () => {
+    it('imports names from CSV file', async () => {
+      const result = await handlers.get('import-validation-names-csv')({});
       expect(result.ok).toBe(true);
       expect(result.added).toBe(5);
+      expect(mockValidationManager.importNames).toHaveBeenCalled();
     });
   });
 
-  describe('export-validation-list', () => {
-    it('exports data to file', async () => {
-      const result = await handlers.get('export-validation-list')({});
+  describe('export-validation-names-csv', () => {
+    it('exports names as CSV', async () => {
+      const result = await handlers.get('export-validation-names-csv')({});
       expect(result.ok).toBe(true);
       expect(result.path).toBe('/mock/export.json');
+    });
+  });
+
+  describe('import-corrections-csv', () => {
+    it('imports corrections from CSV file', async () => {
+      const { readFile } = await import('fs/promises');
+      readFile.mockResolvedValueOnce(`${BOM}OCR-Name,Korrekter Name\r\n"P1ayer","Player"`);
+      const result = await handlers.get('import-corrections-csv')({});
+      expect(result.ok).toBe(true);
+      expect(result.added).toBe(1);
+      expect(mockValidationManager.addCorrection).toHaveBeenCalledWith('P1ayer', 'Player');
+    });
+  });
+
+  describe('export-corrections-csv', () => {
+    it('exports corrections as CSV', async () => {
+      const result = await handlers.get('export-corrections-csv')({});
+      expect(result.ok).toBe(true);
     });
   });
 });

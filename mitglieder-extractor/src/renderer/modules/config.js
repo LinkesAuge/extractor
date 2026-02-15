@@ -28,12 +28,14 @@ export async function saveCurrentConfig() {
     loginPassword: $('#loginPassword').value,
     autoOcr: $('#autoOcrEnabled').checked,
     autoValidation: $('#autoValidationEnabled').checked,
-    autoSave: $('#autoSaveEnabled').checked,
     ocrFolder: $('#ocrFolder').value,
     ocrSettings: getOcrSettings('member'),
     // Advanced OCR (Vision Model)
     ocrEngine: engine,
     ollamaModel: engine === 'vision' ? getSelectedModelId() : undefined,
+    // Quality check thresholds
+    scoreOutlierThreshold: parseFloat($('#scoreOutlierThreshold').value),
+    scoreChangeThreshold: parseFloat($('#scoreChangeThreshold').value),
     // Event settings
     eventRegion: state.eventRegion,
     eventScrollDistance: parseInt($('#eventScrollDistance').value),
@@ -42,7 +44,6 @@ export async function saveCurrentConfig() {
     eventOutputDir: $('#eventOutputDir').value,
     eventAutoOcr: $('#eventAutoOcrEnabled').checked,
     eventAutoValidation: $('#eventAutoValidationEnabled').checked,
-    eventAutoSave: $('#eventAutoSaveEnabled').checked,
     eventOcrFolder: $('#eventOcrFolder').value,
     eventOcrSettings: getOcrSettings('event'),
   });
@@ -82,7 +83,6 @@ export async function loadAndRestoreConfig() {
   // Member toggles
   restoreToggle(c.autoOcr, '#autoOcrEnabled', '#autoOcrToggleText');
   restoreToggle(c.autoValidation, '#autoValidationEnabled', '#autoValidationToggleText');
-  restoreToggle(c.autoSave, '#autoSaveEnabled', '#autoSaveToggleText');
   if (c.ocrFolder) $('#ocrFolder').value = c.ocrFolder;
 
   // Member OCR settings
@@ -99,7 +99,6 @@ export async function loadAndRestoreConfig() {
   // Event toggles
   restoreToggle(c.eventAutoOcr, '#eventAutoOcrEnabled', '#eventAutoOcrToggleText');
   restoreToggle(c.eventAutoValidation, '#eventAutoValidationEnabled', '#eventAutoValidationToggleText');
-  restoreToggle(c.eventAutoSave, '#eventAutoSaveEnabled', '#eventAutoSaveToggleText');
 
   // Event OCR settings
   if (c.eventOcrSettings) restoreOcrSettings(c.eventOcrSettings, 'event');
@@ -107,6 +106,15 @@ export async function loadAndRestoreConfig() {
   if (c.ocrEngine) {
     setActiveEngine(c.ocrEngine);
     if (c.ocrEngine === 'vision') initOllamaUi(c.ollamaModel || null);
+  }
+  // Quality check thresholds
+  if (c.scoreOutlierThreshold != null) {
+    $('#scoreOutlierThreshold').value = c.scoreOutlierThreshold;
+    $('#scoreOutlierThresholdValue').textContent = Math.round(c.scoreOutlierThreshold * 100) + '%';
+  }
+  if (c.scoreChangeThreshold != null) {
+    $('#scoreChangeThreshold').value = c.scoreChangeThreshold;
+    $('#scoreChangeThresholdValue').textContent = Math.round(c.scoreChangeThreshold * 100) + '%';
   }
 }
 

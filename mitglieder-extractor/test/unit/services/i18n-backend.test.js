@@ -51,7 +51,9 @@ describe('i18n-backend', () => {
     it('translates all defined dialog keys', () => {
       const keys = [
         'browseFolder', 'browseCapture', 'exportCsv', 'csvFiles',
-        'allFiles', 'screenshots', 'importValidation', 'exportValidation', 'jsonFiles',
+        'allFiles', 'screenshots',
+        'importOcrCsv', 'importNames', 'exportNames',
+        'importCorrections', 'exportCorrections',
       ];
       for (const key of keys) {
         expect(dt(key)).not.toBe(key);

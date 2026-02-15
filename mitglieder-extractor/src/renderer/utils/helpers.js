@@ -24,6 +24,22 @@ export function escapeHtml(str) {
 }
 
 /**
+ * Escape a string for safe use inside HTML attribute values (e.g. title="...").
+ * Escapes &, <, >, " and ' to prevent attribute breakout.
+ * @param {string} str - Raw string.
+ * @returns {string} Attribute-safe string.
+ */
+export function escapeAttr(str) {
+  if (!str) return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/**
  * Return today's date as YYYY-MM-DD in local timezone.
  * @returns {string} Formatted date string.
  */
