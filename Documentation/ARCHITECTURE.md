@@ -140,18 +140,21 @@ d:\Projekte\WebDev\AssetExtractor\
 │   │   └── prepare-browsers.js     # Build helper: copy Playwright Chromium to pw-browsers/
 │   │
 │   ├── test/
+│   │   ├── benchmarks/             # OCR benchmark scripts (not part of unit tests)
+│   │   │   ├── ocr-benchmark.js        # Tesseract/Vision/Hybrid benchmark against ground truth
+│   │   │   ├── vision-benchmark.js     # Vision model comparison benchmark
+│   │   │   └── event-ocr-benchmark.js  # Event OCR benchmark
+│   │   ├── fixtures/               # Test data (JSON tracked, images gitignored)
+│   │   │   ├── ground-truth.json       # Pixel-verified ground truth (99 members)
+│   │   │   └── event-ground-truth.json # Event ground truth (100 players)
 │   │   ├── mocks/
 │   │   │   └── electron.js         # Centralized Electron API mocks for unit tests
 │   │   ├── unit/
-│   │   │   ├── ocr/                # 8 test files (constants, noise, scores, names, etc.)
+│   │   │   ├── ocr/                # 10 test files (constants, noise, scores, names, etc.)
 │   │   │   ├── ipc/                # 7 test files (all IPC handlers)
 │   │   │   └── services/           # 6 test files (date, i18n, logger, paths, etc.)
-│   │   ├── ocr-benchmark.js        # Tesseract benchmark against ground truth
-│   │   ├── vision-benchmark.js     # Vision/Hybrid benchmark against ground truth
-│   │   ├── event-ocr-benchmark.js  # Event OCR benchmark
-│   │   ├── debug/                  # Debug scripts and verification logs
-│   │   └── fixtures/
-│   │       └── ground-truth.json   # Pixel-verified ground truth (99 members)
+│   │   ├── debug/                  # Diagnostic scripts (gitignored)
+│   │   └── results/                # Benchmark output JSON (gitignored)
 │   │
 │   ├── results/                    # CSV outputs (gitignored)
 │   │   ├── mitglieder/             # Member results (mitglieder_YYYY-MM-DD.csv)
@@ -392,4 +395,4 @@ Fuzzy name matching against a known player database with OCR correction mappings
 | Backend services  | 6     | 53    | date, i18n-backend, gui-logger, scroll-capturer, paths, app-state |
 | IPC handlers      | 7     | 74    | config, dialog, history, validation, browser, capture, OCR |
 
-Additionally, `test/ocr-benchmark.js`, `test/vision-benchmark.js`, and `test/event-ocr-benchmark.js` provide integration-level OCR accuracy benchmarks against the unified ground truth (99 pixel-verified members).
+Additionally, `test/benchmarks/ocr-benchmark.js`, `test/benchmarks/vision-benchmark.js`, and `test/benchmarks/event-ocr-benchmark.js` provide integration-level OCR accuracy benchmarks against the unified ground truth (99 pixel-verified members).

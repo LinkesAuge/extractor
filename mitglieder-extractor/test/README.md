@@ -6,12 +6,23 @@ Systematisches Test- und Optimierungssystem fuer die OCR-Erkennung des Mitgliede
 
 ```
 test/
-  ocr-benchmark.js                  # Tesseract Benchmark-Script
-  vision-benchmark.js               # Vision-OCR Benchmark-Script (Ollama)
-  fixtures/
-    ground-truth.json                # Einzige Ground-Truth (99 Mitglieder, pixel-verifiziert)
-  results/                           # Benchmark-Ergebnisse (JSON, gitignored)
-  debug/                             # Debug-Bilder (gitignored)
+  README.md                          # Diese Datei
+  benchmarks/                        # OCR Benchmark-Scripts
+    ocr-benchmark.js                   # Tesseract/Vision/Hybrid Benchmark
+    vision-benchmark.js                # Vision-OCR Benchmark (Ollama-Modelle)
+    event-ocr-benchmark.js             # Event-OCR Benchmark
+  fixtures/                          # Testdaten
+    ground-truth.json                  # Mitglieder Ground-Truth (99, pixel-verifiziert)
+    event-ground-truth.json            # Event Ground-Truth (100 Spieler)
+  unit/                              # Unit-Tests (Vitest)
+    ocr/                               # OCR-Modul-Tests (10 Dateien)
+    ipc/                               # IPC-Handler-Tests (7 Dateien)
+    services/                          # Service-Tests (6 Dateien)
+    validation-manager.test.js         # Validierungssystem-Tests
+  mocks/                             # Shared Electron-Mocks
+    electron.js
+  debug/                             # Diagnose-Scripts (gitignored)
+  results/                           # Benchmark-Ergebnisse (gitignored)
 ```
 
 ## Ground-Truth
@@ -65,7 +76,7 @@ Der Benchmark verwendet die echte OCR-Pipeline (Sub-Region-Cropping, spezialisie
 
 ```bash
 cd mitglieder-extractor
-node test/ocr-benchmark.js
+node test/benchmarks/ocr-benchmark.js
 ```
 
 Laeuft die Tesseract-Pipeline (mit Row-Cropping und Sub-Region-Extraktion) auf allen Screenshots durch. Dauert ca. 30 Sekunden.
@@ -73,22 +84,22 @@ Laeuft die Tesseract-Pipeline (mit Row-Cropping und Sub-Region-Extraktion) auf a
 ### Bestimmte Engine testen
 
 ```bash
-node test/ocr-benchmark.js --engine tesseract   # Tesseract (Standard)
-node test/ocr-benchmark.js --engine vision       # Vision-OCR (erfordert Ollama)
-node test/ocr-benchmark.js --engine hybrid       # Hybrid (Vision + Tesseract)
-node test/ocr-benchmark.js --engine all          # Alle Engines vergleichen
+node test/benchmarks/ocr-benchmark.js --engine tesseract   # Tesseract (Standard)
+node test/benchmarks/ocr-benchmark.js --engine vision       # Vision-OCR (erfordert Ollama)
+node test/benchmarks/ocr-benchmark.js --engine hybrid       # Hybrid (Vision + Tesseract)
+node test/benchmarks/ocr-benchmark.js --engine all          # Alle Engines vergleichen
 ```
 
 ### Eigenen Capture-Ordner verwenden
 
 ```bash
-node test/ocr-benchmark.js --folder ./captures/mitglieder/screenshot_20260215_14_30
+node test/benchmarks/ocr-benchmark.js --folder ./captures/mitglieder/screenshot_20260215_14_30
 ```
 
 ### Eigene Ground-Truth verwenden
 
 ```bash
-node test/ocr-benchmark.js --gt ./test/fixtures/my-ground-truth.json
+node test/benchmarks/ocr-benchmark.js --gt ./test/fixtures/my-ground-truth.json
 ```
 
 ## Benchmark-Ausgabe
@@ -171,7 +182,7 @@ Die Ergebnisse enthalten alle Metriken pro Engine und koennen fuer historische V
 
 5. **Benchmark ausfuehren und verifizieren**:
    ```bash
-   node test/ocr-benchmark.js
+   node test/benchmarks/ocr-benchmark.js
    ```
 
 ### Tipps
@@ -194,37 +205,37 @@ Die Ergebnisse enthalten alle Metriken pro Engine und koennen fuer historische V
 
 ```bash
 cd mitglieder-extractor
-node test/vision-benchmark.js
+node test/benchmarks/vision-benchmark.js
 ```
 
 ### Bestimmtes Modell testen
 
 ```bash
-node test/vision-benchmark.js --model qwen3-vl-2b
+node test/benchmarks/vision-benchmark.js --model qwen3-vl-2b
 ```
 
 ### Alle installierten Modelle vergleichen
 
 ```bash
-node test/vision-benchmark.js --model all
+node test/benchmarks/vision-benchmark.js --model all
 ```
 
 ### Eigenen Capture-Ordner verwenden
 
 ```bash
-node test/vision-benchmark.js --folder ./captures/mitglieder/screenshot_20260215_14_30
+node test/benchmarks/vision-benchmark.js --folder ./captures/mitglieder/screenshot_20260215_14_30
 ```
 
 ### Verbose-Modus (alle Ollama-Logs anzeigen)
 
 ```bash
-node test/vision-benchmark.js --verbose
+node test/benchmarks/vision-benchmark.js --verbose
 ```
 
 ### Eigene Ground-Truth verwenden
 
 ```bash
-node test/vision-benchmark.js --gt ./test/fixtures/my-ground-truth.json
+node test/benchmarks/vision-benchmark.js --gt ./test/fixtures/my-ground-truth.json
 ```
 
 ### Verfuegbare Modelle

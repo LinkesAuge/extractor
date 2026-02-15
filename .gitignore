@@ -48,5 +48,7 @@ npm-debug.log*
 
 
 
-# Test fixtures: ground-truth.json is TRACKED (do NOT ignore)
-# mitglieder-extractor/test/fixtures/ ← intentionally tracked for reproducible tests
+# Test fixtures: JSON ground-truth files are TRACKED; screenshot images are NOT
+# (screenshots are too large for git — benchmarks reference captures/ via captureFolder path)
+mitglieder-extractor/test/fixtures/**/*.png
+mitglieder-extractor/test/fixtures/**/*.jpg

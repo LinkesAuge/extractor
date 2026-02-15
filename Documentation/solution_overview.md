@@ -326,9 +326,9 @@ npm run dist
 
 ### OCR Benchmarks
 
-- `test/ocr-benchmark.js`: Tesseract benchmark against ground truth.
-- `test/vision-benchmark.js`: Vision and Hybrid benchmark against ground truth.
-- `test/event-ocr-benchmark.js`: Event OCR benchmark.
+- `test/benchmarks/ocr-benchmark.js`: Tesseract/Vision/Hybrid benchmark against ground truth.
+- `test/benchmarks/vision-benchmark.js`: Vision model comparison benchmark.
+- `test/benchmarks/event-ocr-benchmark.js`: Event OCR benchmark.
 - Ground truth: `test/fixtures/ground-truth.json` (99 pixel-verified members from 86 screenshots).
 - Not part of the automated test suite — run manually for OCR parameter tuning.
 

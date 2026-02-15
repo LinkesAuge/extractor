@@ -5,11 +5,11 @@
  * und vergleicht die Ergebnisse gegen eine Event-Ground-Truth Datei.
  *
  * Usage:
- *   node test/event-ocr-benchmark.js                          # Alle Presets testen
- *   node test/event-ocr-benchmark.js --preset current         # Nur ein Preset
- *   node test/event-ocr-benchmark.js --folder path/to/caps    # Anderer Capture-Ordner
- *   node test/event-ocr-benchmark.js --single 0009            # Nur ein Screenshot (Debug)
- *   node test/event-ocr-benchmark.js --raw 0009               # Rohen OCR-Text fuer einen Screenshot anzeigen
+ *   node test/benchmarks/event-ocr-benchmark.js                          # Alle Presets testen
+ *   node test/benchmarks/event-ocr-benchmark.js --preset current         # Nur ein Preset
+ *   node test/benchmarks/event-ocr-benchmark.js --folder path/to/caps    # Anderer Capture-Ordner
+ *   node test/benchmarks/event-ocr-benchmark.js --single 0009            # Nur ein Screenshot (Debug)
+ *   node test/benchmarks/event-ocr-benchmark.js --raw 0009               # Rohen OCR-Text fuer einen Screenshot anzeigen
  */
 
 import { readFile, readdir, writeFile, mkdir } from 'fs/promises';
@@ -130,7 +130,7 @@ async function preprocessImage(buffer, settings) {
 let OcrProcessor;
 
 async function loadProcessor() {
-  const mod = await import('../src/ocr-processor.js');
+  const mod = await import('../../src/ocr-processor.js');
   OcrProcessor = mod.OcrProcessor || mod.default;
 }
 
@@ -159,7 +159,7 @@ async function analyzeRaw(folder, filePattern, settings) {
   const processed = await preprocessImage(buffer, settings);
 
   // Verarbeitetes Bild speichern fuer visuelle Inspektion
-  const debugDir = join(__dirname, 'debug');
+  const debugDir = join(__dirname, '..', 'debug');
   await mkdir(debugDir, { recursive: true });
   await writeFile(join(debugDir, `event_preprocessed_${file}`), processed);
   console.log(`Vorverarbeitetes Bild gespeichert: test/debug/event_preprocessed_${file}`);
@@ -652,11 +652,11 @@ async function main() {
   await loadProcessor();
 
   // Ground-Truth laden
-  const gtPath = join(__dirname, 'fixtures', 'event-ground-truth.json');
+  const gtPath = join(__dirname, '..', 'fixtures', 'event-ground-truth.json');
   const gt = await loadGroundTruth(gtPath);
 
   // Capture-Ordner bestimmen
-  const fixturesDir = join(__dirname, 'fixtures');
+  const fixturesDir = join(__dirname, '..', 'fixtures');
   const folder = customFolder
     ? resolve(customFolder)
     : resolve(fixturesDir, gt.captureFolder);
@@ -717,7 +717,7 @@ async function main() {
   }
 
   // Ergebnisse als JSON speichern
-  const outDir = join(__dirname, 'results');
+  const outDir = join(__dirname, '..', 'results');
   await mkdir(outDir, { recursive: true });
   const outPath = join(outDir, `event_benchmark_${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
   await writeFile(outPath, JSON.stringify(allResults, null, 2));

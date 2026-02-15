@@ -5,18 +5,18 @@
  * and reports accuracy metrics. Supports all three OCR engines.
  *
  * Usage:
- *   node test/ocr-benchmark.js                          # Default engine (tesseract)
- *   node test/ocr-benchmark.js --engine vision           # Vision OCR (requires Ollama)
- *   node test/ocr-benchmark.js --engine hybrid           # Hybrid engine
- *   node test/ocr-benchmark.js --engine all              # Run all engines and compare
- *   node test/ocr-benchmark.js --folder path/to/caps     # Custom capture folder
- *   node test/ocr-benchmark.js --gt path/to/gt.json      # Custom ground-truth file
+ *   node test/benchmarks/ocr-benchmark.js                          # Default engine (tesseract)
+ *   node test/benchmarks/ocr-benchmark.js --engine vision           # Vision OCR (requires Ollama)
+ *   node test/benchmarks/ocr-benchmark.js --engine hybrid           # Hybrid engine
+ *   node test/benchmarks/ocr-benchmark.js --engine all              # Run all engines and compare
+ *   node test/benchmarks/ocr-benchmark.js --folder path/to/caps     # Custom capture folder
+ *   node test/benchmarks/ocr-benchmark.js --gt path/to/gt.json      # Custom ground-truth file
  */
 
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import { join, resolve } from 'path';
 import { fileURLToPath } from 'url';
-import { createOcrProvider, OCR_ENGINES } from '../src/ocr/provider-factory.js';
+import { createOcrProvider, OCR_ENGINES } from '../../src/ocr/provider-factory.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
@@ -277,11 +277,11 @@ async function main() {
   }
 
   // Load ground truth
-  const gtPath = customGt || join(__dirname, 'fixtures', 'ground-truth.json');
+  const gtPath = customGt || join(__dirname, '..', 'fixtures', 'ground-truth.json');
   const gt = await loadGroundTruth(gtPath);
 
   // Resolve capture folder
-  const fixturesDir = join(__dirname, 'fixtures');
+  const fixturesDir = join(__dirname, '..', 'fixtures');
   const folder = customFolder
     ? resolve(customFolder)
     : resolve(fixturesDir, gt.captureFolder);
@@ -329,7 +329,7 @@ async function main() {
   printSummaryTable(allResults.filter(r => !r.error));
 
   // Save results
-  const outDir = join(__dirname, 'results');
+  const outDir = join(__dirname, '..', 'results');
   await mkdir(outDir, { recursive: true });
   const outPath = join(outDir, `benchmark_${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
   await writeFile(outPath, JSON.stringify(allResults, null, 2));

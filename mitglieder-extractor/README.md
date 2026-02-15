@@ -422,10 +422,13 @@ mitglieder-extractor/
   scripts/
     prepare-browsers.js  # Build-Helfer: Playwright Chromium lokal kopieren
   test/
-    ocr-benchmark.js     # Benchmark-System fuer OCR-Optimierung
-    vision-benchmark.js  # Vision-OCR Benchmark (Ollama)
+    benchmarks/            # OCR Benchmark-Scripts
+      ocr-benchmark.js       # Tesseract/Vision/Hybrid Benchmark
+      vision-benchmark.js    # Vision-OCR Benchmark (Ollama)
+      event-ocr-benchmark.js # Event-OCR Benchmark
     fixtures/
-      ground-truth.json  # Pixel-verifizierte Referenzdaten (99 Mitglieder)
+      ground-truth.json      # Pixel-verifizierte Referenzdaten (99 Mitglieder)
+      event-ground-truth.json # Event-Referenzdaten (100 Spieler)
   dist/                  # Build-Output (Installer, gitignored)
   pw-browsers/           # Lokale Playwright-Browser fuer Build (gitignored)
   captures/              # Aufgenommene Screenshots (gitignored)
@@ -599,15 +602,15 @@ Siehe [Test-Dokumentation](test/README.md) fuer Details zum Benchmark-System.
 
 ```bash
 # Tesseract-Benchmark (Standard)
-node test/ocr-benchmark.js
+node test/benchmarks/ocr-benchmark.js
 
 # Bestimmte Engine testen
-node test/ocr-benchmark.js --engine tesseract
-node test/ocr-benchmark.js --engine vision
-node test/ocr-benchmark.js --engine hybrid
+node test/benchmarks/ocr-benchmark.js --engine tesseract
+node test/benchmarks/ocr-benchmark.js --engine vision
+node test/benchmarks/ocr-benchmark.js --engine hybrid
 
 # Eigenen Capture-Ordner verwenden
-node test/ocr-benchmark.js --folder path/to/captures
+node test/benchmarks/ocr-benchmark.js --folder path/to/captures
 ```
 
 ## Lizenz

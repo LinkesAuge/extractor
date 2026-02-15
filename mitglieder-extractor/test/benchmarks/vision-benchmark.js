@@ -7,22 +7,22 @@
  * Voraussetzung: Ollama muss laufen und das gewuenschte Modell geladen sein.
  *
  * Usage:
- *   node test/vision-benchmark.js                        # GLM-OCR (default)
- *   node test/vision-benchmark.js --model glm-ocr        # Bestimmtes Modell
- *   node test/vision-benchmark.js --model all             # Alle installierten Modelle
- *   node test/vision-benchmark.js --folder path/to/caps   # Anderer Capture-Ordner
- *   node test/vision-benchmark.js --gt path/to/gt.json    # Andere Ground-Truth
- *   node test/vision-benchmark.js --hybrid                # Hybrid: Vision+Tesseract
+ *   node test/benchmarks/vision-benchmark.js                        # GLM-OCR (default)
+ *   node test/benchmarks/vision-benchmark.js --model glm-ocr        # Bestimmtes Modell
+ *   node test/benchmarks/vision-benchmark.js --model all             # Alle installierten Modelle
+ *   node test/benchmarks/vision-benchmark.js --folder path/to/caps   # Anderer Capture-Ordner
+ *   node test/benchmarks/vision-benchmark.js --gt path/to/gt.json    # Andere Ground-Truth
+ *   node test/benchmarks/vision-benchmark.js --hybrid                # Hybrid: Vision+Tesseract
  */
 
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import { join, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
-import { VisionProvider } from '../src/ocr/providers/vision-provider.js';
-import { HybridProvider } from '../src/ocr/providers/hybrid-provider.js';
-import { MODEL_REGISTRY } from '../src/services/ollama/model-registry.js';
-import { listModels } from '../src/services/ollama/ollama-api.js';
+import { VisionProvider } from '../../src/ocr/providers/vision-provider.js';
+import { HybridProvider } from '../../src/ocr/providers/hybrid-provider.js';
+import { MODEL_REGISTRY } from '../../src/services/ollama/model-registry.js';
+import { listModels } from '../../src/services/ollama/ollama-api.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
@@ -387,11 +387,11 @@ async function main() {
   // Ground-Truth laden
   const gtPath = customGt
     ? resolve(customGt)
-    : join(__dirname, 'fixtures', 'ground-truth.json');
+    : join(__dirname, '..', 'fixtures', 'ground-truth.json');
   const gt = await loadGroundTruth(gtPath);
 
   // Capture-Ordner bestimmen
-  const fixturesDir = join(__dirname, 'fixtures');
+  const fixturesDir = join(__dirname, '..', 'fixtures');
   const folder = customFolder
     ? resolve(customFolder)
     : resolve(fixturesDir, gt.captureFolder);
@@ -460,7 +460,7 @@ async function main() {
   }
 
   // Ergebnisse als JSON speichern
-  const outDir = join(__dirname, 'results');
+  const outDir = join(__dirname, '..', 'results');
   await mkdir(outDir, { recursive: true });
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const outPath = join(outDir, `vision_benchmark_${timestamp}.json`);

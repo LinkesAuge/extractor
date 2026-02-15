@@ -65,9 +65,9 @@ Single unified file: `test/fixtures/ground-truth.json` — 99 pixel-verified mem
 
 | Script | Purpose |
 |--------|---------|
-| `test/ocr-benchmark.js` | Tesseract benchmark against ground truth |
-| `test/vision-benchmark.js` | Vision/Hybrid benchmark against ground truth |
-| `test/event-ocr-benchmark.js` | Event OCR benchmark |
+| `test/benchmarks/ocr-benchmark.js` | Tesseract/Vision/Hybrid benchmark against ground truth |
+| `test/benchmarks/vision-benchmark.js` | Vision model comparison benchmark |
+| `test/benchmarks/event-ocr-benchmark.js` | Event OCR benchmark |
 
 ### App Features
 

@@ -4,7 +4,7 @@ export default defineConfig({
   test: {
     globals: true,
     include: ['test/**/*.test.js'],
-    exclude: ['test/ocr-benchmark.js', 'test/event-ocr-benchmark.js', 'test/vision-benchmark.js'],
+    exclude: ['test/benchmarks/**'],
     testTimeout: 15000,
     hookTimeout: 10000,
     coverage: {

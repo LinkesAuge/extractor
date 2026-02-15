@@ -6,6 +6,16 @@
 
 ---
 
+## 2026-02-15 — Test Folder Reorganization
+
+- **Moved benchmark scripts** to `test/benchmarks/` subfolder (`ocr-benchmark.js`, `vision-benchmark.js`, `event-ocr-benchmark.js`). Updated all import paths and `__dirname` references.
+- **Removed old baseline images from git**: `test/fixtures/baseline_20260208_22_56/` (25 screenshots, 8.4 MB, unreferenced) and `test/fixtures/event_baseline_20260209_16_26/` (33 screenshots, deleted from disk).
+- **Added `.gitignore`** entry to ignore `test/fixtures/**/*.png` and `*.jpg` — only JSON ground-truth files are tracked.
+- **Updated `vitest.config.js`** exclude pattern from individual file names to `test/benchmarks/**`.
+- **Updated documentation** across `ARCHITECTURE.md`, `handoff_summary.md`, `solution_overview.md`, `mitglieder-extractor/README.md`, and `test/README.md` with new paths and directory structure.
+
+---
+
 ## 2026-02-14 — Hybrid Provider Redesign (Vision Names + Tesseract Scores)
 
 Rewrote the hybrid OCR provider to use a clean separation of responsibilities: Vision model handles name/coordinate extraction, Tesseract handles score extraction exclusively.
